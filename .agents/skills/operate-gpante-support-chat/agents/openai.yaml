@@ -1,0 +1,4 @@
+interface:
+  display_name: "پشتیبانی جی‌پانته"
+  short_description: "توسعه و نگهداری چت پشتیبانی فروشگاه جی‌پانته"
+  default_prompt: "با $operate-gpante-support-chat وضعیت پروژهٔ چت gpante.com را بررسی کن و کار را در محدودهٔ درخواست ادامه بده."

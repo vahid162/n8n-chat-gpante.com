@@ -1,5 +1,6 @@
 // Kept import-free so the same source can run in an n8n Code node.
 const ATTRIBUTE_TAXONOMY = { format: 'pa_file-format', thickness: 'pa_thickness', material: 'pa_materials-required' };
+const MAX_TOOL_OUTPUT = 16000;
 function normalize(value) {
   if (typeof value !== 'string') throw new Error('Expected text.');
   return value.normalize('NFKC')
@@ -18,7 +19,7 @@ function plainObject(value) {
 
 function positiveInteger(value, label) {
   const raw = typeof value === 'number' ? String(value) : typeof value === 'string' ? normalize(value) : '';
-  if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(Number(raw))) throw new Error(`Invalid ${label}.`);
+  if (!/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(Number(raw)) || Number(raw) > 2147483647) throw new Error(`Invalid ${label}.`);
   return Number(raw);
 }
 
@@ -26,6 +27,13 @@ function inputText(value, label, allowEmpty = false) {
   if (typeof value !== 'string' || value.length > 320) throw new Error(`Invalid ${label}.`);
   const result = normalize(value);
   if (result.length > 160 || (!allowEmpty && !result)) throw new Error(`Invalid ${label}.`);
+  return result;
+}
+
+function searchText(value) {
+  if (typeof value !== 'string' || /[\u0000-\u001F\u007F]/.test(value)) throw new Error('Invalid search.');
+  const result = inputText(value, 'search', true);
+  if (!/^[\p{L}\p{N} ._-]*$/u.test(result) || result && result.split(' ').length > 8) throw new Error('Invalid search.');
   return result;
 }
 
@@ -71,42 +79,38 @@ function prepare(kind, rawQuery) {
     try { query = JSON.parse(query); } catch { throw new Error('Query must be a JSON object.'); }
   }
   if (!plainObject(query)) throw new Error('Query must be an object.');
-  const allowed = { search: ['search', 'format', 'thickness', 'material', 'page'], details: ['productId'], knowledge: ['search', 'source', 'page'] }[kind];
+  const allowed = { search: ['search', 'format', 'thickness', 'material', 'page', 'sort'], details: ['productId'], knowledge: ['search', 'source', 'page'] }[kind];
   if (Object.keys(query).some((key) => !allowed.includes(key))) throw new Error('Unsupported query field.');
   const page = query.page === undefined ? 1 : positiveInteger(query.page, 'page');
   const context = { kind, page, perPage: kind === 'details' ? 1 : kind === 'knowledge' ? 3 : 5, constraints: {} };
-  const qs = { page, per_page: context.perPage };
+  const qs = { page };
   if (kind === 'knowledge') {
     const source = query.source === undefined ? 'articles' : inputText(query.source, 'source');
     if (!['articles', 'guides'].includes(source)) throw new Error('Unsupported knowledge source.');
     context.source = source;
-    qs.status = 'publish';
-    qs._fields = source === 'guides' ? 'id,link,title,content,status' : 'id,link,title,excerpt,status';
-    if (query.search !== undefined) qs.search = inputText(query.search, 'search', true);
-    if (source === 'guides') qs.include = '4752,4743';
-    return { url: `https://gpante.com/wp-json/wp/v2/${source === 'guides' ? 'pages' : 'posts'}`, qs, context };
+    qs.source = source;
+    if (query.search !== undefined) qs.search = searchText(query.search);
+    return { url: 'https://gpante.com/wp-json/gpante-support/v1/knowledge', qs, context };
   }
-  qs.catalog_visibility = 'search';
-  qs._fields = 'id,name,permalink,short_description,prices,attributes,images,is_in_stock,on_sale';
   if (kind === 'details') {
     context.productId = positiveInteger(query.productId, 'productId');
-    qs.include = context.productId;
+    delete qs.page;
+    qs.productId = context.productId;
   } else {
-    qs.search = inputText(query.search, 'search', true);
-    qs.attribute_relation = 'and';
-    let index = 0;
+    qs.search = query.search === undefined ? '' : searchText(query.search);
+    context.sort = query.sort === undefined ? 'relevance' : inputText(query.sort, 'sort');
+    if (!['relevance', 'price_asc'].includes(context.sort)) throw new Error('Unsupported sort.');
+    qs.sort = context.sort;
     for (const key of ['format', 'thickness', 'material']) {
       if (query[key] !== undefined) {
         const slug = attributeTerm(key, query[key]);
         context.constraints[key] = slug;
-        qs[`attributes[${index}][attribute]`] = ATTRIBUTE_TAXONOMY[key];
-        qs[`attributes[${index}][slug]`] = slug;
-        index += 1;
+        qs[key] = slug;
       }
     }
-    if (!qs.search && !index) throw new Error('Supply search text or at least one attribute.');
+    if (!qs.search && !Object.keys(context.constraints).length) throw new Error('Supply search text or at least one attribute.');
   }
-  return { url: 'https://gpante.com/wp-json/wc/store/v1/products', qs, context };
+  return { url: 'https://gpante.com/wp-json/gpante-support/v1/products', qs, context };
 }
 
 function publicText(value, limit) {
@@ -160,8 +164,9 @@ function publicPrice(value) {
 function publicProduct(item, context) {
   if (!plainObject(item) || !Number.isSafeInteger(item.id) || item.id < 1
     || typeof item.name !== 'string' || !item.name.trim() || !safeLink(item.permalink, 'product')
-    || item.catalog_visibility === 'hidden' || item.catalog_visibility === 'catalog'
-    || item.status !== undefined && item.status !== 'publish') throw new Error('Invalid product.');
+    || !['visible', 'catalog', 'search'].includes(item.catalog_visibility)
+    || item.is_password_protected !== false || item.status !== 'publish'
+    || typeof item.type !== 'string' || !item.type || item.type === 'variation') throw new Error('Invalid product.');
   if (context.kind === 'details' && item.id !== context.productId) throw new Error('Wrong product.');
   if (item.attributes !== undefined && !Array.isArray(item.attributes)) throw new Error('Invalid attributes.');
   const attributes = (item.attributes || []).map((attribute) => {
@@ -177,7 +182,10 @@ function publicProduct(item, context) {
   }).slice(0, 30);
   for (const [key, slug] of Object.entries(context.constraints)) {
     if (!attributes.some((attribute) => attribute.taxonomy === ATTRIBUTE_TAXONOMY[key]
-      && attribute.terms.some((term) => normalize(term.slug) === normalize(slug)))) {
+      && attribute.terms.some((term) => normalize(term.slug) === normalize(slug)
+        // The provider verifies the actual OR-term name before expanding compatibility.
+        || key === 'material' && ['mdf', 'plexiglass'].includes(slug)
+          && term.slug === 'mdf-plexiglass' && normalize(term.name) === 'mdf یا پلکسی'))) {
       const error = new Error('Source did not honor requested attributes.');
       error.code = 'constraint_mismatch';
       throw error;
@@ -196,7 +204,7 @@ function publicProduct(item, context) {
 function publicArticle(item, context) {
   const snippet = item && (context.source === 'guides' ? item.content : item.excerpt);
   if (!plainObject(item) || !Number.isSafeInteger(item.id) || item.id < 1 || !safeLink(item.link, 'page')
-    || item.status !== undefined && item.status !== 'publish'
+    || item.status !== 'publish' || item.is_password_protected !== false
     || context.source === 'guides' && ![4752, 4743].includes(item.id)
     || !plainObject(item.title) || typeof item.title.rendered !== 'string'
     || !plainObject(snippet) || typeof snippet.rendered !== 'string'
@@ -255,11 +263,22 @@ function shape(context, httpResponse) {
     results = body.map((item) => kind === 'knowledge' ? publicArticle(item, context) : publicProduct(item, context));
     if (new Set(results.map((item) => item.id)).size !== results.length) return fail('invalid_response');
   } catch (error) { return fail(error.code === 'constraint_mismatch' ? error.code : 'invalid_response'); }
-  return {
+  if (kind === 'search' && context.sort === 'price_asc') {
+    if (results.some((item) => item.price === null)
+      || results.some((item) => item.price.currency !== results[0].price.currency || item.price.minorUnit !== results[0].price.minorUnit)) return fail('sort_unverifiable');
+    for (let index = 1; index < results.length; index += 1) {
+      const previous = results[index - 1].price.minorAmount;
+      const current = results[index].price.minorAmount;
+      if (previous.length > current.length || previous.length === current.length && previous > current) return fail('sort_mismatch');
+    }
+  }
+  const result = {
     ok: true, status: !results.length ? 'no_matches' : hasMore === false ? 'ok' : 'partial', kind, results,
     pagination: { page: context.page, perPage: context.perPage, total, totalPages, hasMore, scope: 'server_filtered_page' },
-    ...(kind === 'search' && Object.keys(context.constraints).length ? { constraints: context.constraints, attributeMatching: 'exact_taxonomy_terms' } : {}),
+    ...(kind === 'search' ? { sort: context.sort, ...(Object.keys(context.constraints).length
+      ? { constraints: context.constraints, attributeMatching: 'verified_taxonomy_compatibility' } : {}) } : {}),
   };
+  return JSON.stringify(result).length > MAX_TOOL_OUTPUT ? fail('response_too_large') : result;
 }
 
 module.exports = { normalize, prepare, shape };

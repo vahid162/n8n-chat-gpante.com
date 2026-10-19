@@ -17,6 +17,10 @@ function product(overrides = {}) {
   return {
     id: 49304,
     name: 'فایل برش لیزر باکس آجیل دامان',
+    status: 'publish',
+    type: 'simple',
+    catalog_visibility: 'visible',
+    is_password_protected: false,
     permalink: 'https://gpante.com/product/daman/',
     short_description: '<p>فایل مناسب برش لیزر</p>',
     prices: { price: '0', regular_price: '125000', sale_price: '0', currency_code: 'IRT', currency_symbol: 'تومان', currency_minor_unit: 0 },
@@ -42,18 +46,15 @@ test('normalization supports Persian/Arabic digits, letters, decimal marks and s
   assert.equal(normalize('ي ك ۱۲۳ ٤٥٦'), 'ی ک 123 456');
 });
 
-test('search keeps all constraints and only fixed public Store API destination', () => {
+test('search keeps all constraints and only the fixed eligible public provider destination', () => {
   const result = prepare('search', '{"search":"باكس آجیل","format":"DXF","thickness":"۲٫۷","material":"MDF","page":"۲"}');
-  assert.equal(result.url, 'https://gpante.com/wp-json/wc/store/v1/products');
+  assert.equal(result.url, 'https://gpante.com/wp-json/gpante-support/v1/products');
   assert.equal(result.qs.search, 'باکس آجیل');
-  assert.equal(result.qs.catalog_visibility, 'search');
-  assert.equal(result.qs.attribute_relation, 'and');
-  assert.equal(result.qs['attributes[0][attribute]'], 'pa_file-format');
-  assert.equal(result.qs['attributes[0][slug]'], 'dxf');
-  assert.equal(result.qs['attributes[1][slug]'], '2-7');
-  assert.equal(result.qs['attributes[2][slug]'], 'mdf');
+  assert.equal(result.qs.format, 'dxf');
+  assert.equal(result.qs.thickness, '2-7');
+  assert.equal(result.qs.material, 'mdf');
   assert.equal(result.qs.page, 2);
-  assert.equal(result.qs.per_page, 5);
+  assert.equal(result.context.perPage, 5);
   assert.equal(prepare('search', { search: 'فایل', material: 'پلکسی' }).context.constraints.material, 'plexiglass');
   assert.equal(prepare('search', { search: 'فایل', thickness: '۲٫۶ میلی متر' }).context.constraints.thickness, '2-6-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1');
   assert.equal(prepare('search', { search: 'فایل', material: 'چوب' }).context.constraints.material, '%da%86%d9%88%d8%a8');
@@ -81,9 +82,8 @@ test('unknown parameters, unsupported constraints and malformed pagination are r
 
 test('details cannot bypass public discovery visibility and product IDs must be positive integers', () => {
   const request = prepare('details', { productId: '۴۹۳۰۴' });
-  assert.equal(request.url, 'https://gpante.com/wp-json/wc/store/v1/products');
-  assert.equal(request.qs.include, 49304);
-  assert.equal(request.qs.catalog_visibility, 'search');
+  assert.equal(request.url, 'https://gpante.com/wp-json/gpante-support/v1/products');
+  assert.equal(request.qs.productId, 49304);
   for (const productId of [0, -1, 1.2, '1/../../users', '1,2', Number.MAX_SAFE_INTEGER + 1]) {
     assert.throws(() => prepare('details', { productId }));
   }
@@ -121,6 +121,32 @@ test('constraint mismatch or missing attributes cannot become relaxed product ma
   assert.equal(shape(context, response([other])).status, 'constraint_mismatch');
 });
 
+test('verified MDF-or-plexiglass is compatible while combined-required materials stay distinct', () => {
+  const context = prepare('search', { material: 'mdf' }).context;
+  const material = (slug, name) => product({ attributes: [{ taxonomy: 'pa_materials-required', name: 'متریال', terms: [{ slug, name }] }] });
+  assert.equal(shape(context, response([material('mdf-plexiglass', 'MDF یا پلکسی')])).ok, true);
+  assert.equal(shape(context, response([material('mdf-plexiglass', 'MDF و پلکسی')])).status, 'constraint_mismatch');
+  assert.equal(shape(context, response([material('mdf-%d9%88-%d9%be%d9%84%da%a9%d8%b3%db%8c', 'MDF و پلکسی')])).status, 'constraint_mismatch');
+  assert.equal(shape(context, response([material('mdf-plxi', 'MDF/ PLXI')])).status, 'constraint_mismatch');
+  const combined = prepare('search', { material: 'mdf و پلکسی' }).context;
+  assert.equal(shape(combined, response([material('mdf', 'MDF')])).status, 'constraint_mismatch');
+});
+
+test('invalid and absent prices remain distinct and unsafe links cannot hide behind encoding', () => {
+  const context = prepare('search', { search: 'فایل' }).context;
+  assert.equal(shape(context, response([product({ prices: null })])).results[0].price, null);
+  for (const prices of [{ price: 10, currency_code: 'IRT', currency_minor_unit: 0 },
+    { price: '-1', currency_code: 'IRT', currency_minor_unit: 0 },
+    { price: '10', currency_code: 'irt', currency_minor_unit: 0 },
+    { price: '10', currency_code: 'IRT', currency_minor_unit: 1.5 }]) {
+    assert.equal(shape(context, response([product({ prices })])).status, 'invalid_response');
+  }
+  for (const permalink of ['https://gpante.com/product/%2e%2e/', 'https://gpante.com/product/a%00/',
+    'https://gpante.com/product/a%5cb/']) {
+    assert.equal(shape(context, response([product({ permalink })])).status, 'invalid_response');
+  }
+});
+
 test('malformed payloads, API failures, throttling and empty results have different outcomes', () => {
   const context = prepare('search', { search: 'آجیل' }).context;
   assert.equal(shape(context, response([])).status, 'no_matches');
@@ -148,14 +174,13 @@ test('unsafe product links fail closed while unsafe images are excluded', () => 
 
 test('knowledge uses only public posts or the two approved public guide pages', () => {
   const posts = prepare('knowledge', { search: 'دانلود' });
-  assert.equal(posts.url, 'https://gpante.com/wp-json/wp/v2/posts');
-  assert.equal(posts.qs.status, 'publish');
-  assert.equal(posts.qs.per_page, 3);
+  assert.equal(posts.url, 'https://gpante.com/wp-json/gpante-support/v1/knowledge');
+  assert.equal(posts.qs.source, 'articles');
+  assert.equal(posts.context.perPage, 3);
   const guides = prepare('knowledge', { source: 'guides' });
-  assert.equal(guides.url, 'https://gpante.com/wp-json/wp/v2/pages');
-  assert.equal(guides.qs.include, '4752,4743');
-  assert.equal(guides.qs._fields.includes('content'), true);
-  const publicGuide = shape(guides.context, response([{ id: 4752, link: 'https://gpante.com/rules/', title: { rendered: 'قوانین' }, content: { rendered: '<p>مقررات خرید</p>' } }]));
+  assert.equal(guides.url, 'https://gpante.com/wp-json/gpante-support/v1/knowledge');
+  assert.equal(guides.qs.source, 'guides');
+  const publicGuide = shape(guides.context, response([{ id: 4752, status: 'publish', is_password_protected: false, link: 'https://gpante.com/rules/', title: { rendered: 'قوانین' }, content: { rendered: '<p>مقررات خرید</p>' } }]));
   assert.equal(publicGuide.results[0].excerpt, 'مقررات خرید');
   assert.throws(() => prepare('knowledge', { source: 'https://evil.example' }));
   assert.throws(() => prepare('knowledge', { source: 'guides', include: '1' }));
@@ -166,7 +191,7 @@ test('knowledge uses only public posts or the two approved public guide pages', 
 test('knowledge text removes executable markup and shortcodes, decodes entities and labels truncation', () => {
   const context = prepare('knowledge', { search: 'دانلود' }).context;
   const result = shape(context, response([{
-    id: 18, link: 'https://gpante.com/download-help/', title: { rendered: 'راهنمای &amp; دانلود' },
+    id: 18, status: 'publish', is_password_protected: false, link: 'https://gpante.com/download-help/', title: { rendered: 'راهنمای &amp; دانلود' },
     excerpt: { rendered: '<script>doEvil()</script><style>bad</style><p>راهنما&nbsp;برای دانلود [secret file="paid.zip"]</p><a href="https://evil.example/">لینک</a> ' + 'متن '.repeat(1000) },
     private: 'must not appear',
   }]));
@@ -188,4 +213,55 @@ test('a server-side page size is a display bound, and full response metadata rem
   assert.equal(result.pagination.page, 2);
   assert.equal(result.pagination.total, 7);
   assert.equal(result.pagination.hasMore, false);
+});
+
+test('eligibility includes catalog-only and search-only products but rejects absent or protected metadata', () => {
+  const context = prepare('search', { search: 'فایل' }).context;
+  for (const catalog_visibility of ['visible', 'catalog', 'search']) {
+    assert.equal(shape(context, response([product({ catalog_visibility })])).ok, true);
+  }
+  for (const overrides of [
+    { is_password_protected: true }, { is_password_protected: undefined },
+    { status: 'private' }, { status: undefined }, { catalog_visibility: 'hidden' },
+    { catalog_visibility: undefined }, { type: 'variation' },
+  ]) assert.equal(shape(context, response([product(overrides)])).status, 'invalid_response');
+});
+
+test('price ascending is server requested and rejects an incorrectly ordered page without floating point comparisons', () => {
+  const request = prepare('search', { search: 'آجیل', sort: 'price_asc', page: 2 });
+  assert.equal(request.qs.sort, 'price_asc');
+  assert.equal(request.qs.page, 2);
+  const withPrice = (id, price) => product({ id, prices: { price, currency_code: 'IRT', currency_minor_unit: 0 } });
+  const ordered = [withPrice(1, '0'), withPrice(2, '2'), withPrice(3, '10'), withPrice(4, '900719925474099312')];
+  assert.equal(shape(request.context, response(ordered)).ok, true);
+  assert.equal(shape(request.context, response([ordered[3], ordered[2]])).status, 'sort_mismatch');
+  assert.equal(shape(request.context, response([withPrice(1, '')])).status, 'sort_unverifiable');
+  assert.throws(() => prepare('search', { search: 'فایل', sort: 'rand' }));
+});
+
+test('bounded tool output fails explicitly instead of omitting requested results', () => {
+  const context = prepare('search', { search: 'فایل' }).context;
+  const attributes = Array.from({ length: 30 }, () => ({ name: 'متریال', taxonomy: 'pa_materials-required',
+    terms: Array.from({ length: 40 }, () => ({ name: 'متن'.repeat(30), slug: 'mdf' })) }));
+  const result = shape(context, response([product({ attributes })]));
+  assert.equal(result.status, 'response_too_large');
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.results, []);
+  assert(JSON.stringify(result).length <= 16000);
+});
+
+test('search syntax is bounded literal text with at most eight terms', () => {
+  for (const search of ['%باكس', 'باکس" OR 1=1', 'الف ب ج د ه و ز ح ط', 'باکس\nآجیل\u0000']) {
+    assert.throws(() => prepare('search', { search }));
+  }
+  assert.equal(prepare('search', { search: 'جعبه آجیل' }).qs.search, 'جعبه آجیل');
+});
+
+test('knowledge requires explicit public non-password metadata', () => {
+  const context = prepare('knowledge', { source: 'articles' }).context;
+  const item = { id: 1, status: 'publish', is_password_protected: false, link: 'https://gpante.com/article/',
+    title: { rendered: 'راهنما' }, excerpt: { rendered: 'توضیح' } };
+  assert.equal(shape(context, response([item])).ok, true);
+  assert.equal(shape(context, response([{ ...item, is_password_protected: true }])).status, 'invalid_response');
+  assert.equal(shape(context, response([{ ...item, status: undefined }])).status, 'invalid_response');
 });

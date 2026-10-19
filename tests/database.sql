@@ -1,44 +1,50 @@
--- Synthetic fixtures only; the entire test is rolled back.
+-- Run on project_db after migrations; Main must be inactive. Fixtures roll back.
 BEGIN;
 SET LOCAL ROLE gpante_chat_app;
-DELETE FROM gpante_chat.request_counters;
 DO $$
-DECLARE verdict RECORD; i INTEGER; before_count INTEGER;
+DECLARE a JSONB; b JSONB; r TEXT; s TEXT:=repeat('a',64); c TEXT:=repeat('b',64); before_cost BIGINT; after_cost BIGINT;
 BEGIN
-  SELECT * INTO verdict FROM gpante_chat.reserve_request('invalid');
-  ASSERT NOT verdict.allowed AND verdict.reason='invalid_session';
-  FOR i IN 1..10 LOOP
-    SELECT * INTO verdict FROM gpante_chat.reserve_request('fixture_session_123456');
-    ASSERT verdict.allowed;
-  END LOOP;
-  SELECT * INTO verdict FROM gpante_chat.reserve_request('fixture_session_123456');
-  ASSERT NOT verdict.allowed AND verdict.reason='session_limit' AND verdict.retry_after > 0;
-  SELECT * INTO verdict FROM gpante_chat.reserve_request('another_session_123456');
-  ASSERT verdict.allowed;
-  ASSERT (SELECT requests=11 FROM gpante_chat.request_counters WHERE counter_key='global');
-  UPDATE gpante_chat.request_counters SET window_start=clock_timestamp()-INTERVAL '61 seconds'
-    WHERE counter_key='session:fixture_session_123456';
-  SELECT * INTO verdict FROM gpante_chat.reserve_request('fixture_session_123456');
-  ASSERT verdict.allowed;
-  ASSERT (SELECT requests=1 FROM gpante_chat.request_counters WHERE counter_key='session:fixture_session_123456');
-
-  INSERT INTO gpante_chat.histories(session_id,message,created_at) VALUES
-    ('fixture_a','{"type":"human","data":{"content":"old"}}',clock_timestamp()-INTERVAL '8 days'),
-    ('fixture_b','{"type":"human","data":{"content":"recent"}}',clock_timestamp());
-  PERFORM gpante_chat.reserve_request('retention_test_123456');
-  ASSERT NOT EXISTS(SELECT 1 FROM gpante_chat.histories WHERE session_id='fixture_a');
-  ASSERT (SELECT count(*)=1 FROM gpante_chat.histories WHERE session_id='fixture_b');
-
-  UPDATE gpante_chat.request_counters SET requests=2000 WHERE counter_key='global';
-  SELECT count(*) INTO before_count FROM gpante_chat.request_counters;
-  SELECT * INTO verdict FROM gpante_chat.reserve_request('new_rejected_session_123456');
-  ASSERT NOT verdict.allowed AND verdict.reason='global_limit';
-  ASSERT (SELECT count(*)=before_count FROM gpante_chat.request_counters);
-  UPDATE gpante_chat.request_counters SET window_start=clock_timestamp()-INTERVAL '25 hours'
-    WHERE counter_key='global';
-  SELECT * INTO verdict FROM gpante_chat.reserve_request('new_rejected_session_123456');
-  ASSERT verdict.allowed;
-  ASSERT (SELECT requests=1 FROM gpante_chat.request_counters WHERE counter_key='global');
-END;
-$$;
+  DELETE FROM gpante_chat.requests;
+  DELETE FROM gpante_chat.request_counters;
+  SELECT coalesce(sum(cost_nano),0) INTO before_cost FROM gpante_chat.model_calls
+    WHERE month=date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date;
+  UPDATE gpante_chat.runtime SET enabled=true,pricing_valid_until=clock_timestamp()+INTERVAL '1 day',monthly_budget_nano=before_cost+640000000;
+  a:=gpante_chat.admit('invalid',c,'sendMessage');
+  ASSERT NOT (a->>'allowed')::boolean,'invalid session';
+  a:=gpante_chat.admit(s,c,'sendMessage'); r:=a->>'requestId';
+  ASSERT (a->>'allowed')::boolean,'admission';
+  ASSERT NOT (gpante_chat.admit(s,c,'resetSession')->>'allowed')::boolean,'reset cannot race in-flight persistence';
+  ASSERT NOT (gpante_chat.admit(s,c,'sendMessage')->>'allowed')::boolean,'one active request per session';
+  b:=gpante_chat.admit(repeat('c',64),repeat('d',64),'sendMessage');
+  ASSERT (b->>'allowed')::boolean,'second concurrent request';
+  ASSERT NOT (gpante_chat.admit(repeat('e',64),repeat('f',64),'sendMessage')->>'allowed')::boolean,'global concurrency';
+  ASSERT (gpante_chat.reserve_call(r,1)->>'allowed')::boolean,'first paid reservation';
+  ASSERT NOT (gpante_chat.reserve_call(r,1)->>'allowed')::boolean,'duplicate dispatch denied';
+  ASSERT NOT (gpante_chat.reserve_call(r,2)->>'allowed')::boolean,'unsettled predecessor';
+  ASSERT (gpante_chat.settle_call(r,1,100,10,110)->>'confirmed')::boolean,'valid usage';
+  ASSERT NOT (gpante_chat.settle_call(r,1,0,0,0)->>'confirmed')::boolean,'no double refund';
+  ASSERT (gpante_chat.reserve_call(r,2)->>'allowed')::boolean,'second paid reservation';
+  ASSERT NOT (gpante_chat.settle_call(r,2,NULL,NULL,NULL)->>'confirmed')::boolean,'unknown usage burns';
+  ASSERT NOT (gpante_chat.reserve_call(r,3)->>'allowed')::boolean,'burned predecessor stops retry';
+  SELECT cost_nano INTO after_cost FROM gpante_chat.model_calls WHERE request_id=r AND call_index=2;
+  ASSERT after_cost=320000000,'unknown cost never refunded';
+  ASSERT (gpante_chat.finish_request(r,'سلام','درود')->>'saved')::boolean,'persist history';
+  ASSERT NOT (gpante_chat.finish_request(r,'دوباره','تکرار')->>'saved')::boolean,'no duplicate history';
+  ASSERT jsonb_array_length(gpante_chat.admit(s,c,'loadPreviousSession')->'messages')=2,'same-session memory';
+  ASSERT jsonb_array_length(gpante_chat.admit(repeat('1',64),c,'loadPreviousSession')->'messages')=0,'session isolation';
+  INSERT INTO gpante_chat.histories(session_id,message,created_at) VALUES(s,'{"type":"human","data":{"content":"expired"}}',clock_timestamp()-INTERVAL '31 days');
+  ASSERT jsonb_array_length(gpante_chat.admit(s,c,'loadPreviousSession')->'messages')=2,'expired text never read';
+  PERFORM gpante_chat.cleanup();
+  ASSERT NOT EXISTS(SELECT 1 FROM gpante_chat.histories WHERE session_id=s AND created_at<clock_timestamp()-INTERVAL '30 days'),'independent cleanup';
+  ASSERT (gpante_chat.admit(s,c,'resetSession')->>'ok')::boolean,'explicit deletion';
+  ASSERT NOT EXISTS(SELECT 1 FROM gpante_chat.histories WHERE session_id=s),'reset own history';
+  PERFORM gpante_chat.finish_request(b->>'requestId',NULL,NULL);
+  UPDATE gpante_chat.runtime SET monthly_budget_nano=before_cost+320042000;
+  a:=gpante_chat.admit(repeat('2',64),repeat('3',64),'sendMessage');
+  ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'monthly monetary cap';
+  UPDATE gpante_chat.runtime SET monthly_budget_nano=2000000000,pricing_valid_until=clock_timestamp()-INTERVAL '1 second';
+  ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'stale tariff fails closed';
+  DELETE FROM gpante_chat.runtime;
+  ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'missing budget config fails closed';
+END $$;
 ROLLBACK;

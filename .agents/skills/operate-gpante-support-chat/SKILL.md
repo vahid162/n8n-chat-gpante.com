@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.2.0"
+  version: "0.3.0"
 ---
 
 # Operate GPante Support Chat
@@ -35,6 +35,12 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - Distinguish no matches, missing attributes, incomplete retrieval and API failure. Ask a relevant follow-up or report uncertainty; a failed read is not an empty catalog.
 - Keep model choice, UI and bounded tools separable. Reuse the existing n8n and PostgreSQL where they fit. Add indexing, embeddings, queues or services only for demonstrated requirements; full catalog coverage alone does not prescribe a vector database.
 - Customer-account support is a future capability requiring trusted WordPress authentication and ownership checks. A session ID, user-supplied customer/order ID or model assertion is not authorization. Define each order-changing capability separately before adding it.
+
+## Current approved operating policy
+
+- Project model budget is USD 2 per calendar month UTC; conversation history is readable for 30 days. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
+- WordPress integration must use code without installing a plugin and is deferred to the final integration stage. Do not install the former custom-plugin scaffold or treat the reference integration code as deployed. Server-side code is still required to keep the inbound key and trusted identities out of the browser.
+- Treat inactive Retention as pending physical cleanup activation. Read filtering at 30 days does not itself prove scheduled deletion.
 
 ## Respect trust and infrastructure boundaries
 

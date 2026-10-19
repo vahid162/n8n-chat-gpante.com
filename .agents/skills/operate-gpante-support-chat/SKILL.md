@@ -2,16 +2,24 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # Operate GPante Support Chat
 
 Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpante.com`. This skill guides development and operations; it is not the customer-facing agent prompt and does not grant service access.
 
+## Workflow naming
+
+- Main workflow: exactly `gpante.com — AI Support — Main`.
+- Any actual separate child workflow: `gpante.com — AI Support — <Role>`, with a clear English role such as `Product Search` or `Product Details`.
+- Preserve the common prefix and the spaced em dash ` — `. Do not append versions or model/provider names to workflow names. Record release versions in workflow descriptions and maintained context.
+- Names for possible children do not require creating children. Inline tools are valid; add separate workflows when their actual behavior warrants it.
+
 ## Establish scope and current truth
 
 1. Read [project-state.md](references/project-state.md) at entry. It contains the latest recorded state, verified integration examples, open decisions and the next unfinished work. Treat its dated observations as historical until refreshed.
+   For implementation or maintenance of the first workflow, also read [workflow-v1.md](references/workflow-v1.md) for its actual graph, source/build boundaries, database contract and validation limits.
 2. Resolve the selected repository and read its applicable instructions, README and current Git changes. Preserve uncommitted work. When using an installed or packaged copy, compare it with the canonical repository when reachable; disclose an unverified or stale copy.
 3. Classify the request as inspection, product definition, implementation, workflow execution, release or maintenance. Carry forward authorization already given in this session; do not ask again for the same authorized action. Do not expand it to deployment, paid model calls, customer messages or unrelated production changes.
 4. For operational work, retrieve the affected live workflow definitions, draft/current version, published/active version, activation state and relevant recent executions. Compare them with the repository before editing. Identify unexplained drift; do not overwrite it or assume the Git version is current.

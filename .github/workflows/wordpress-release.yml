@@ -5,7 +5,7 @@ on:
     paths:
       - 'wordpress-plugin/**'
       - 'scripts/build-plugin.py'
-      - 'tests/test_plugin_package.py'
+      - 'tests/test_*.py'
       - 'releases/wordpress/**'
       - '.github/workflows/wordpress-release.yml'
   push:
@@ -41,7 +41,7 @@ jobs:
           php tests/widget-bridge.php
           php tests/catalog-query.php
           find wordpress-plugin/gpante-support-chat -name '*.php' -print0 | xargs -0 -n 1 php -l
-          python3 -m unittest discover -s tests -p test_plugin_package.py
+          python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Validate version and build the package
         id: package
         run: |
@@ -92,8 +92,9 @@ jobs:
             jq -e --arg sha "$GITHUB_SHA" '.target_commitish == $sha' "$state" > /dev/null
           else
             grep -q 'HTTP 404' "$error" || { cat "$error" >&2; exit 1; }
-            if gh api "repos/$GITHUB_REPOSITORY/commits/$tag" > "$state" 2> "$error"; then
-              jq -e --arg sha "$GITHUB_SHA" '.sha == $sha' "$state" > /dev/null
+            # Missing tags return 404 here; the commits API returns 422 for an unknown tag.
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > "$state" 2> "$error"; then
+              test "$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha)" = "$GITHUB_SHA"
             else
               grep -q 'HTTP 404' "$error" || { cat "$error" >&2; exit 1; }
             fi

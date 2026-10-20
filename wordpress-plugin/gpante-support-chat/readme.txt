@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,7 +33,7 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 پوشش تولید سقف تعداد محصول ندارد. اندازهٔ صفحهٔ محصول پنج و راهنما سه است؛ صفحه‌بندی و شمار کل حفظ می‌شوند.
 
 == Installation ==
-1. ZIP مستقل gpante-support-chat-wordpress-0.1.0.zip را در Plugins > Add New > Upload Plugin بارگذاری کنید.
+1. ZIP مستقل gpante-support-chat-wordpress-0.1.1.zip را در Plugins > Add New > Upload Plugin بارگذاری کنید.
 2. WooCommerce باید فعال باشد. سپس GPante Support Chat را فعال کنید؛ چت همچنان خاموش است.
 3. اتصال n8n، کلید اختصاصی، HTTPS، پراکسی/IP، timeout و استثنای cache مسیر REST را آماده کنید.
 4. Settings > چت جی‌پانته را باز، کلید را از مسیر خصوصی وارد و نمایش عمومی را روشن کنید.
@@ -52,9 +52,15 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 خیر. Update URI از اشتباه با افزونهٔ هم‌نام جلوگیری می‌کند؛ ارتقا فعلاً با ZIP جدید وردپرس انجام می‌شود.
 
 == Changelog ==
+= 0.1.1 =
+* رفع خطای کاتالوگ هنگام دریافت ویژگی‌ها، مقادیر ویژگی و تصاویر به‌شکل stdClass از WooCommerce؛ فهرست فیلدهای عمومی مجاز حفظ شد.
+
 = 0.1.0 =
 * اولین بستهٔ مستقل: تنظیم امن مدیر، رابط عمومی فارسی، provider کاتالوگ و مهاجرت نسخه‌دار.
 
 == Upgrade Notice ==
+= 0.1.1 =
+اصلاح سازگار کاتالوگ؛ تنظیمات و کلید اتصال حفظ می‌شوند. افزونه را حذف کامل نکنید.
+
 = 0.1.0 =
 اولین انتشار. اگر integration دستی دارید، فقط یک روش بارگذاری bridge و رابط را نگه دارید.

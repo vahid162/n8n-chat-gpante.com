@@ -30,7 +30,7 @@ def public():
     with urllib.request.urlopen(base + '/index.php?rest_route=/gpante-support/v1/appearance', context=context) as response:
         assert 'no-store' in response.headers['Cache-Control']
         data = json.load(response)
-    assert set(data) == {'version', 'texts', 'colors'}
+    assert set(data) == {'version', 'texts', 'colors', 'links'}
     assert len(data['texts']) == len(data['colors']) == 8
     assert 'fixture-only-' not in json.dumps(data)
     return data
@@ -40,6 +40,8 @@ def submit(op, nonce, config=None, reset=False):
     if reset:
         fields['gpante_support_appearance[restore_defaults]'] = '1'
     else:
+        for index, link in enumerate(config['links']):
+            fields.update({f'gpante_support_appearance[links][{index}][{key}]': value for key, value in link.items()})
         for group in ('texts', 'colors'):
             fields.update({f'gpante_support_appearance[{group}][{key}]': value for key, value in config[group].items()})
     try:
@@ -94,3 +96,18 @@ assert submit(admin, nonce, reset=True)[0] == 200
 assert public() == defaults
 assert runtime_hash() == before
 print('PASS native reset restores defaults; connection keys, enabled state and runtime option remain byte-for-byte unchanged')
+
+links=json.loads(json.dumps(defaults))
+links['links']=[{'label':f'راهنمای {i+1}','url':f'/shop/?guide={i+1}'} for i in range(4)]
+assert submit(admin,nonce,links)[0]==200
+assert public()==links
+for bad in ('javascript:alert(1)','//evil.test/','http://example.com/','https://user:pass@example.com/'):
+    invalid=json.loads(json.dumps(links));invalid['links'][0]['url']=bad
+    submit(admin,nonce,invalid);assert public()==links
+invalid=json.loads(json.dumps(links));invalid['links'].append({'label':'پنجم','url':'/shop/'})
+submit(admin,nonce,invalid);assert public()==links
+links['links'][0]['label']=''
+submit(admin,nonce,links);assert public()==links
+assert submit(admin,nonce,reset=True)[0]==200
+assert public()==defaults and runtime_hash()==before
+print('PASS native four-link settings, hidden-label preservation, unsafe/missing destinations and fifth-link rejection')

@@ -13,7 +13,7 @@ const previousMessages = [
 ];
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-function createWidget(appearance) {
+function createWidget(appearance, withHistory = false) {
   const document = { activeElement: null };
   // Only the DOM operations used by the actual controller are needed here.
   class Element {
@@ -62,7 +62,7 @@ function createWidget(appearance) {
   document.createTextNode = text => { const node = new Element('#text'); node.textContent = text; return node; };
   const elements = Object.fromEntries([
     'root', 'panel', 'launcher', 'messages', 'status', 'input', 'form', 'send', 'new',
-    'confirm', 'clear', 'retry', 'count', 'close', 'cancel', 'policy', 'title', 'subtitle', 'launcher-label', 'input-label'
+    'confirm', 'clear', 'retry', 'count', 'close', 'cancel', 'shortcuts', 'send-label', 'title', 'subtitle', 'launcher-label', 'input-label'
   ].map(name => [name, new Element()]));
   const { root, panel, launcher } = elements;
   document.body = new Element('body');
@@ -75,13 +75,28 @@ function createWidget(appearance) {
   panel.append(...Object.entries(elements).filter(([name]) => !['root', 'panel', 'launcher'].includes(name)).map(([, node]) => node));
   panel.hidden = elements.confirm.hidden = elements.retry.hidden = true;
   root.querySelector = selector => selector === '#gpante-support-panel' ? panel : elements[selector.slice(6, -1)];
+  const documentEvents = new Element();
+  document.addEventListener = (...args) => documentEvents.addEventListener(...args);
+  document.dispatch = (...args) => documentEvents.dispatch(...args);
   document.getElementById = id => id === 'gpante-support' ? root : null;
   const requests = [];
   const appearanceRequests = [];
   const timers = new Map();
   let nextTimer = 0;
+  let browserWindow;
+  if (withHistory) {
+    const events = new Element();
+    const states = [{screen:'previous'},{screen:'current',router:'preserved'}];
+    let index=1;
+    browserWindow={location:{href:'https://gpante.com/current/'},addEventListener:(...args)=>events.addEventListener(...args),
+      history:{get state(){return states[index];},get length(){return states.length;},get index(){return index;},
+        pushState(state){states.splice(index+1);states.push(state);index++;},
+        back(){Promise.resolve().then(()=>{if(index>0){index--;events.dispatch('popstate');}});},
+        forward(){Promise.resolve().then(()=>{if(index+1<states.length){index++;events.dispatch('popstate');}});}
+      }};
+  }
   const context = vm.createContext({
-    document, AbortController,
+    document, AbortController, URL, ...(browserWindow ? {window:browserWindow} : {}),
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, {callback,delay}); return id; },
     clearTimeout(id) { timers.delete(id); },
     fetch(url, options) {
@@ -103,7 +118,7 @@ function createWidget(appearance) {
   // No CommonJS module is provided: this executes initialization and event handlers.
   vm.runInContext(source, context, { filename: 'wordpress-plugin/gpante-support-chat/assets/chat.js' });
   return {
-    elements, document, requests, appearanceRequests, timers,
+    elements, document, requests, appearanceRequests, timers, window:browserWindow,
     initializeAgain() { vm.runInContext(source, context); },
     click(name) { elements[name].dispatch('click'); },
     type(text) { elements.input.value = text; elements.input.dispatch('input'); },
@@ -364,7 +379,7 @@ test('central policy hides clear and prevents direct UI dispatch; deadlines remo
   widget.click('launcher');
   await widget.respond(0,{messages:[{role:'user',content:'already expired',expiresAt:new Date(Date.now()-1000).toISOString()}],policy:{...policy,userDays:3,allowClear:false}});
   assert.equal(widget.elements.new.hidden,true);
-  assert.match(widget.elements.policy.textContent,/۳ روز/);
+  assert.equal(widget.elements.policy,undefined,'removed notice has no DOM element');
   assert.equal(widget.messages().length,0,'expired DOM removed immediately');
   const before=widget.requests.length;
   widget.click('new');widget.click('clear');
@@ -388,7 +403,7 @@ function customAppearance() {
   return {version:1,texts:{title:'راهنمای فروشگاه',subtitle:'پاسخ پرسش‌ها',launcher:'پرسش دارید؟',welcome:'سلام؛ چطور کمک کنم؟',input_label:'متن پرسش',placeholder:'موضوع را بنویسید',send:'بفرست',clear:'گفتگوی تازه'},colors:{primary:'#123456',on_primary:'#ffffff',surface:'#ffffff',text:'#111111',messages:'#eeeeee',user:'#dddddd',assistant:'#ffffff',accent:'#aa5500'}};
 }
 
-test('fresh appearance bypasses a cached page, updates safe text/colors and preserves real retention copy', async () => {
+test('fresh appearance bypasses a cached page, updates safe text/colors and preserves policy enforcement', async () => {
   const config = customAppearance();
   const widget = createWidget(config);
   await widget.open([]);
@@ -404,7 +419,7 @@ test('fresh appearance bypasses a cached page, updates safe text/colors and pres
   assert.equal(widget.elements.root.styles['--gpante-primary'],'#123456');
   assert.deepEqual(widget.messages(),[{role:'assistant',content:config.texts.welcome}]);
   assert.equal(widget.elements.messages.children[0].children[0].textContent,config.texts.title);
-  assert.match(widget.elements.policy.textContent,/۳۰/);
+  assert.equal(widget.elements.policy,undefined);
   widget.initializeAgain();
   assert.equal(widget.appearanceRequests.length,1,'one public presentation read per page');
   assert.equal([...widget.timers.values()].filter(t=>t.delay===6000).length,0);
@@ -421,7 +436,7 @@ test('malformed colors, future schema and failed appearance request preserve usa
   }
 });
 
-test('appearance strings are plain text and cannot render markup or override protected policy', async () => {
+test('appearance strings are plain text and cannot render markup or override central policy', async () => {
   const config=customAppearance();
   config.texts.title='<img src=x onerror=alert(1)>';
   config.texts.welcome='<script>bad()</script>';
@@ -431,8 +446,8 @@ test('appearance strings are plain text and cannot render markup or override pro
   assert.equal(widget.elements.title.textContent,config.texts.title);
   assert.equal(widget.elements.title.children.length,0);
   assert.equal(widget.messages()[0].content,config.texts.welcome);
-  assert.match(widget.elements.policy.textContent,/۳۰/);
-  assert.doesNotMatch(widget.elements.policy.textContent,/وجود ندارد/);
+  assert.equal(widget.elements.policy,undefined);
+  assert.equal(widget.elements.new.hidden,false,'custom copy does not override central clear policy');
 });
 
 test('a slow appearance response updates an already visible welcome without blocking history', async () => {
@@ -446,5 +461,88 @@ test('a slow appearance response updates an already visible welcome without bloc
   await tick();
   assert.equal(widget.messages()[0].content,customAppearance().texts.welcome);
   assert.equal(widget.elements.messages.children[0].children[0].textContent,customAppearance().texts.title);
-  assert.match(widget.elements.policy.textContent,/۳۰/);
+  assert.equal(widget.elements.policy,undefined);
+});
+
+
+test('configured shortcuts render only nonempty valid labels, support HTTPS links and stay plain text', async () => {
+  const config=customAppearance();
+  config.links=[{label:'پیدا کردن طرح',url:'/shop/'},{label:'',url:'https://example.com/'},{label:'<b>راهنما</b>',url:'https://example.com/help/'},{label:'bad',url:'javascript:alert(1)'}];
+  const widget=createWidget(config);
+  await widget.open([]);
+  assert.equal(widget.elements.shortcuts.hidden,false);
+  assert.equal(widget.elements.shortcuts.children.length,2);
+  assert.equal(widget.elements.shortcuts.children[0].href,'https://gpante.com/shop/');
+  assert.equal(widget.elements.shortcuts.children[1].href,'https://example.com/help/');
+  assert.equal(widget.elements.shortcuts.children[1].textContent,'<b>راهنما</b>');
+  assert.equal(widget.elements.shortcuts.children[1].children.length,0);
+  assert.equal(widget.elements.send.attributes['aria-label'],config.texts.send);
+  assert.equal(widget.elements['send-label'].textContent,config.texts.send);
+});
+
+test('all blank shortcut labels keep the navigation hidden', async () => {
+  const config=customAppearance();
+  config.links=Array.from({length:4},()=>({label:'  ',url:'https://example.com/'}));
+  const widget=createWidget(config);await widget.open([]);
+  assert.equal(widget.elements.shortcuts.hidden,true);
+  assert.equal(widget.elements.shortcuts.children.length,0);
+});
+
+test('Back closes only the open chat entry, second Back reaches the previous page, Forward reopens once', async () => {
+  const widget=createWidget(undefined,true);
+  await widget.open();
+  assert.equal(widget.window.history.index,2);
+  assert.equal(widget.window.history.state.router,'preserved');
+  widget.type('پیش‌نویس محفوظ');
+  widget.window.history.back();await tick();
+  assert.equal(widget.elements.panel.hidden,true);
+  assert.equal(widget.elements.input.value,'پیش‌نویس محفوظ');
+  assert.equal(widget.window.history.index,1);
+  widget.window.history.back();await tick();
+  assert.equal(widget.window.history.index,0,'no dead chat entry');
+  widget.window.history.forward();await tick();
+  assert.equal(widget.elements.panel.hidden,true);
+  widget.window.history.forward();await tick();
+  assert.equal(widget.elements.panel.hidden,false);
+  assert.equal(widget.window.history.length,3,'Forward does not push another entry');
+  await widget.respond(1,{messages:previousMessages});
+});
+
+test('X, Escape and rapid reopen consume exactly one owned entry without closing a newer open', async () => {
+  const widget=createWidget(undefined,true);await widget.open();
+  widget.click('close');
+  widget.click('launcher');
+  await tick();
+  assert.equal(widget.elements.panel.hidden,false);
+  assert.equal(widget.window.history.index,2);
+  await widget.respond(1,{messages:previousMessages});
+  widget.elements.root.dispatch('keydown',{key:'Escape'});await tick();
+  assert.equal(widget.window.history.index,1);
+  assert.equal(widget.elements.panel.hidden,true);
+  assert.equal(widget.document.activeElement,widget.elements.launcher);
+});
+
+test('outside click closes chat without stealing focus or discarding an in-flight response', async () => {
+  const widget=createWidget(undefined,true);await widget.open();
+  widget.document.dispatch('click',{target:widget.elements.input});
+  assert.equal(widget.elements.panel.hidden,false,'inside controls stay usable');
+  widget.type('سلام');widget.submit();
+  const outside=widget.document.createElement('button');outside.focus();
+  widget.document.dispatch('click',{target:outside});await tick();
+  assert.equal(widget.elements.panel.hidden,true);
+  assert.equal(widget.document.activeElement,outside);
+  assert.equal(widget.window.history.index,1);
+  await widget.respond(1,{output:'درود'});
+  assert.equal(widget.elements.panel.hidden,true);
+  assert.equal(widget.document.activeElement,outside);
+});
+
+test('history API failure does not disable the chat or outside close', async () => {
+  const widget=createWidget(undefined,true);
+  widget.window.history.pushState=()=>{throw new Error('unsupported embed');};
+  await widget.open();
+  assert.equal(widget.elements.input.disabled,false);
+  widget.document.dispatch('click',{target:widget.document.body});
+  assert.equal(widget.elements.panel.hidden,true);
+  assert.equal(widget.window.history.index,1);
 });

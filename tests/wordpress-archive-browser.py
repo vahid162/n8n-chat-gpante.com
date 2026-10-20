@@ -23,7 +23,9 @@ try:
  print('PASS real browser displays hostile transcript as text')
  run('open','https://127.0.0.1:9443');run('snapshot','-i');run('click','#gpante-support [data-launcher]')
  run('wait','--fn','!document.querySelector("#gpante-support [data-input]").disabled')
- assert '۱۵ روز' in js('document.querySelector("#gpante-support [data-policy]").textContent')
+ policy=js("(async()=>{const r=await fetch(document.querySelector('#gpante-support').dataset.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'loadPreviousSession',policyVersion:2})});return (await r.json()).policy})()")
+ assert policy['userDays']==15 and policy['allowClear'] is False
+ assert js("document.querySelector('[data-policy]')===null")
  assert js('document.querySelector("#gpante-support [data-new]").hidden') is True
  print('PASS public browser receives administrator policy and hides clearing')
  assert not run('errors')['errors']

@@ -2,6 +2,11 @@
 
 تغییرات قابل استفادهٔ افزونهٔ WordPress در این فایل ثبت می‌شوند. نسخهٔ افزونه از workflow و مهارت مستقل است؛ [سیاست انتشار](docs/wordpress-releases.md).
 
+## [0.2.1] - 2026-10-20
+
+### Fixed
+- اصلاح نام فایل نصب و توضیح دقیق عمر آرشیو و پاک‌کردن کاربر در راهنمای داخل بسته؛ منطق افزونه، schema و قراردادها تغییر نکردند.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added
@@ -32,3 +37,5 @@
 [0.1.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.1.1
 
 [0.2.0]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.2.0
+
+[0.2.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.2.1

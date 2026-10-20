@@ -94,3 +94,9 @@ check(gpante_support_sanitize_appearance($input)===$custom,'label requires valid
 $input=$custom;$input['links'][0]['label']='';
 check(gpante_support_sanitize_appearance($input)===$input,'blank label hides button and may keep destination');
 echo "Shortcut URL validation and migration checks passed.\n";
+
+$config=$custom;
+$config['texts']['send']='نام دسترس‌پذیر قبلی';
+$submission=$config;unset($submission['texts']['send']);
+check(gpante_support_sanitize_appearance($submission)===$config,'hidden send field preserves its prior accessible name during native settings saves');
+echo "Hidden send setting compatibility passed.\n";

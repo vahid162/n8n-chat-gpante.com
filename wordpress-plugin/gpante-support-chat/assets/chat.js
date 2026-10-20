@@ -98,7 +98,7 @@
     launcher.setAttribute('aria-label', appearanceTexts.launcher);
     for (const key of colors) root.style.setProperty('--gpante-' + key.replace('_','-'), value.colors[key]);
     for (const item of messages.children) {
-      if (item.className.endsWith('--assistant')) item.children[0].textContent = appearanceTexts.title;
+      if (item.dataset.role === 'assistant') item.children[0].textContent = appearanceTexts.title;
     }
     if (welcomeItem && messages.contains(welcomeItem)) welcomeItem.children[1].textContent = appearanceTexts.welcome;
     if (shortcuts) {
@@ -152,6 +152,7 @@
 
   function addMessage(role, text, scroll = true, expiresAt) {
     const item = document.createElement('div');
+    item.dataset.role = role;
     if (expiresAt) item.dataset.expiresAt = expiresAt;
     item.className = 'gpante-chat-message gpante-chat-message--' + role;
     const label = document.createElement('small');
@@ -167,6 +168,7 @@
 
   function welcome() {
     welcomeItem = addMessage('assistant', appearanceTexts.welcome);
+    welcomeItem.className += ' gpante-chat-message--welcome';
   }
 
   function validPolicy(value) {

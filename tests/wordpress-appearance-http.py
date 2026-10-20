@@ -43,7 +43,7 @@ def submit(op, nonce, config=None, reset=False):
         for index, link in enumerate(config['links']):
             fields.update({f'gpante_support_appearance[links][{index}][{key}]': value for key, value in link.items()})
         for group in ('texts', 'colors'):
-            fields.update({f'gpante_support_appearance[{group}][{key}]': value for key, value in config[group].items()})
+            fields.update({f'gpante_support_appearance[{group}][{key}]': value for key, value in config[group].items() if group != 'texts' or key != 'send'})
     try:
         response = op.open(base + '/wp-admin/options.php', urllib.parse.urlencode(fields).encode())
         return response.status, response.read().decode(), response.url
@@ -55,6 +55,8 @@ admin = client('gpante_admin', (root / 'admin-password').read_text())
 html = admin.open(base + page).read().decode()
 assert 'ظاهر چت پانته' in html and 'type="color"' in html
 assert 'fixture-only-' not in html
+assert 'id="gpante-appearance-send"' not in html
+assert 'id="gpante-appearance-input_label"' in html
 nonce = re.search(r'name="_wpnonce" value="([^"]+)"', html).group(1)
 assert submit(admin, nonce, reset=True)[0] == 200
 defaults = public()

@@ -16,7 +16,7 @@ def run(*args):
     assert result.returncode==0,result.stderr[:800] or result.stdout[:800]
     data=json.loads(result.stdout);assert data['success'],data.get('error');return data['data']
 def js(code):return run('eval',code)['result']
-def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled")
+def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled && document.querySelector('#gpante-support [data-messages]').getAttribute('aria-busy')==='false'")
 def open_chat():
     run('snapshot','-i','-s','#gpante-support')
     run('click','#gpante-support [data-launcher]');ready()

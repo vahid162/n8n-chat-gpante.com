@@ -18,7 +18,7 @@ def run(*args):
 def js(code):return run('eval',code)['result']
 def wp(code):
     return subprocess.check_output(['php',str(root/'wp-cli.phar'),'--path='+str(root/'wordpress'),'eval',code],text=True)
-def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled")
+def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled && document.querySelector('#gpante-support [data-messages]').getAttribute('aria-busy')==='false'")
 def configure(count):
     wp("$a=gpante_support_appearance_defaults();foreach($a['links'] as $i=>&$link){$link=['label'=>$i<"+str(count)+"?'راهنمای '.($i+1):'','url'=>'/?guide='.($i+1)];}unset($link);update_option('gpante_support_appearance',$a,false);update_option('gptest_backend_mode','success',false);")
     run('open',base+'/?layout-count='+str(count));run('snapshot','-i','-s','#gpante-support')

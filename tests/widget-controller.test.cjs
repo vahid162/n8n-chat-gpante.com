@@ -88,7 +88,7 @@ function createWidget(appearance, withHistory = false) {
     const events = new Element();
     const states = [{screen:'previous'},{screen:'current',router:'preserved'}];
     let index=1;
-    browserWindow={location:{href:'https://gpante.com/current/'},addEventListener:(...args)=>events.addEventListener(...args),
+    browserWindow={location:{href:'https://gpante.com/current/'},addEventListener:(...args)=>events.addEventListener(...args),dispatch:(...args)=>events.dispatch(...args),
       history:{get state(){return states[index];},get length(){return states.length;},get index(){return index;},
         pushState(state){states.splice(index+1);states.push(state);index++;},
         back(){Promise.resolve().then(()=>{if(index>0){index--;events.dispatch('popstate');}});},
@@ -105,7 +105,7 @@ function createWidget(appearance, withHistory = false) {
         return appearance instanceof Error ? Promise.reject(appearance) : Promise.resolve({ok:true,json:async()=>appearance || {}});
       }
       return new Promise((resolve, reject) => {
-        const request = { url, options, body: JSON.parse(options.body), resolve, reject };
+        const request = { url, options, body: JSON.parse(options.body), resolve, reject, timeoutId: [...timers.keys()].at(-1) };
         requests.push(request);
         options.signal.addEventListener('abort', () => {
           const error = new Error('Aborted');
@@ -134,7 +134,7 @@ function createWidget(appearance, withHistory = false) {
       if(Array.isArray(data.messages)) data.messages=data.messages.map(m=>({...m,expiresAt:m.expiresAt||expiry}));
       requests[index].resolve({ ok, json: async () => data });
       await tick();
-      assert.equal([...timers.values()].filter(t=>t.delay===160000).length, 0, 'each completed request clears its network timeout');
+      assert.equal(timers.has(requests[index].timeoutId), false, 'each completed request clears its own network timeout');
     },
     async open(messages = previousMessages) {
       this.click('launcher');
@@ -143,12 +143,13 @@ function createWidget(appearance, withHistory = false) {
   };
 }
 
-function assertControls(widget, busy) {
-  for (const name of ['input', 'new', 'clear', 'retry']) {
+function assertControls(widget, busy, composing = !busy) {
+  assert.equal(widget.elements.input.disabled, !composing, 'input disabled state');
+  for (const name of ['new', 'clear', 'retry']) {
     assert.equal(widget.elements[name].disabled, busy, name + ' disabled state');
   }
   assert.equal(widget.elements.messages.attributes['aria-busy'], String(busy));
-  assert.equal(widget.elements.send.disabled, busy || !widget.elements.input.value.trim());
+  assert.equal(widget.elements.send.disabled, !composing || !widget.elements.input.value.trim());
 }
 
 test('a second script load does not attach duplicate handlers or duplicate a request', async () => {
@@ -165,13 +166,13 @@ test('a second script load does not attach duplicate handlers or duplicate a req
   await widget.respond(1, { output: 'سلام' });
 });
 
-test('opening loads persisted history through the browser controller and enables composing', async () => {
+test('opening allows immediate focused composing while persisted history loads', async () => {
   const widget = createWidget();
   widget.click('launcher');
   assert.equal(widget.elements.panel.hidden, false);
   assert.equal(widget.elements.launcher.attributes['aria-expanded'], 'true');
-  assert.equal(widget.document.activeElement, widget.elements.panel);
-  assertControls(widget, true);
+  assert.equal(widget.document.activeElement, widget.elements.input);
+  assertControls(widget, true, true);
   assert.equal(widget.requests.length, 1);
   const request = widget.requests[0];
   assert.equal(request.url, '/wp-json/gpante-support/v1/chat');
@@ -179,13 +180,96 @@ test('opening loads persisted history through the browser controller and enables
   assert.equal(request.options.method, 'POST');
   assert.equal(request.options.credentials, 'same-origin');
   assert.equal(request.options.cache, 'no-store');
+  widget.type('پیش‌نویس هنگام اتصال');
+  assert.equal(widget.elements.send.disabled, false);
   await widget.respond(0, { messages: previousMessages });
   assert.deepEqual(widget.messages(), previousMessages);
+  assert.equal(widget.elements.input.value, 'پیش‌نویس هنگام اتصال');
   assertControls(widget, false);
   assert.equal(widget.document.activeElement, widget.elements.input);
   widget.type('۲٫۷ میلی‌متر');
   assert.equal(widget.elements.send.disabled, false);
   assert.equal(widget.elements.root.dataset.error, 'false');
+});
+
+test('early submit waits for the existing history request and dispatches exactly once with validated policy', async () => {
+  const widget = createWidget();
+  widget.click('launcher');
+  widget.type('پیام هنگام اتصال');
+  widget.submit();
+  widget.submit();
+  widget.elements.input.dispatch('keydown', { key: 'Enter' });
+  assert.equal(widget.requests.length, 1, 'no send or duplicate history before session readiness');
+  assert.equal(widget.elements.input.value, 'پیام هنگام اتصال');
+  assertControls(widget, true);
+  assert.match(widget.elements.status.textContent, /آمادهٔ ارسال/u);
+  widget.click('close');
+  widget.click('launcher');
+  assert.equal(widget.requests.length, 1, 'rapid reopen keeps the queued operation');
+  await widget.respond(0, { messages: previousMessages, policy: {...policy, allowClear: false} });
+  assert.equal(widget.requests.length, 2);
+  assert.deepEqual(widget.requests[1].body, {action:'sendMessage', policyVersion:2, chatInput:'پیام هنگام اتصال'});
+  assert.equal(widget.elements.new.hidden, true, 'current policy is applied before dispatch');
+  assert.deepEqual(widget.messages(), [...previousMessages, {role:'user',content:'پیام هنگام اتصال'}]);
+  widget.submit();
+  assert.equal(widget.requests.length, 2);
+  await widget.respond(1, { output:'پاسخ پس از اتصال' });
+  assert.equal(widget.messages().at(-1).content, 'پاسخ پس از اتصال');
+  assertControls(widget, false);
+});
+
+test('failed connection preserves an early message and needs an explicit retry before sending', async () => {
+  const widget = createWidget();
+  widget.click('launcher');
+  widget.type('پرسش محفوظ');
+  widget.submit();
+  await widget.respond(0, {error:true,output:'ارتباط برقرار نشد.'}, false);
+  assert.equal(widget.requests.length, 1);
+  assert.equal(widget.elements.input.value, 'پرسش محفوظ');
+  assert.equal(widget.elements.retry.hidden, false);
+  assert.equal(widget.elements.status.textContent, 'ارتباط برقرار نشد.');
+  assertControls(widget, false);
+  widget.click('retry');
+  widget.click('retry');
+  assert.equal(widget.requests.length, 2);
+  assert.equal(widget.requests[1].body.action, 'loadPreviousSession');
+  await widget.respond(1, {messages:[]});
+  assert.equal(widget.requests.length, 3);
+  assert.equal(widget.requests[2].body.chatInput, 'پرسش محفوظ');
+  await widget.respond(2, {output:'پاسخ معتبر'});
+  assert.equal(widget.messages().at(-1).content, 'پاسخ معتبر');
+});
+
+test('editing after failed initialization replaces the queued draft without an automatic resend', async () => {
+  const widget = createWidget();
+  widget.click('launcher');widget.type('متن قبلی');widget.submit();
+  await widget.respond(0, {error:true,output:'قطع ارتباط'}, false);
+  widget.type('متن تازه');
+  assert.equal(widget.elements.retry.hidden, true);
+  widget.submit();
+  assert.equal(widget.requests[1].body.action, 'loadPreviousSession');
+  await widget.respond(1, {messages:[]});
+  assert.equal(widget.requests[2].body.chatInput, 'متن تازه');
+  await widget.respond(2, {output:'پاسخ تازه'});
+  assert(!widget.messages().some(m=>m.content==='متن قبلی'));
+});
+
+test('background history refresh keeps composing active and serializes an early send without stealing outside focus', async () => {
+  const widget = createWidget(undefined, true);
+  await widget.open();
+  widget.type('پیام هنگام بازخوانی');
+  widget.window.dispatch('focus');
+  assert.equal(widget.requests[1].body.action, 'loadPreviousSession');
+  assertControls(widget, true, true);
+  widget.submit();
+  const outside = widget.document.createElement('a');
+  widget.document.activeElement = outside;
+  await widget.respond(1, {messages:previousMessages});
+  assert.equal(widget.requests.length, 3);
+  assert.equal(widget.requests[2].body.chatInput, 'پیام هنگام بازخوانی');
+  assert.equal(widget.document.activeElement, outside);
+  await widget.respond(2, {output:'پاسخ'});
+  assert.equal(widget.document.activeElement, outside);
 });
 
 test('busy send blocks duplicates; failure restores the draft and one explicit retry succeeds', async () => {
@@ -264,7 +348,7 @@ test('failed history load permits a retry and restores the normal controls after
   assert.equal(widget.elements.status.textContent, 'تاریخچه در دسترس نیست.');
   assertControls(widget, false);
   widget.click('retry');
-  assertControls(widget, true);
+  assertControls(widget, true, true);
   assert.deepEqual(widget.requests[1].body, { action: 'loadPreviousSession', policyVersion:0 });
   await widget.respond(1, { messages: previousMessages });
   assert.deepEqual(widget.messages(), previousMessages);
@@ -388,13 +472,18 @@ test('central policy hides clear and prevents direct UI dispatch; deadlines remo
   assert.equal(widget.timers.size,0,'closing stops background history reads');
 });
 
-test('missing policy fails closed and does not allow composing or clearing', async () => {
+test('missing policy allows a draft but never sends or clears until initialization validates it', async () => {
   const widget = createWidget();
   widget.click('launcher');
   await widget.respond(0,{messages:[],policy:null});
-  widget.type('question');widget.submit();
-  assert.equal(widget.requests.length,1);
-  assert.equal(widget.elements.send.disabled,true);
+  assert.equal(widget.elements.input.disabled,false);
+  widget.type('question');widget.submit();widget.click('clear');
+  assert.equal(widget.requests.length,2);
+  assert.equal(widget.requests[1].body.action,'loadPreviousSession');
+  await widget.respond(1,{messages:[],policy:null});
+  assert.equal(widget.requests.length,2,'invalid policy never dispatches sendMessage');
+  assert.equal(widget.elements.input.value,'question');
+  assert.equal(widget.elements.input.disabled,false);
   assert.equal(widget.elements.new.hidden,true);
 });
 

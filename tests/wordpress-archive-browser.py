@@ -22,7 +22,7 @@ try:
  assert '<script>window.gpanteStoredXss=1</script>' in js('document.body.textContent')
  print('PASS real browser displays hostile transcript as text')
  run('open','https://127.0.0.1:9443');run('snapshot','-i');run('click','#gpante-support [data-launcher]')
- run('wait','--fn','!document.querySelector("#gpante-support [data-input]").disabled')
+ run('wait','--fn','!document.querySelector("#gpante-support [data-input]").disabled && document.querySelector("#gpante-support [data-messages]").getAttribute("aria-busy")==="false"')
  policy=js("(async()=>{const r=await fetch(document.querySelector('#gpante-support').dataset.endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'loadPreviousSession',policyVersion:2})});return (await r.json()).policy})()")
  assert policy['userDays']==15 and policy['allowClear'] is False
  assert js("document.querySelector('[data-policy]')===null")

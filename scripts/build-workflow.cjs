@@ -29,14 +29,14 @@ function build() {
     node('Chat Entry', 'n8n-nodes-base.webhook', 2.2, { httpMethod: 'POST', path: 'gpante-ai-support-v1', authentication: 'headerAuth', responseMode: 'responseNode', options: {} }, [0, 0], { webhookId: 'b4f78fd3-66b8-4a6b-9f98-3461dad39e6c' }),
     code('Validate Trusted Input', chat + '\nreturn [{json: validateTrusted($input.first().json.body)}];'),
     gate('Input Is Valid', 'valid', [0, 0]),
-    pg('Admit Request', 'SELECT gpante_chat.admit($1::text,$2::text,$3::text) AS result', '={{ [$json.sessionId,$json.clientId,$json.action] }}'),
+    pg('Admit Request', 'SELECT gpante_chat.admit_v3($1::text,$2::text,$3::text,$4::text,$5::integer) AS result', '={{ [$json.sessionId,$json.clientId,$json.action,$json.chatInput,$json.policyVersion] }}'),
     code('Apply Admission', chat + "\nreturn [{json: admitted($('Validate Trusted Input').first().json,$input.first().json.result)}];"),
     gate('Action Is Complete', 'done', [0, 0]),
     code('Finalize Request', "const state=$input.first().json; return [{json:state}];"),
-    pg('Finish Request', 'SELECT gpante_chat.finish_request($1::text,$2::text,$3::text) AS result', '={{ [$json.requestId,$json.success ? $json.chatInput : null,$json.success ? $json.output : null] }}'),
+    pg('Finish Request', 'SELECT gpante_chat.finish_v3($1::text,$2::text,$3::text,$4::text) AS result', '={{ [$json.requestId,$json.success ? $json.output : null,$json.success ? "success" : "error",$json.response?.error?.code || null] }}'),
     code('Apply Persistence', chat + "\nconst state=$('Finalize Request').first().json; return [{json: state.success && $input.first().json.result?.saved !== true ? failure('persistence_unavailable') : state}];"),
     node('Return Chat Reply', 'n8n-nodes-base.respondToWebhook', 1.5, { respondWith: 'json', responseBody: '={{ $json.response }}', options: { responseCode: '={{ $json.status || 503 }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store, private' }, { name: 'Retry-After', value: '={{ String($json.retryAfter || 0) }}' }] } } }, [0, 0]),
-    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۱٫۰ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nاتصال وردپرس با کد برای مرحلهٔ نهایی باقی است؛ مسیر کاتالوگ جدید باید ابتدا نصب و بررسی شود.', height: 300, width: 540 }, [0, 400])
+    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۲٫۰ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.', height: 300, width: 540 }, [0, 400])
   ];
   const connections = {};
   const link = (from, to, branch = 0) => {
@@ -85,24 +85,37 @@ function build() {
   // Static bounded rounds keep every reservation, tool call and settlement visible in n8n.
   nodes.forEach((n, index) => { if (n.type !== 'n8n-nodes-base.stickyNote') n.position = [Math.floor(index / 8) * 1800 + (index % 8) * 220, Math.floor(index / 8) * 320]; });
   return { name: 'gpante.com — AI Support — Main', active: false,
-    description: 'نسخهٔ ۱٫۱٫۰: مسیر سروری احراز هویت‌شده، سقف پروژه ۲ دلار/ماه UTC، تاریخچه ۳۰ روز، ابزارهای عمومی محدود. پیش‌نویس؛ اتصال سایت با کد مرحلهٔ آخر است.',
+    description: 'نسخهٔ ۱٫۲٫۰: مسیر سروری احراز هویت‌شده، سقف پروژه ۲ دلار/ماه UTC، تاریخچه ۳۰ روز، ابزارهای عمومی محدود. آرشیو مستقل ۳۰روزه؛ قرارداد سیاست ۲.',
     nodes, connections, settings: { executionOrder: 'v1', timezone: 'Asia/Tehran', executionTimeout: 150,
       saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, callerPolicy: 'workflowsFromSameOwner' } };
 }
 function cleanup() {
   return { name: 'gpante.com — AI Support — Retention', active: false,
-    description: 'نسخهٔ ۱٫۱٫۰: پاک‌سازی ساعتی تاریخچهٔ منقضی ۳۰روزه؛ رزروهای مالی هرگز با انقضا آزاد نمی‌شوند.',
+    description: 'نسخهٔ ۱٫۲٫۰: پاک‌سازی ساعتی تاریخچهٔ منقضی ۳۰روزه؛ رزروهای مالی هرگز با انقضا آزاد نمی‌شوند.',
     nodes: [node('Every Hour', 'n8n-nodes-base.scheduleTrigger', 1.3, { rule: { interval: [{ field: 'hours', hoursInterval: 1 }] } }, [0, 0]),
       node('Remove Expired History', 'n8n-nodes-base.postgres', 2.6, { operation: 'executeQuery', query: 'SELECT gpante_chat.cleanup() AS result', options: {} }, [260, 0])],
     connections: { 'Every Hour': { main: [[edge('Remove Expired History')]] } },
     // This workflow returns only cleanup counts, so retain its production runs for maintenance checks.
     settings: { executionOrder: 'v1', timezone: 'UTC', executionTimeout: 60, saveDataSuccessExecution: 'all', saveDataErrorExecution: 'all', saveManualExecutions: false } };
 }
+function admin() {
+  const source = library('src/admin.cjs');
+  return { name: 'gpante.com — AI Support — Admin', active: false,
+    description: 'نسخهٔ ۱٫۲٫۰: مدیریت خصوصی آرشیو ۳۰روزه و سیاست تاریخچه، مستقل از مدل و بودجه.',
+    nodes: [
+      node('Admin Entry','n8n-nodes-base.webhook',2.2,{httpMethod:'POST',path:'gpante-ai-support-admin-v1',authentication:'headerAuth',responseMode:'responseNode',options:{}},[0,0],{webhookId:stableId('Admin Entry')}),
+      node('Validate Admin Input','n8n-nodes-base.code',2,{jsCode:source+'\nreturn [{json:adminInput($input.first().json.body)}];'},[250,0]),
+      node('Read Chat Administration','n8n-nodes-base.postgres',2.6,{operation:'executeQuery',query:'SELECT gpante_chat.admin_api($1::jsonb) AS result',options:{queryReplacement:'={{ [JSON.stringify($json)] }}',connectionTimeout:10}},[500,0],{onError:'continueRegularOutput'}),
+      node('Bound Admin Reply','n8n-nodes-base.code',2,{jsCode:"const r=$input.first().json.result;return [{json:{data:r && typeof r==='object' ? r : {error:'backend_unavailable'},status:r?.error==='policy_conflict'?409:r?.error?400:r?200:503}}];"},[750,0]),
+      node('Return Admin Reply','n8n-nodes-base.respondToWebhook',1.5,{respondWith:'json',responseBody:'={{ $json.data }}',options:{responseCode:'={{ $json.status }}',responseHeaders:{entries:[{name:'Cache-Control',value:'no-store, private'}]}}},[1000,0])
+    ],connections:{'Admin Entry':{main:[[edge('Validate Admin Input')]]},'Validate Admin Input':{main:[[edge('Read Chat Administration')]]},'Read Chat Administration':{main:[[edge('Bound Admin Reply')]]},'Bound Admin Reply':{main:[[edge('Return Admin Reply')]]}},
+    settings:{executionOrder:'v1',timezone:'UTC',executionTimeout:20,saveDataSuccessExecution:'none',saveDataErrorExecution:'none',saveManualExecutions:false,callerPolicy:'workflowsFromSameOwner'} };
+}
 if (require.main === module) {
   fs.mkdirSync(path.join(root, 'workflows'), { recursive: true });
-  for (const [filename, workflow] of [['gpante-support-main.json', build()], ['gpante-support-retention.json', cleanup()]]) {
+  for (const [filename, workflow] of [['gpante-support-main.json', build()], ['gpante-support-retention.json', cleanup()], ['gpante-support-admin.json', admin()]]) {
     fs.writeFileSync(path.join(root, 'workflows', filename), JSON.stringify(workflow, null, 2) + '\n');
     console.log('Built public workflow template: ' + filename);
   }
 }
-module.exports = { build, cleanup };
+module.exports = { build, cleanup, admin };

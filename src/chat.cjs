@@ -31,22 +31,22 @@ function validateTrusted(input) {
   if (input.action === 'sendMessage' && (!chatInput || chatInput.length > 4000)) {
     return { ...failure('invalid_input', 400), valid: false };
   }
-  return { valid: true, action: input.action, sessionId: input.sessionId, clientId: input.clientId, chatInput };
+  return { valid: true, action: input.action, sessionId: input.sessionId, clientId: input.clientId, chatInput, policyVersion: input.policyVersion === 2 ? 2 : 0 };
 }
 
 function admitted(input, result) {
   if (result?.allowed !== true) return failure(result?.reason || 'unavailable',
-    ['rate_limit', 'session_busy', 'capacity'].includes(result?.reason) ? 429 : 503, result?.retry_after || 60);
-  if (input.action === 'resetSession') return { done: true, status: 200, response: { ok: result.ok === true } };
+    ['rate_limit', 'session_busy', 'capacity'].includes(result?.reason) ? 429 : ['client_upgrade','clear_disabled'].includes(result?.reason) ? 403 : 503, result?.retry_after || 60);
+  if (input.action === 'resetSession') return { done: true, status: 200, response: { ok: result.ok === true, policy: result.policy } };
   if (!Array.isArray(result.messages)) return failure();
   const history = result.messages.filter(m => m && ['user', 'assistant'].includes(m.role)
     && typeof m.content === 'string' && m.content.length <= 8000)
     .map(m => ({ role: m.role, content: m.role === 'assistant' ? finish({ output: m.content }) : m.content }));
-  if (input.action === 'loadPreviousSession') return { done: true, status: 200, response: { messages: history } };
+  if (input.action === 'loadPreviousSession') return { done: true, status: 200, response: { messages: history.map((m, i) => ({ ...m, expiresAt: result.messages[i]?.expiresAt })), policy: result.policy } };
   if (!/^[a-f0-9]{32}$/.test(result.requestId || '')) return failure();
   // Keep recent complete turns within the model's input bound; stored history is unchanged.
   while (JSON.stringify(history).length > 24000) history.splice(0, 2);
-  return { ...input, requestId: result.requestId, done: false, callIndex: 0, toolCount: 0,
+  return { ...input, policy: result.policy, expiresAt: result.expiresAt, requestId: result.requestId, done: false, callIndex: 0, toolCount: 0,
     messages: [...history, { role: 'user', content: input.chatInput }] };
 }
 
@@ -91,7 +91,7 @@ function modelResult(state, response) {
   const message = choice.message;
   if (choice.finish_reason === 'stop' && typeof message.content === 'string' && message.content.trim() && !message.tool_calls?.length) {
     const output = finish({ output: message.content });
-    return { ...next, done: true, success: true, output, status: 200, response: { output } };
+    return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt } };
   }
   const calls = message.tool_calls;
   if (choice.finish_reason !== 'tool_calls' || !Array.isArray(calls) || calls.length !== 1 || state.callIndex >= 4

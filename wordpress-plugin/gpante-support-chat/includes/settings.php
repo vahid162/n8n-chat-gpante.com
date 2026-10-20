@@ -20,6 +20,7 @@ function gpante_support_upgrade() {
 				'enabled'        => false,
 				'backend_url'    => GPANTE_SUPPORT_BACKEND,
 				'shared_key'     => '',
+				'admin_key'      => '',
 			),
 			'',
 			false
@@ -29,6 +30,7 @@ function gpante_support_upgrade() {
 	if ( is_array( $config ) && (int) ( $config['schema_version'] ?? 0 ) < GPANTE_SUPPORT_SCHEMA_VERSION ) {
 		// Preserve legacy values and future extension fields, including a disabled state.
 		$config['schema_version'] = GPANTE_SUPPORT_SCHEMA_VERSION;
+		$config['admin_key']      = $config['admin_key'] ?? '';
 		update_option( 'gpante_support_runtime', $config, false );
 	}
 	wp_set_option_autoload( 'gpante_support_runtime', false );
@@ -64,7 +66,13 @@ function gpante_support_sanitize_settings( $input ) {
 		add_settings_error( 'gpante_support_runtime', 'invalid_key', __( 'کلید باید ۳۲ تا ۲۵۶ نویسهٔ ASCII بدون فاصله باشد.', 'gpante-support-chat' ) );
 		return $old;
 	}
+	$admin_key = $input['admin_key'] ?? '';
+	if ( '' !== $admin_key && ! gpante_support_valid_key( $admin_key ) ) {
+		add_settings_error( 'gpante_support_runtime', 'invalid_admin_key', __( 'کلید مدیریت معتبر نیست؛ تنظیمات ذخیره نشد.', 'gpante-support-chat' ) );
+		return $old;
+	}
 	$next               = $old;
+	$next['admin_key']  = '' === $admin_key ? ( $old['admin_key'] ?? '' ) : $admin_key;
 	$next['shared_key'] = '' === $key ? ( $old['shared_key'] ?? '' ) : $key;
 	$next['enabled']    = isset( $input['enabled'] ) && in_array( $input['enabled'], array( '1', true ), true );
 	if ( $next['enabled'] && ! gpante_support_valid_key( $next['shared_key'] ) ) {
@@ -115,6 +123,10 @@ function gpante_support_settings_page() {
 				<tr><th scope="row"><label for="gpante-chat-key"><?php esc_html_e( 'کلید اتصال سرور', 'gpante-support-chat' ); ?></label></th><td>
 					<input id="gpante-chat-key" type="password" name="gpante_support_runtime[shared_key]" value="" autocomplete="new-password" minlength="32" maxlength="256" class="regular-text" dir="ltr">
 					<p class="description"><?php echo esc_html( gpante_support_valid_key( $config['shared_key'] ?? '' ) ? __( 'کلید ذخیره شده است؛ برای حفظ آن، این ورودی را خالی بگذارید.', 'gpante-support-chat' ) : __( 'کلید هنوز تنظیم نشده است. کلید را فقط از مسیر خصوصی دریافت کنید.', 'gpante-support-chat' ) ); ?></p>
+				</td></tr>
+				<tr><th scope="row"><label for="gpante-admin-key"><?php esc_html_e( 'کلید خصوصی مدیریت گفتگو', 'gpante-support-chat' ); ?></label></th><td>
+					<input id="gpante-admin-key" type="password" name="gpante_support_runtime[admin_key]" value="" autocomplete="new-password" minlength="32" maxlength="256" class="regular-text" dir="ltr">
+					<p class="description"><?php esc_html_e( 'این کلید مستقل از اتصال عمومی است. خالی‌گذاشتن، کلید قبلی را حفظ می‌کند؛ مقدار ذخیره‌شده نمایش داده نمی‌شود.', 'gpante-support-chat' ); ?></p>
 				</td></tr>
 			</table>
 			<?php submit_button(); ?>

@@ -24,6 +24,38 @@ function gpante_support_runtime() {
 }
 
 /**
+ * Validate the public central-policy contract without accepting extra backend fields.
+ *
+ * @param mixed $policy Candidate.
+ * @return bool
+ */
+function gpante_support_valid_policy( $policy ) {
+	return is_array( $policy ) && 2 === ( $policy['version'] ?? null ) && 30 === ( $policy['archiveDays'] ?? null )
+		&& in_array( $policy['userDays'] ?? null, array( 3, 7, 15, 30 ), true )
+		&& is_bool( $policy['allowClear'] ?? null ) && is_int( $policy['revision'] ?? null ) && $policy['revision'] > 0;
+}
+
+/**
+ * Return only the allowlisted policy fields.
+ *
+ * @param array $policy Validated policy.
+ * @return array
+ */
+function gpante_support_public_policy( $policy ) {
+	return array_intersect_key( $policy, array_flip( array( 'version', 'archiveDays', 'userDays', 'allowClear', 'revision' ) ) );
+}
+
+/**
+ * Validate a bounded ISO expiry supplied by the trusted service.
+ *
+ * @param mixed $value Candidate timestamp.
+ * @return bool
+ */
+function gpante_support_valid_expiry( $value ) {
+	return is_string( $value ) && strlen( $value ) <= 40 && preg_match( '/^\d{4}-\d{2}-\d{2}T[0-9:.]+(?:Z|[+-]\d{2}:\d{2})$/D', $value ) && false !== strtotime( $value );
+}
+
+/**
  * Build a non-cacheable public response.
  *
  * @param mixed $data Public response body.
@@ -157,7 +189,10 @@ function gpante_support_chat( $request ) {
 		return gpante_support_failure( 400, 'invalid_input' );
 	}
 	$action = $input['action'];
-	$text   = is_string( $input['chatInput'] ?? null ) ? trim( $input['chatInput'] ) : '';
+	if ( 'loadPreviousSession' !== $action && 2 !== ( $input['policyVersion'] ?? null ) ) {
+		return gpante_support_failure( 403, 'client_upgrade' );
+	}
+	$text = is_string( $input['chatInput'] ?? null ) ? trim( $input['chatInput'] ) : '';
 	if ( 'sendMessage' === $action && ( '' === $text || preg_match_all( '/./us', $text ) > 4000 ) ) {
 		return gpante_support_failure( 400, 'invalid_input' );
 	}
@@ -170,9 +205,10 @@ function gpante_support_chat( $request ) {
 		return gpante_support_failure( 503, 'unavailable' );
 	}
 	$payload = array(
-		'action'    => $action,
-		'sessionId' => $session,
-		'clientId'  => hash_hmac( 'sha256', 'gpante-support-client|' . inet_pton( $ip ), wp_salt( 'auth' ) ),
+		'action'        => $action,
+		'policyVersion' => 2,
+		'sessionId'     => $session,
+		'clientId'      => hash_hmac( 'sha256', 'gpante-support-client|' . inet_pton( $ip ), wp_salt( 'auth' ) ),
 	);
 	if ( 'sendMessage' === $action ) {
 		$payload['chatInput'] = $text;
@@ -204,27 +240,48 @@ function gpante_support_chat( $request ) {
 		if ( 429 === $status && is_string( $retry ) && preg_match( '/^[0-9]{1,6}$/D', $retry ) ) {
 			$headers['Retry-After'] = (string) max( 1, min( 86400, (int) $retry ) );
 		}
-		return gpante_support_failure( 429 === $status ? 429 : 502, 429 === $status ? 'request_limit' : 'backend_unavailable', $headers );
+		return gpante_support_failure( 429 === $status ? 429 : ( 403 === $status ? 403 : 502 ), 429 === $status ? 'request_limit' : 'backend_unavailable', $headers );
 	}
+	if ( ! gpante_support_valid_policy( $data['policy'] ?? null ) ) {
+		return gpante_support_failure( 502, 'invalid_policy' );
+	}
+	$policy = gpante_support_public_policy( $data['policy'] );
 	if ( 'resetSession' === $action && true === ( $data['ok'] ?? false ) ) {
-		return gpante_support_response( array( 'ok' => true ) );
+		return gpante_support_response(
+			array(
+				'ok'     => true,
+				'policy' => $policy,
+			)
+		);
 	}
-	if ( 'sendMessage' === $action && is_string( $data['output'] ?? null ) && '' !== trim( $data['output'] ) && strlen( $data['output'] ) <= 32000 ) {
-		return gpante_support_response( array( 'output' => $data['output'] ) );
+	if ( 'sendMessage' === $action && is_string( $data['output'] ?? null ) && '' !== trim( $data['output'] ) && strlen( $data['output'] ) <= 32000 && gpante_support_valid_expiry( $data['expiresAt'] ?? null ) ) {
+		return gpante_support_response(
+			array(
+				'output'    => $data['output'],
+				'policy'    => $policy,
+				'expiresAt' => $data['expiresAt'],
+			)
+		);
 	}
 	if ( 'loadPreviousSession' === $action && isset( $data['messages'] ) && is_array( $data['messages'] ) && count( $data['messages'] ) <= 100 ) {
 		$messages = array();
 		foreach ( $data['messages'] as $message ) {
 			if ( ! is_array( $message ) || ! in_array( $message['role'] ?? null, array( 'user', 'assistant' ), true )
-				|| ! is_string( $message['content'] ?? null ) || strlen( $message['content'] ) > 32000 ) {
+				|| ! is_string( $message['content'] ?? null ) || strlen( $message['content'] ) > 32000 || ! gpante_support_valid_expiry( $message['expiresAt'] ?? null ) ) {
 				return gpante_support_failure( 502, 'invalid_backend_response' );
 			}
 			$messages[] = array(
-				'role'    => $message['role'],
-				'content' => $message['content'],
+				'role'      => $message['role'],
+				'content'   => $message['content'],
+				'expiresAt' => $message['expiresAt'],
 			);
 		}
-		return gpante_support_response( array( 'messages' => $messages ) );
+		return gpante_support_response(
+			array(
+				'messages' => $messages,
+				'policy'   => $policy,
+			)
+		);
 	}
 	return gpante_support_failure( 502, 'invalid_backend_response' );
 }

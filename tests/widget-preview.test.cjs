@@ -22,7 +22,7 @@ test('offline preview exercises the real embed with isolated mock actions and no
     const response = await window.fetch('/wp-json/gpante-support/v1/chat', { body: JSON.stringify({ action, chatInput }) });
     return { ok: response.ok, data: await response.json() };
   };
-  assert.deepEqual((await call('loadPreviousSession')).data, { messages: [] });
+  assert.deepEqual((await call('loadPreviousSession')).data.messages, []);
   assert.match((await call('sendMessage', 'سلام')).data.output, /سلام/u);
   assert.equal((await call('loadPreviousSession')).data.messages.length, 2);
   mode.value = 'error';
@@ -33,8 +33,8 @@ test('offline preview exercises the real embed with isolated mock actions and no
   await assert.rejects(call('loadPreviousSession'), /Simulated offline state/);
   mode.value = 'success';
   assert.equal((await call('loadPreviousSession')).data.messages.length, 2, 'failed sends do not add mock history');
-  assert.deepEqual((await call('resetSession')).data, { ok: true });
-  assert.deepEqual((await call('loadPreviousSession')).data, { messages: [] });
+  assert.equal((await call('resetSession')).data.ok, true);
+  assert.deepEqual((await call('loadPreviousSession')).data.messages, []);
   await assert.rejects(window.fetch('https://gpante.com/wp-json/gpante-support/v1/chat', {}), /blocks network requests/);
   assert.equal(networkCalls, 0);
 });

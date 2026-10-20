@@ -5,6 +5,8 @@ const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 
 const source = readFileSync(require.resolve('../wordpress-plugin/gpante-support-chat/assets/chat.js'), 'utf8');
+const policy = {version:2,userDays:30,archiveDays:30,allowClear:true,revision:1};
+const expiry = new Date(Date.now()+86400000).toISOString();
 const previousMessages = [
   { role: 'user', content: 'باکس MDF می‌خواهم.' },
   { role: 'assistant', content: 'چه ضخامتی نیاز دارید؟' }
@@ -59,7 +61,7 @@ function createWidget() {
   document.createTextNode = text => { const node = new Element('#text'); node.textContent = text; return node; };
   const elements = Object.fromEntries([
     'root', 'panel', 'launcher', 'messages', 'status', 'input', 'form', 'send', 'new',
-    'confirm', 'clear', 'retry', 'count', 'close', 'cancel'
+    'confirm', 'clear', 'retry', 'count', 'close', 'cancel', 'policy'
   ].map(name => [name, new Element()]));
   const { root, panel, launcher } = elements;
   document.body = new Element('body');
@@ -77,7 +79,7 @@ function createWidget() {
   let nextTimer = 0;
   const context = vm.createContext({
     document, AbortController,
-    setTimeout(callback) { const id = ++nextTimer; timers.set(id, callback); return id; },
+    setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, {callback,delay}); return id; },
     clearTimeout(id) { timers.delete(id); },
     fetch(url, options) {
       return new Promise((resolve, reject) => {
@@ -106,9 +108,11 @@ function createWidget() {
       }));
     },
     async respond(index, data, ok = true) {
+      data = {policy, expiresAt:expiry, ...data};
+      if(Array.isArray(data.messages)) data.messages=data.messages.map(m=>({...m,expiresAt:m.expiresAt||expiry}));
       requests[index].resolve({ ok, json: async () => data });
       await tick();
-      assert.equal(timers.size, 0, 'each completed request clears its timeout');
+      assert.equal([...timers.values()].filter(t=>t.delay===160000).length, 0, 'each completed request clears its network timeout');
     },
     async open(messages = previousMessages) {
       this.click('launcher');
@@ -149,7 +153,7 @@ test('opening loads persisted history through the browser controller and enables
   assert.equal(widget.requests.length, 1);
   const request = widget.requests[0];
   assert.equal(request.url, '/wp-json/gpante-support/v1/chat');
-  assert.deepEqual(request.body, { action: 'loadPreviousSession' });
+  assert.deepEqual(request.body, { action: 'loadPreviousSession', policyVersion:0 });
   assert.equal(request.options.method, 'POST');
   assert.equal(request.options.credentials, 'same-origin');
   assert.equal(request.options.cache, 'no-store');
@@ -174,7 +178,7 @@ test('busy send blocks duplicates; failure restores the draft and one explicit r
   widget.elements.input.dispatch('keydown', { key: 'Enter', shiftKey: false, isComposing: false });
   widget.click('retry');
   assert.equal(widget.requests.length, 2, 'duplicate events do not send another request');
-  assert.deepEqual(widget.requests[1].body, { action: 'sendMessage', chatInput: 'ضخامت ۲٫۷ و فایل DXF' });
+  assert.deepEqual(widget.requests[1].body, { action: 'sendMessage', policyVersion:2, chatInput: 'ضخامت ۲٫۷ و فایل DXF' });
   await widget.respond(1, { error: 'unavailable', output: 'لطفاً دوباره تلاش کنید.' }, false);
   assert.deepEqual(widget.messages(), previousMessages, 'the temporary user bubble is removed');
   assert.equal(widget.elements.input.value, 'ضخامت ۲٫۷ و فایل DXF');
@@ -209,7 +213,7 @@ test('failed reset preserves history and draft; a successful reset replaces them
   assert.equal(widget.elements.confirm.hidden, true);
   assertControls(widget, true);
   assert.deepEqual(widget.messages(), previousMessages);
-  assert.deepEqual(widget.requests[1].body, { action: 'resetSession' });
+  assert.deepEqual(widget.requests[1].body, { action: 'resetSession', policyVersion:2 });
   await widget.respond(1, { ok: false });
   assert.deepEqual(widget.messages(), previousMessages);
   assert.equal(widget.elements.input.value, 'پرسش نوشته‌شده');
@@ -239,7 +243,7 @@ test('failed history load permits a retry and restores the normal controls after
   assertControls(widget, false);
   widget.click('retry');
   assertControls(widget, true);
-  assert.deepEqual(widget.requests[1].body, { action: 'loadPreviousSession' });
+  assert.deepEqual(widget.requests[1].body, { action: 'loadPreviousSession', policyVersion:0 });
   await widget.respond(1, { messages: previousMessages });
   assert.deepEqual(widget.messages(), previousMessages);
   assert.equal(widget.elements.retry.hidden, true);
@@ -262,7 +266,7 @@ test('closing and reopening during a request keeps one history load; an aborted 
   assert.equal(widget.elements.launcher.attributes['aria-expanded'], 'false');
   assert.equal(widget.document.activeElement, widget.elements.launcher);
   const [timeout] = widget.timers.values();
-  timeout();
+  timeout.callback();
   await tick();
   assert.equal(widget.requests[1].options.signal.aborted, true);
   assert.equal(widget.timers.size, 0);
@@ -345,4 +349,29 @@ test('completed requests restore focus after native blur but preserve focus deli
   widget.document.activeElement = outside;
   await widget.respond(3, {output:'درود'});
   assert.equal(widget.document.activeElement, outside);
+});
+
+
+test('central policy hides clear and prevents direct UI dispatch; deadlines remove displayed text', async () => {
+  const widget = createWidget();
+  widget.click('launcher');
+  await widget.respond(0,{messages:[{role:'user',content:'already expired',expiresAt:new Date(Date.now()-1000).toISOString()}],policy:{...policy,userDays:3,allowClear:false}});
+  assert.equal(widget.elements.new.hidden,true);
+  assert.match(widget.elements.policy.textContent,/۳ روز/);
+  assert.equal(widget.messages().length,0,'expired DOM removed immediately');
+  const before=widget.requests.length;
+  widget.click('new');widget.click('clear');
+  assert.equal(widget.requests.length,before,'disabled clear cannot dispatch even via direct handler');
+  widget.click('close');
+  assert.equal(widget.timers.size,0,'closing stops background history reads');
+});
+
+test('missing policy fails closed and does not allow composing or clearing', async () => {
+  const widget = createWidget();
+  widget.click('launcher');
+  await widget.respond(0,{messages:[],policy:null});
+  widget.type('question');widget.submit();
+  assert.equal(widget.requests.length,1);
+  assert.equal(widget.elements.send.disabled,true);
+  assert.equal(widget.elements.new.hidden,true);
 });

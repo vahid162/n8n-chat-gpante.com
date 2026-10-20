@@ -21,7 +21,7 @@ test('server history is isolated by admission and bounded before reaching the mo
   const state = admitted(input, { allowed: true, requestId: 'c'.repeat(32), messages });
   assert(JSON.stringify(state.messages).length < 30000);
   assert.equal(state.messages.at(-1).content, 'سلام');
-  assert.deepEqual(admitted({ ...input, action: 'resetSession' }, { allowed: true, ok: true }).response, { ok: true });
+  assert.deepEqual(admitted({ ...input, action: 'resetSession' }, { allowed: true, ok: true }).response, { ok: true, policy: undefined });
   assert.equal(admitted({ ...input, action: 'loadPreviousSession' }, { allowed: true, messages: [] }).response.messages.length, 0);
 });
 

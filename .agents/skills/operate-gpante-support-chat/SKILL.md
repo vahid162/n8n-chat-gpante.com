@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.4.1"
+  version: "0.5.0"
 ---
 
 # Operate GPante Support Chat
@@ -38,7 +38,7 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 
 ## Current approved operating policy
 
-- Project model budget is USD 2 per calendar month UTC; conversation history is readable for 30 days. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
+- Project model budget is USD 2 per calendar month UTC; the administrator archive is readable for 30 days from the original question. The administrator sets one global user-history duration of 3/7/15/30 days; default 30, clear enabled. User clear/expiry must also exclude the old messages from model context and must never erase the administrator archive. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
 - The user installed and activated the WordPress plugin and subsequently authorized completing its production rollout. Canonical runtime is `wordpress-plugin/gpante-support-chat/`; its version, settings schema and workflow release are independent. Keep the inbound key and trusted identities server-side.
 - Production work is authorized for this chat: scoped plugin upgrades/configuration, its workflow publication and bounded real verification. Preserve unrelated plugins, themes, workflows and storefront configuration. Distinguish a built ZIP, installed files, enabled public display and a verified backend; always refresh the actual state.
 - The user requests public site-wide chat for all visitors, now packaged as a WordPress plugin; do not add an administrator-only preview restriction. Use plugin auto-rendering or the optional generated WoodMart embed, with `GPANTE_SUPPORT_INLINE_WIDGET` preventing duplicates. Keep the approved budget, trusted identity and abuse controls. Public visibility alone is not evidence of a working published backend.
@@ -106,6 +106,14 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 - WooCommerce attribute, term and image records can also be `stdClass`. Normalize only the trusted schema records before applying existing field allowlists; test products with populated attributes and images, not only empty fixtures.
 - Recheck hosting configuration after panel/PHP updates. Long chat requests must fit server timeouts without occupying ordinary storefront workers. Preserve its isolated route/pool, private no-cache responses and trusted client-IP handling; gracefully reload only after configuration validation. Purge cached public pages by the exact site cache key when widget visibility changes.
 - Use real browser checks for layout and focus: short screens scroll the panel; disabling/hiding active controls can move Chrome focus to body. Preserve deliberate focus outside the widget and restore focus after a completed operation when appropriate.
+
+## Maintain the conversation archive
+
+- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main is still 66 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
+- Apply 003 only once, with Main drained. Keep the original timestamp for legacy rows and unknown metadata unknown. Do not restore the old destructive reset function during rollback. Central policy is authoritative; failed/unconfirmed writes are not success, and stale revisions are rejected.
+- Accepted input is stored before model dispatch; final success/error closes the request once. Distinguish logical resend idempotency (still absent) from duplicate final persistence (rejected). No transcript is stored in WordPress; the administrator key and SQL role are independent from the public chat connection.
+- Keep Main and Admin raw execution storage off. Retention returns counts only, closes archive access at 30 days and physically cleans hourly without changing the text-free monetary ledger. Do not create permanent transcript backups; separately check any external backup retention.
+- Clear requires the new policy contract acknowledgement and current server authorization, even for a stale tab. Increasing duration cannot resurrect expired/cleared history. Widget known deadlines are local; changed central policy is reloaded on open/focus and each minute while open.
 
 ## Publish WordPress releases
 

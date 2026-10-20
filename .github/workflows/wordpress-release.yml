@@ -5,7 +5,10 @@ on:
     paths:
       - 'wordpress-plugin/**'
       - 'scripts/build-plugin.py'
-      - 'tests/test_*.py'
+      - 'tests/**'
+      - 'sql/**'
+      - 'src/**'
+      - 'scripts/build-workflow.cjs'
       - 'releases/wordpress/**'
       - '.github/workflows/wordpress-release.yml'
   push:
@@ -54,8 +57,38 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
+  archive-database:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+        env:
+          POSTGRES_PASSWORD: gpante-isolated-ci-only
+          POSTGRES_DB: gpante_chat_archive_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
+      PGPASSWORD: gpante-isolated-ci-only
+      PGDATABASE: gpante_chat_archive_test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify additive migration and retention boundaries
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -c 'CREATE ROLE gpante_chat_app; GRANT CREATE ON DATABASE gpante_chat_archive_test TO gpante_chat_app;'
+          psql -v ON_ERROR_STOP=1 -f sql/chat.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/002-public-chat.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/003-conversation-archive.sql
+          psql -v ON_ERROR_STOP=1 -f tests/archive-database.sql
+
   publish:
-    needs: verify
+    needs: [verify, archive-database]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:

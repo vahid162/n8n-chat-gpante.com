@@ -62,10 +62,12 @@
   let busy = false;
   let requestHadFocus = false;
   let failed = null;
+  let policy = null;
+  let historyTimer = null;
 
   function updateInput() {
     find('[data-count]').textContent = input.value.length.toLocaleString('fa-IR') + ' / ۴۰۰۰';
-    send.disabled = busy || !input.value.trim();
+    send.disabled = busy || !policy || !input.value.trim();
   }
 
   function setStatus(text, error) {
@@ -77,8 +79,8 @@
     if (value) requestHadFocus = panel.contains(document.activeElement);
     busy = value;
     input.disabled = value;
-    fresh.disabled = value;
-    clear.disabled = value;
+    if (fresh) fresh.disabled = value;
+    if (clear) clear.disabled = value;
     retry.disabled = value;
     messages.setAttribute('aria-busy', String(value));
     updateInput();
@@ -86,8 +88,9 @@
     if (!value && requestHadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
   }
 
-  function addMessage(role, text, scroll = true) {
+  function addMessage(role, text, scroll = true, expiresAt) {
     const item = document.createElement('div');
+    if (expiresAt) item.dataset.expiresAt = expiresAt;
     item.className = 'gpante-chat-message gpante-chat-message--' + role;
     const label = document.createElement('small');
     label.textContent = role === 'user' ? 'شما' : 'دستیار پانته';
@@ -104,11 +107,46 @@
     addMessage('assistant', 'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.');
   }
 
+  function validPolicy(value) {
+    return value?.version === 2 && value.archiveDays === 30 && [3, 7, 15, 30].includes(value.userDays)
+      && typeof value.allowClear === 'boolean' && Number.isSafeInteger(value.revision) && value.revision > 0;
+  }
+
+  function applyPolicy(value) {
+    if (!validPolicy(value)) throw new Error('سیاست گفتگو دریافت نشد. لطفاً صفحه را تازه کنید.');
+    policy = value;
+    const notice = find('[data-policy]');
+    if (notice) notice.textContent = 'دستیار هوش مصنوعی اطلاعات عمومی محصولات و راهنماها را می‌خواند و به حساب یا سفارش شما دسترسی ندارد. تاریخچهٔ قابل مشاهدهٔ شما تا '
+      + value.userDays.toLocaleString('fa-IR') + ' روز است. آرشیو مدیریتی پیام‌ها مستقل از پاک‌کردن شما، از زمان پرسش تا ۳۰ روز برای بررسی فنی نگهداری می‌شود.';
+    if (fresh) fresh.hidden = !value.allowClear;
+    if (!value.allowClear && confirmation) confirmation.hidden = true;
+  }
+
+  function scheduleHistoryCheck() {
+    clearTimeout(historyTimer);
+    if (panel.hidden || !policy) return;
+    let delay = 60000;
+    for (const item of [...messages.children]) {
+      const deadline = Date.parse(item.dataset.expiresAt || '');
+      if (!Number.isFinite(deadline)) continue;
+      if (deadline <= Date.now()) item.remove();
+      else delay = Math.min(delay, deadline - Date.now());
+    }
+    // Exact known deadlines are local; central policy changes are rechecked each minute while open.
+    historyTimer = setTimeout(() => {
+      for (const item of [...messages.children]) {
+        if (Date.parse(item.dataset.expiresAt || '') <= Date.now()) item.remove();
+      }
+      if (!panel.hidden && !busy) loadHistory(true);
+      else scheduleHistoryCheck();
+    }, Math.max(1, delay));
+  }
+
   async function api(action, text) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 160000);
     try {
-      const body = { action };
+      const body = { action, policyVersion: policy?.version || 0 };
       if (action === 'sendMessage') body.chatInput = text;
       const response = await fetch(root.dataset.endpoint, {
         method: 'POST', mode: 'same-origin', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
@@ -119,9 +157,10 @@
       if (!response.ok || !data || data.error) {
         throw new Error(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.');
       }
-      if (action === 'sendMessage' && (typeof data.output !== 'string' || !data.output.trim() || data.output.length > 8000)) throw new Error('پاسخ معتبری دریافت نشد. لطفاً دوباره تلاش کنید.');
+      applyPolicy(data.policy);
+      if (action === 'sendMessage' && (typeof data.output !== 'string' || !data.output.trim() || data.output.length > 8000 || !Number.isFinite(Date.parse(data.expiresAt)))) throw new Error('پاسخ معتبری دریافت نشد. لطفاً دوباره تلاش کنید.');
       if (action === 'loadPreviousSession' && (!Array.isArray(data.messages) || data.messages.length > 100 || data.messages.some(message =>
-        !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000))) throw new Error('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.');
+        !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000 || !Number.isFinite(Date.parse(message.expiresAt))))) throw new Error('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.');
       if (action === 'resetSession' && data.ok !== true) throw new Error('پاک‌کردن تاریخچه انجام نشد. لطفاً دوباره تلاش کنید.');
       return data;
     } catch (error) {
@@ -140,7 +179,9 @@
     retry.hidden = false;
   }
 
-  async function loadHistory() {
+  async function loadHistory(quiet = false) {
+    clearTimeout(historyTimer);
+    if (!quiet) messages.replaceChildren();
     retry.hidden = true;
     setBusy(true);
     setStatus('در حال خواندن گفت‌وگوی پیشین…');
@@ -148,36 +189,41 @@
       const data = await api('loadPreviousSession');
       messages.replaceChildren();
       if (data.messages.length) {
-        data.messages.forEach(message => addMessage(message.role, message.content, false));
+        data.messages.forEach(message => addMessage(message.role, message.content, false, message.expiresAt));
         messages.scrollTop = messages.scrollHeight;
       }
       else welcome();
       failed = null;
       setStatus('پرسشتان را بنویسید.');
     } catch (error) {
+      messages.replaceChildren();
+      policy = null;
+      if (fresh) fresh.hidden = true;
       failure(error, 'loadPreviousSession');
     } finally {
       setBusy(false);
+      scheduleHistoryCheck();
       if (!panel.hidden && document.activeElement === panel) input.focus({ preventScroll: true });
     }
   }
 
   async function submitMessage() {
     const text = input.value.trim();
-    if (busy || !text) return;
+    if (busy || !policy || !text) return;
     if (text.length > 4000) {
       setStatus('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true);
       return;
     }
     retry.hidden = true;
-    confirmation.hidden = true;
+    if (confirmation) confirmation.hidden = true;
     const item = addMessage('user', text);
     input.value = '';
     setBusy(true);
     setStatus('در حال بررسی پرسش شما… ممکن است پاسخ کمی زمان ببرد.');
     try {
       const data = await api('sendMessage', text);
-      addMessage('assistant', data.output);
+      item.dataset.expiresAt = data.expiresAt;
+      addMessage('assistant', data.output, true, data.expiresAt);
       failed = null;
       setStatus('می‌توانید پرسش بعدی را بنویسید.');
     } catch (error) {
@@ -186,14 +232,15 @@
       failure(error, 'sendMessage', text);
     } finally {
       setBusy(false);
+      scheduleHistoryCheck();
       if (!panel.hidden && panel.contains(document.activeElement)) input.focus({ preventScroll: true });
     }
   }
 
   async function clearHistory() {
-    if (busy) return;
+    if (busy || !policy?.allowClear) return;
     setBusy(true);
-    confirmation.hidden = true;
+    if (confirmation) confirmation.hidden = true;
     retry.hidden = true;
     setStatus('در حال پاک‌کردن تاریخچه…');
     try {
@@ -202,18 +249,20 @@
       welcome();
       input.value = '';
       failed = null;
-      setStatus('تاریخچهٔ این گفت‌وگو پاک شد.');
+      setStatus('تاریخچهٔ قابل مشاهدهٔ شما پاک شد. آرشیو مدیریتی تا پایان مهلت ۳۰روزه باقی می‌ماند.');
     } catch (error) {
       failure(error, 'resetSession');
     } finally {
       setBusy(false);
+      scheduleHistoryCheck();
       if (!panel.hidden && panel.contains(document.activeElement)) input.focus({ preventScroll: true });
     }
   }
 
   function closePanel() {
     panel.hidden = true;
-    confirmation.hidden = true;
+    clearTimeout(historyTimer);
+    if (confirmation) confirmation.hidden = true;
     launcher.setAttribute('aria-expanded', 'false');
     launcher.focus({ preventScroll: true });
   }
@@ -229,9 +278,9 @@
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape' && !panel.hidden) {
       event.preventDefault();
-      if (!confirmation.hidden) {
-        confirmation.hidden = true;
-        fresh.focus();
+      if (confirmation && !confirmation.hidden) {
+        if (confirmation) confirmation.hidden = true;
+        if (fresh) fresh.focus();
       } else closePanel();
     }
   });
@@ -249,9 +298,10 @@
       retry.hidden = true;
     }
   });
-  fresh.addEventListener('click', () => { confirmation.hidden = false; clear.focus(); });
-  find('[data-cancel]').addEventListener('click', () => { confirmation.hidden = true; fresh.focus(); });
-  clear.addEventListener('click', clearHistory);
+  if (fresh && confirmation && clear) fresh.addEventListener('click', () => { if (!policy?.allowClear) return; confirmation.hidden = false; clear.focus(); });
+  const cancel = find('[data-cancel]');
+  if (cancel && confirmation && fresh) cancel.addEventListener('click', () => { confirmation.hidden = true; fresh.focus(); });
+  if (clear) clear.addEventListener('click', clearHistory);
   retry.addEventListener('click', () => {
     if (!failed || busy) return;
     if (failed.action === 'sendMessage') {
@@ -260,5 +310,6 @@
     } else if (failed.action === 'resetSession') clearHistory();
     else loadHistory();
   });
+  if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (!panel.hidden && !busy) loadHistory(true); });
   updateInput();
 }());

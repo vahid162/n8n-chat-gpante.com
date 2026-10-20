@@ -9,7 +9,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'wordpress-plugin/gpante-support-chat'
 FILES = ('gpante-support-chat.php', 'includes/settings.php', 'includes/bridge.php',
-         'includes/catalog.php', 'templates/widget.php', 'assets/chat.js',
+         'includes/catalog.php', 'includes/admin.php', 'templates/widget.php', 'assets/chat.js',
          'assets/chat.css', 'readme.txt', 'uninstall.php', 'LICENSE.txt')
 
 

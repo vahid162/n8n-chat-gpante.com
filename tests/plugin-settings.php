@@ -1,7 +1,7 @@
 <?php
 // Isolated behavioral checks for option validation and schema migration; no network.
 define('ABSPATH', __DIR__);
-define('GPANTE_SUPPORT_SCHEMA_VERSION', 1);
+define('GPANTE_SUPPORT_SCHEMA_VERSION', 2);
 define('GPANTE_SUPPORT_BACKEND', 'https://n8n.gpantex.com/webhook/gpante-ai-support-v1');
 $config = false;
 $autoload = true;
@@ -31,6 +31,10 @@ foreach (array(str_repeat('a', 32), str_repeat('Z', 256), str_repeat('!&$<>', 10
 $config = gpante_support_sanitize_settings(array('enabled' => '1', 'shared_key' => str_repeat('fixture-only-', 4), 'backend_url' => 'https://evil.invalid'));
 check($config['enabled'] === true && $config['backend_url'] === GPANTE_SUPPORT_BACKEND, 'valid admin activation has fixed destination');
 check(gpante_support_sanitize_settings($config) === $config, 'Settings API repeated sanitization is idempotent');
+$config['admin_key']=str_repeat('fixture-admin-only-',3);
+$check_admin=gpante_support_sanitize_settings(array('enabled'=>'1','shared_key'=>'','admin_key'=>''));
+check($check_admin['admin_key']===$config['admin_key'],'blank admin key preserved independently');
+check(gpante_support_sanitize_settings(array('admin_key'=>'short'))===$config,'invalid admin key cannot overwrite settings');
 $config['extension_field'] = 'preserve';
 $old = $config;
 $config = gpante_support_sanitize_settings(array('shared_key' => ''));
@@ -42,7 +46,7 @@ unset($config['schema_version']);
 $legacy = $config;
 $autoload = true;
 gpante_support_upgrade();
-check($config === array_merge($legacy, array('schema_version' => 1)) && $autoload === false, 'legacy config migrates without losing values');
+check($config === array_merge($legacy, array('schema_version' => 2)) && $autoload === false, 'legacy config migrates without losing values');
 $before = $writes;
 gpante_support_upgrade();
 check($writes === $before, 'migration is idempotent');

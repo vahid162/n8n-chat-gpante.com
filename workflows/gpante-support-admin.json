@@ -1,0 +1,150 @@
+{
+  "name": "gpante.com — AI Support — Admin",
+  "active": false,
+  "description": "نسخهٔ ۱٫۲٫۰: مدیریت خصوصی آرشیو ۳۰روزه و سیاست تاریخچه، مستقل از مدل و بودجه.",
+  "nodes": [
+    {
+      "id": "c7c7a8d48ec7ae7d1462d75747e9ae68",
+      "name": "Admin Entry",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gpante-ai-support-admin-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "c7c7a8d48ec7ae7d1462d75747e9ae68"
+    },
+    {
+      "id": "2741d8e15271c9fe3723ba8182434d47",
+      "name": "Validate Admin Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "'use strict';\n// Fixed operations only; neither the browser nor the model can provide SQL or destinations.\nfunction adminInput(value) {\n  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};\n  const { operation } = value;\n  if (operation === 'getPolicy') return { operation };\n  if (operation === 'setPolicy') {\n    if (![3, 7, 15, 30].includes(value.userDays) || typeof value.allowClear !== 'boolean'\n      || !Number.isSafeInteger(value.revision) || value.revision < 1 || value.revision > 999999999) return {};\n    return { operation, userDays: value.userDays, allowClear: value.allowClear, revision: value.revision };\n  }\n  if (!['listSessions', 'getSession'].includes(operation)) return {};\n  const page = value.page ?? 1;\n  if (!Number.isSafeInteger(page) || page < 1 || page > 1000) return {};\n  if (operation === 'getSession') return /^[a-f0-9]{64}$/.test(value.sessionId || '') ? { operation, page, sessionId: value.sessionId } : {};\n  const { search = '', from = '', to = '', status = '', visibility = '' } = value;\n  if (typeof search !== 'string' || search.length > 100 || ![from, to].every(s => typeof s === 'string' && (!s || /^\\d{4}-\\d{2}-\\d{2}$/.test(s)))\n    || !['', 'pending', 'success', 'error', 'interrupted', 'legacy'].includes(status)\n    || !['', 'visible', 'cleared', 'expired'].includes(visibility)) return {};\n  return { operation, page, search, from, to, status, visibility };\n}\n\nreturn [{json:adminInput($input.first().json.body)}];"
+      },
+      "position": [
+        250,
+        0
+      ]
+    },
+    {
+      "id": "afa5550d5a3f44856074d6acea91f7bf",
+      "name": "Read Chat Administration",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT gpante_chat.admin_api($1::jsonb) AS result",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}",
+          "connectionTimeout": 10
+        }
+      },
+      "position": [
+        500,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "8210159e35a5b8a44d9796212c38ef29",
+      "name": "Bound Admin Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const r=$input.first().json.result;return [{json:{data:r && typeof r==='object' ? r : {error:'backend_unavailable'},status:r?.error==='policy_conflict'?409:r?.error?400:r?200:503}}];"
+      },
+      "position": [
+        750,
+        0
+      ]
+    },
+    {
+      "id": "dc92857716b3c59d5a05759b1a1e1aa9",
+      "name": "Return Admin Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.data }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Cache-Control",
+                "value": "no-store, private"
+              }
+            ]
+          }
+        }
+      },
+      "position": [
+        1000,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Admin Entry": {
+      "main": [
+        [
+          {
+            "node": "Validate Admin Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Admin Input": {
+      "main": [
+        [
+          {
+            "node": "Read Chat Administration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Chat Administration": {
+      "main": [
+        [
+          {
+            "node": "Bound Admin Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bound Admin Reply": {
+      "main": [
+        [
+          {
+            "node": "Return Admin Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "executionTimeout": 20,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

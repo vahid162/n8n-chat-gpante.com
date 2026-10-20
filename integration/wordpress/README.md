@@ -38,3 +38,7 @@ Origin دقیق HTTPS از `home_url` مورد اعتماد وردپرس خوا�
 پیش از نصب تولیدِ مجاز، هویت IP پشت پراکسی، HTTPS/cookie، استثنای cache/CDN برای chat، timeout حداقل ۱۵۵ ثانیه و نمایش با قالب واقعی بررسی شوند. کد افزونه timeout پراکسی یا وب‌سرور را تغییر نمی‌دهد.
 
 منابع توسعه: [هدر افزونه](https://developer.wordpress.org/plugins/plugin-basics/header-requirements/)، [Settings API](https://developer.wordpress.org/plugins/settings/settings-api/)، [enqueue](https://developer.wordpress.org/plugins/themes/including-css-javascript/)، [وودمارت و HTML Block](https://woodmarttheme.com/docs/html-blocks-usage/).
+
+## ارتقای آرشیو 0.2.0
+
+نسخهٔ جدید ۱۱ فایل runtime، schema تنظیمات ۲ و قرارداد عمومی سیاست ۲ دارد. پیش از ZIP، migration 003 و Main/Admin سازگار آماده شوند. کلید مدیریت مستقل را تنظیم کنید؛ کلید و enabled قبلی حفظ می‌شوند. مسیر «چت پانته ← گفتگوها» سیاست سراسری و آرشیو را نشان می‌دهد. [رفتار پاک‌کردن، مدت‌ها، امنیت و rollback](../../docs/conversation-archive.md).

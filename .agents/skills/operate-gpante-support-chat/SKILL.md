@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.3.0"
+  version: "0.3.2"
 ---
 
 # Operate GPante Support Chat
@@ -40,7 +40,9 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 
 - Project model budget is USD 2 per calendar month UTC; conversation history is readable for 30 days. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
 - WordPress integration must use code without installing a plugin and is deferred to the final integration stage. Do not install the former custom-plugin scaffold or treat the reference integration code as deployed. Server-side code is still required to keep the inbound key and trusted identities out of the browser.
-- Treat inactive Retention as pending physical cleanup activation. Read filtering at 30 days does not itself prove scheduled deletion.
+- The current request is workflow-only. Do not change gpante.com, its plugins or its themes. Site integration and its live acceptance checks remain outside this request; prepare and verify n8n independently where possible.
+- The user requests a site-wide WoodMart HTML embed for all visitors; do not add an administrator-only preview restriction. Keep the approved budget, trusted identity and abuse controls. Public visibility is not evidence that the inactive backend has been deployed.
+- Retention is published; verify its actual status at entry. It retains production execution results/errors containing timestamps and cleanup counts, while Main keeps raw execution storage disabled. Distinguish an explicitly triggered published execution from a naturally scheduled run; read filtering at 30 days does not itself prove physical deletion.
 
 ## Respect trust and infrastructure boundaries
 

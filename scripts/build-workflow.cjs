@@ -95,7 +95,8 @@ function cleanup() {
     nodes: [node('Every Hour', 'n8n-nodes-base.scheduleTrigger', 1.3, { rule: { interval: [{ field: 'hours', hoursInterval: 1 }] } }, [0, 0]),
       node('Remove Expired History', 'n8n-nodes-base.postgres', 2.6, { operation: 'executeQuery', query: 'SELECT gpante_chat.cleanup() AS result', options: {} }, [260, 0])],
     connections: { 'Every Hour': { main: [[edge('Remove Expired History')]] } },
-    settings: { executionOrder: 'v1', timezone: 'UTC', executionTimeout: 60, saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false } };
+    // This workflow returns only cleanup counts, so retain its production runs for maintenance checks.
+    settings: { executionOrder: 'v1', timezone: 'UTC', executionTimeout: 60, saveDataSuccessExecution: 'all', saveDataErrorExecution: 'all', saveManualExecutions: false } };
 }
 if (require.main === module) {
   fs.mkdirSync(path.join(root, 'workflows'), { recursive: true });

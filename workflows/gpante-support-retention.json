@@ -56,8 +56,8 @@
     "executionOrder": "v1",
     "timezone": "UTC",
     "executionTimeout": 60,
-    "saveDataSuccessExecution": "none",
-    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
     "saveManualExecutions": false
   }
 }

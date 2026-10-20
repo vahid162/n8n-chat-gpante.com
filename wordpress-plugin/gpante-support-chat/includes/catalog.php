@@ -357,9 +357,15 @@ function gpante_support_catalog_products( $request ) {
 			$item               = array_intersect_key( $data, array_flip( array( 'id', 'name', 'permalink', 'short_description', 'attributes', 'is_in_stock', 'on_sale' ) ) );
 			$item['attributes'] = array();
 			foreach ( $data['attributes'] ?? array() as $attribute ) {
+				if ( $attribute instanceof stdClass ) {
+					$attribute = get_object_vars( $attribute );
+				}
 				$public_attribute          = array_intersect_key( $attribute, array_flip( array( 'name', 'taxonomy' ) ) );
 				$public_attribute['terms'] = array();
 				foreach ( $attribute['terms'] ?? array() as $term ) {
+					if ( $term instanceof stdClass ) {
+						$term = get_object_vars( $term );
+					}
 					$public_attribute['terms'][] = array_intersect_key( $term, array_flip( array( 'name', 'slug' ) ) );
 				}
 				$item['attributes'][] = $public_attribute;
@@ -367,6 +373,9 @@ function gpante_support_catalog_products( $request ) {
 			$item['prices'] = array_intersect_key( $data['prices'], array_flip( array( 'price', 'regular_price', 'sale_price', 'currency_code', 'currency_minor_unit' ) ) );
 			$item['images'] = array();
 			foreach ( $data['images'] ?? array() as $image ) {
+				if ( $image instanceof stdClass ) {
+					$image = get_object_vars( $image );
+				}
 				$item['images'][] = array_intersect_key( $image, array_flip( array( 'src', 'alt' ) ) );
 			}
 			$item['status']                = 'publish';

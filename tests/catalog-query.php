@@ -2,7 +2,9 @@
 // Execute the public callbacks with explicit WordPress/WooCommerce query doubles.
 // No WordPress install, SQL connection, HTTP requests or product index is used.
 namespace Automattic\WooCommerce\StoreApi\Schemas\V1 {
-    class ProductSchema {}
+    class ProductSchema {
+        public function get_item_response($product) { return $GLOBALS['schema_data']; }
+    }
 }
 namespace Automattic\WooCommerce\StoreApi {
     class SchemaController {
@@ -44,7 +46,13 @@ namespace {
     }
     function is_wp_error($value) { return $value instanceof WP_Error; }
     function taxonomy_exists($name) { return $name === 'product_visibility'; }
-    function wc_get_product($id) { throw new RuntimeException('Empty query must not serialize a product'); }
+    function wc_get_product($id) {
+        return new class {
+            public function get_status() { return 'publish'; }
+            public function get_type() { return 'simple'; }
+            public function get_catalog_visibility() { return 'visible'; }
+        };
+    }
 
     class WP_Error {
         public function __construct(public $code, public $message, public $data) {}
@@ -124,6 +132,26 @@ namespace {
             $response = run_callback($callback, array('page' => '6'), array(array(), array('total' => 12)));
             check($response instanceof WP_REST_Response && $response->status === 200 && $response->data === array(), 'Healthy out-of-range query remains an empty success');
             check($response->headers['X-WP-Total'] === 12 && $response->headers['X-WP-TotalPages'] === (int) ceil(12 / $per_page), 'Healthy fallback must preserve filtered pagination totals');
+        };
+    }
+    foreach (array('array', 'stdClass') as $shape) {
+        $cases['products: public nested schema as ' . $shape] = static function () use ($shape) {
+            $wrap = static fn($value) => $shape === 'stdClass' ? (object) $value : $value;
+            $GLOBALS['schema_data'] = array(
+                'id' => 42, 'name' => 'باکس', 'is_password_protected' => false,
+                'prices' => $wrap(array('price' => '0', 'currency_code' => 'IRT', 'currency_minor_unit' => 0, 'private' => 'fixture-private')),
+                'attributes' => array($wrap(array('name' => 'فرمت', 'taxonomy' => 'pa_file-format', 'private' => 'fixture-private',
+                    'terms' => array($wrap(array('name' => 'DXF', 'slug' => 'dxf', 'private' => 'fixture-private')))))),
+                'images' => array($wrap(array('src' => 'https://gpante.com/image.png', 'alt' => 'باکس', 'private' => 'fixture-private'))),
+            );
+            $post = (object) array('ID' => 42, 'post_type' => 'product', 'post_status' => 'publish', 'post_password' => '');
+            $response = run_callback('gpante_support_catalog_products', array(), array(array('posts' => array($post), 'total' => 1)));
+            check($response instanceof WP_REST_Response && $response->status === 200, 'Valid WooCommerce nested schema must return products');
+            $item = $response->data[0];
+            check($item['prices']['price'] === '0', 'Schema normalization must preserve zero price');
+            check($item['attributes'][0]['terms'][0] === array('name' => 'DXF', 'slug' => 'dxf'), 'Schema normalization must preserve public attribute terms');
+            check($item['images'][0] === array('src' => 'https://gpante.com/image.png', 'alt' => 'باکس'), 'Schema normalization must preserve public images');
+            check(!str_contains(json_encode($item), 'fixture-private'), 'Schema normalization must retain the nested public allowlists');
         };
     }
     $failures = 0;

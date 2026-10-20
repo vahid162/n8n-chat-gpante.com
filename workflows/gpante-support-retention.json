@@ -1,0 +1,63 @@
+{
+  "name": "gpante.com — AI Support — Retention",
+  "active": false,
+  "description": "نسخهٔ ۱٫۱٫۰: پاک‌سازی ساعتی تاریخچهٔ منقضی ۳۰روزه؛ رزروهای مالی هرگز با انقضا آزاد نمی‌شوند.",
+  "nodes": [
+    {
+      "id": "7ac3b402c3382bb7fb5a9b074022f7a4",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "3b39d9988adeb56c3efa0a95ba7d2893",
+      "name": "Remove Expired History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT gpante_chat.cleanup() AS result",
+        "options": {}
+      },
+      "position": [
+        260,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Remove Expired History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC",
+    "executionTimeout": 60,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": false
+  }
+}

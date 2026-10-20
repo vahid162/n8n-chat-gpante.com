@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<ruleset name="GPante Support Chat">
+  <description>WordPress PHP standards for the installable plugin.</description>
+  <file>wordpress-plugin/gpante-support-chat</file>
+  <arg name="extensions" value="php"/>
+  <arg name="basepath" value="."/>
+  <rule ref="WordPress"/>
+  <config name="minimum_supported_wp_version" value="6.6"/>
+  <config name="testVersion" value="8.1-"/>
+</ruleset>

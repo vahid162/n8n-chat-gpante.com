@@ -2,16 +2,24 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.1.0"
+  version: "0.4.0"
 ---
 
 # Operate GPante Support Chat
 
 Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpante.com`. This skill guides development and operations; it is not the customer-facing agent prompt and does not grant service access.
 
+## Workflow naming
+
+- Main workflow: exactly `gpante.com — AI Support — Main`.
+- Any actual separate child workflow: `gpante.com — AI Support — <Role>`, with a clear English role such as `Product Search` or `Product Details`.
+- Preserve the common prefix and the spaced em dash ` — `. Do not append versions or model/provider names to workflow names. Record release versions in workflow descriptions and maintained context.
+- Names for possible children do not require creating children. Inline tools are valid; add separate workflows when their actual behavior warrants it.
+
 ## Establish scope and current truth
 
 1. Read [project-state.md](references/project-state.md) at entry. It contains the latest recorded state, verified integration examples, open decisions and the next unfinished work. Treat its dated observations as historical until refreshed.
+   For implementation or maintenance of the first workflow, also read [workflow-v1.md](references/workflow-v1.md) for its actual graph, source/build boundaries, database contract and validation limits.
 2. Resolve the selected repository and read its applicable instructions, README and current Git changes. Preserve uncommitted work. When using an installed or packaged copy, compare it with the canonical repository when reachable; disclose an unverified or stale copy.
 3. Classify the request as inspection, product definition, implementation, workflow execution, release or maintenance. Carry forward authorization already given in this session; do not ask again for the same authorized action. Do not expand it to deployment, paid model calls, customer messages or unrelated production changes.
 4. For operational work, retrieve the affected live workflow definitions, draft/current version, published/active version, activation state and relevant recent executions. Compare them with the repository before editing. Identify unexplained drift; do not overwrite it or assume the Git version is current.
@@ -27,6 +35,14 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - Distinguish no matches, missing attributes, incomplete retrieval and API failure. Ask a relevant follow-up or report uncertainty; a failed read is not an empty catalog.
 - Keep model choice, UI and bounded tools separable. Reuse the existing n8n and PostgreSQL where they fit. Add indexing, embeddings, queues or services only for demonstrated requirements; full catalog coverage alone does not prescribe a vector database.
 - Customer-account support is a future capability requiring trusted WordPress authentication and ownership checks. A session ID, user-supplied customer/order ID or model assertion is not authorization. Define each order-changing capability separately before adding it.
+
+## Current approved operating policy
+
+- Project model budget is USD 2 per calendar month UTC; conversation history is readable for 30 days. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
+- The latest user request authorizes building and testing the WordPress plugin in this repository. Canonical runtime is `wordpress-plugin/gpante-support-chat/`; its version, settings schema and workflow release are independent. Site installation remains a separate stage. Keep the inbound key and trusted identities server-side.
+- Do not change gpante.com, its installed plugins or its themes. The current scope includes a basic installable plugin and actual local WordPress/browser verification; production deployment remains outside the request. Distinguish a built ZIP, a local test install and a production install.
+- The user requests public site-wide chat for all visitors, now packaged as a WordPress plugin; do not add an administrator-only preview restriction. Use plugin auto-rendering or the optional generated WoodMart embed, with `GPANTE_SUPPORT_INLINE_WIDGET` preventing duplicates. Keep the approved budget, trusted identity and abuse controls. Public visibility is not evidence that the inactive backend has been deployed.
+- Retention is published; verify its actual status at entry. It retains production execution results/errors containing timestamps and cleanup counts, while Main keeps raw execution storage disabled. Distinguish an explicitly triggered published execution from a naturally scheduled run; read filtering at 30 days does not itself prove physical deletion.
 
 ## Respect trust and infrastructure boundaries
 
@@ -77,3 +93,13 @@ Performance targets, budgets, authenticated features and retention settings rema
 When the user requests specification/planning, separate agreed requirements, proposed design and open questions. Cover the complete public catalog and future access boundaries. If Spec Kit is explicitly requested, inspect this project's setup and use its selected stage or supported setup workflow. Do not assume `.specify`, a constitution, plan or tasks exist; do not launch the entire pipeline or implementation for a skill-maintenance task. This skill remains usable without Spec Kit, Ponytail or another project skill installed.
 
 Report to the user in Persian: result, actual changes, checks performed, material unknowns and next unfinished work. Keep customer-facing behavior separate from developer implementation details.
+
+## Maintain the WordPress plugin
+
+- Read `integration/wordpress/README.md` and `specs/001-wordpress-plugin-basic/verification.md` before plugin changes. Reuse the canonical PHP/template/assets; old integration PHP files are compatibility loaders, not independent implementations. Regenerate `woodmart-chat.html` after template/asset changes.
+- Preserve `gpante_support_runtime`, API v1 and valid settings. Run versioned migrations on normal initialization as well as activation. Settings API sanitization must be idempotent; WordPress may call it repeatedly. Blank keys preserve the secret, forms never echo it, and the option is not autoloaded or exposed in REST. Unknown future schemas must be preserved and fail closed.
+- Deactivation preserves settings; uninstall deletes only the plugin option. WordPress does not own n8n history or the cost ledger. Do not run operational migrations for a plugin-only change.
+- Build WordPress ZIP with `scripts/build-plugin.py`; inspect its explicit runtime allowlist. Never confuse it with a Codex skill/plugin ZIP. Versioned packages are snapshots and must be rebuilt after source changes.
+- Use native WordPress APIs and prefixed functions; no framework, new tables, speculative extension layers or custom updater is needed for this basic version. Future capabilities need their own spec and access rules.
+- Use actual WordPress/WooCommerce for schema compatibility: WooCommerce prices can be `stdClass` before JSON serialization. Keep public allowlists and visibility checks when normalizing that shape.
+- Use real browser checks for layout and focus: short screens scroll the panel; disabling/hiding active controls can move Chrome focus to body. Preserve deliberate focus outside the widget and restore focus after a completed operation when appropriate.

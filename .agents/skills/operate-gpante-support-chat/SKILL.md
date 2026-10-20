@@ -103,3 +103,9 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 - Use native WordPress APIs and prefixed functions; no framework, new tables, speculative extension layers or custom updater is needed for this basic version. Future capabilities need their own spec and access rules.
 - Use actual WordPress/WooCommerce for schema compatibility: WooCommerce prices can be `stdClass` before JSON serialization. Keep public allowlists and visibility checks when normalizing that shape.
 - Use real browser checks for layout and focus: short screens scroll the panel; disabling/hiding active controls can move Chrome focus to body. Preserve deliberate focus outside the widget and restore focus after a completed operation when appropriate.
+
+## Publish WordPress releases
+
+- Follow `docs/wordpress-releases.md` for authorized releases. Keep plugin header, runtime version and readme Stable tag identical; use component tags `wordpress-vX.Y.Z`, separate from skill/workflow versions.
+- Add version-specific public notes in `releases/wordpress/X.Y.Z.md` and update `CHANGELOG.md`. Merging those notes to main triggers the GitHub Actions release workflow; manual runs are main-only. Do not publish private operational details in notes.
+- Publish only the allowlisted installable ZIP plus SHA256SUMS, tied to the verified commit. Never overwrite a published version or move its tag; corrections require a new version. Read back the release and download/verify assets before reporting success. Release publication does not authorize website installation, n8n changes or a custom updater.

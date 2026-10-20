@@ -1,0 +1,106 @@
+name: WordPress plugin release
+
+on:
+  pull_request:
+    paths:
+      - 'wordpress-plugin/**'
+      - 'scripts/build-plugin.py'
+      - 'tests/test_plugin_package.py'
+      - 'releases/wordpress/**'
+      - '.github/workflows/wordpress-release.yml'
+  push:
+    branches: [main]
+    paths: ['releases/wordpress/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wordpress-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      digest: ${{ steps.package.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24.22.0'
+      - name: Verify tests and PHP syntax
+        run: |
+          set -euo pipefail
+          node --test tests/*.test.cjs
+          php tests/plugin-settings.php
+          php tests/widget-bridge.php
+          php tests/catalog-query.php
+          find wordpress-plugin/gpante-support-chat -name '*.php' -print0 | xargs -0 -n 1 php -l
+          python3 -m unittest discover -s tests -p test_plugin_package.py
+      - name: Validate version and build the package
+        id: package
+        run: |
+          set -euo pipefail
+          version=$(python3 scripts/build-plugin.py --version)
+          test -s "releases/wordpress/$version.md"
+          python3 scripts/build-plugin.py
+          zip="dist/gpante-support-chat-wordpress-$version.zip"
+          digest=$(sha256sum "$zip" | cut -d ' ' -f 1)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      EXPECTED_DIGEST: ${{ needs.verify.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Publish the versioned ZIP and checksum
+        run: |
+          set -euo pipefail
+          test "$(python3 scripts/build-plugin.py --version)" = "$VERSION"
+          python3 scripts/build-plugin.py
+          tag="wordpress-v$VERSION"
+          asset="gpante-support-chat-wordpress-$VERSION.zip"
+          test "$(sha256sum "dist/$asset" | cut -d ' ' -f 1)" = "$EXPECTED_DIGEST"
+          (cd dist && sha256sum "$asset" > SHA256SUMS && sha256sum -c SHA256SUMS)
+          state="$RUNNER_TEMP/wordpress-release.json"
+          error="$RUNNER_TEMP/wordpress-release-error.txt"
+          api="repos/$GITHUB_REPOSITORY/releases/tags/$tag"
+          if gh api "$api" > "$state" 2> "$error"; then
+            if jq -e '.draft == false' "$state" > /dev/null; then
+              mkdir -p "$RUNNER_TEMP/published"
+              gh release download "$tag" --pattern "$asset" --pattern SHA256SUMS --dir "$RUNNER_TEMP/published"
+              cmp "dist/$asset" "$RUNNER_TEMP/published/$asset"
+              cmp dist/SHA256SUMS "$RUNNER_TEMP/published/SHA256SUMS"
+              echo "This exact package is already published; no release was changed."
+              exit 0
+            fi
+            jq -e --arg sha "$GITHUB_SHA" '.target_commitish == $sha' "$state" > /dev/null
+          else
+            grep -q 'HTTP 404' "$error" || { cat "$error" >&2; exit 1; }
+            if gh api "repos/$GITHUB_REPOSITORY/commits/$tag" > "$state" 2> "$error"; then
+              jq -e --arg sha "$GITHUB_SHA" '.sha == $sha' "$state" > /dev/null
+            else
+              grep -q 'HTTP 404' "$error" || { cat "$error" >&2; exit 1; }
+            fi
+            gh release create "$tag" --target "$GITHUB_SHA" --draft \
+              --title "GPante Support Chat — WordPress $VERSION" \
+              --notes-file "releases/wordpress/$VERSION.md"
+          fi
+          # Replacement is allowed only on the unpublished draft above.
+          gh release upload "$tag" "dist/$asset" dist/SHA256SUMS --clobber
+          gh release edit "$tag" --draft=false --latest

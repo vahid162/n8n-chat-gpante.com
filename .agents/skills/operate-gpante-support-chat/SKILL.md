@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.5.0"
+  version: "0.6.0"
 ---
 
 # Operate GPante Support Chat
@@ -99,13 +99,21 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 
 - Read `integration/wordpress/README.md` and `specs/001-wordpress-plugin-basic/verification.md` before plugin changes. Reuse the canonical PHP/template/assets; old integration PHP files are compatibility loaders, not independent implementations. Regenerate `woodmart-chat.html` after template/asset changes.
 - Preserve `gpante_support_runtime`, API v1 and valid settings. Run versioned migrations on normal initialization as well as activation. Settings API sanitization must be idempotent; WordPress may call it repeatedly. Blank keys preserve the secret, forms never echo it, and the option is not autoloaded or exposed in REST. Unknown future schemas must be preserved and fail closed.
-- Deactivation preserves settings; uninstall deletes only the plugin option. WordPress does not own n8n history or the cost ledger. Do not run operational migrations for a plugin-only change.
+- Deactivation preserves settings; uninstall deletes only its owned runtime and appearance options. WordPress does not own n8n history or the cost ledger. Do not run operational migrations for a plugin-only change.
 - Build WordPress ZIP with `scripts/build-plugin.py`; inspect its explicit runtime allowlist. Never confuse it with a Codex skill/plugin ZIP. Versioned packages are snapshots and must be rebuilt after source changes.
 - Use native WordPress APIs and prefixed functions; no framework, new tables, speculative extension layers or custom updater is needed for this basic version. Future capabilities need their own spec and access rules.
 - Use actual WordPress/WooCommerce for schema compatibility: WooCommerce prices can be `stdClass` before JSON serialization. Keep public allowlists and visibility checks when normalizing that shape.
 - WooCommerce attribute, term and image records can also be `stdClass`. Normalize only the trusted schema records before applying existing field allowlists; test products with populated attributes and images, not only empty fixtures.
 - Recheck hosting configuration after panel/PHP updates. Long chat requests must fit server timeouts without occupying ordinary storefront workers. Preserve its isolated route/pool, private no-cache responses and trusted client-IP handling; gracefully reload only after configuration validation. Purge cached public pages by the exact site cache key when widget visibility changes.
 - Use real browser checks for layout and focus: short screens scroll the panel; disabling/hiding active controls can move Chrome focus to body. Preserve deliberate focus outside the widget and restore focus after a completed operation when appropriate.
+
+## Maintain presentation settings
+
+- Appearance lives under `چت پانته ← ظاهر`, separate from connection and archive controls. Preserve the nonautoloaded `gpante_support_appearance` option and its independent schema=1; changing/resetting it must never alter `gpante_support_runtime`, central policy or n8n.
+- Accept only the existing bounded plain-text fields and six-digit RGB colors. Preserve native capability/nonce checks, output escaping and the minimum 4.5 text/background contrast checks. Do not accept arbitrary HTML, CSS or scripts.
+- Retention and clear-confirmation disclosures remain generated/protected. Custom welcome copy is presentation only, never model instructions or a stored conversation turn.
+- The public no-store GET `/appearance` returns only allowlisted presentation fields. Build its actual URL with `rest_url` for plain permalinks too. Preserve one background read per page, safe initial fallback and scoped CSS variables so cached HTML can pick up current settings without model calls.
+- Rebuild the optional embed and verify native WordPress saves, public config safety, cached-page refresh and desktop/short-screen browser behavior after changes. Tabs already open need reloading; purge only this site's cached HTML/assets on the first version upgrade.
 
 ## Maintain the conversation archive
 

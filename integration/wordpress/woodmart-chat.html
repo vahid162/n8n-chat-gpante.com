@@ -1,13 +1,20 @@
 <!-- GPante Support Chat: paste once in the global WoodMart footer. Requires the server-side chat endpoint. -->
 <style>
 #gpante-support {
-	--gpante-green: #365e28;
-	--gpante-border: #dfe5da;
+	--gpante-primary: #365e28;
+	--gpante-on-primary: #ffffff;
+	--gpante-surface: #ffffff;
+	--gpante-text: #263023;
+	--gpante-messages: #f7f9f4;
+	--gpante-user: #e9f0e2;
+	--gpante-assistant: #ffffff;
+	--gpante-accent: #fbbc34;
+	--gpante-border: var(--gpante-text);
 	position: fixed;
 	inset-inline-end: max(20px, env(safe-area-inset-left));
 	bottom: max(20px, env(safe-area-inset-bottom));
 	z-index: 99990;
-	color: #263023;
+	color: var(--gpante-text);
 	font-family: var(--wd-text-font, "dana", Tahoma, sans-serif);
 	font-size: 14px;
 	line-height: 1.8;
@@ -22,8 +29,8 @@
 	padding: 8px 14px;
 	border: 1px solid transparent;
 	border-radius: 10px;
-	background: var(--gpante-green);
-	color: #fff;
+	background: var(--gpante-primary);
+	color: var(--gpante-on-primary);
 	cursor: pointer;
 	line-height: 1.6;
 	box-shadow: none;
@@ -31,7 +38,7 @@
 #gpante-support button:disabled { opacity: .55; cursor: default; }
 #gpante-support button:focus-visible, #gpante-support textarea:focus-visible,
 #gpante-support a:focus-visible, #gpante-support [tabindex]:focus-visible {
-	outline: 3px solid #a76b00;
+	outline: 3px solid var(--gpante-text);
 	outline-offset: 3px;
 }
 #gpante-support .gpante-chat-launcher {
@@ -53,10 +60,10 @@
 	height: min(650px, calc(100vh - 110px));
 	height: min(650px, calc(100dvh - 110px));
 	margin-bottom: 12px;
-	overflow: hidden;
+	overflow-y: auto;
 	border: 1px solid var(--gpante-border);
 	border-radius: 18px;
-	background: #fff;
+	background: var(--gpante-surface);
 	box-shadow: 0 10px 50px #23331e30;
 }
 #gpante-support .gpante-chat-header {
@@ -66,38 +73,38 @@
 	gap: 12px;
 	flex-shrink: 0;
 	padding: 12px 16px;
-	border-top: 4px solid #fbbc34;
-	background: var(--gpante-green);
-	color: #fff;
+	border-top: 4px solid var(--gpante-accent);
+	background: var(--gpante-primary);
+	color: var(--gpante-on-primary);
 }
 #gpante-support .gpante-chat-header strong { display: block; font-size: 17px; color: inherit; }
 #gpante-support .gpante-chat-header span { display: block; font-size: 12px; }
-#gpante-support .gpante-chat-header button { min-width: 44px; padding: 0; font-size: 27px; background: #ffffff14; }
-#gpante-support .gpante-chat-intro { padding: 10px 16px 4px; font-size: 11px; color: #525d4b; }
+#gpante-support .gpante-chat-header button { min-width: 44px; padding: 0; font-size: 27px; background: transparent; }
+#gpante-support .gpante-chat-intro { padding: 10px 16px 4px; font-size: 11px; color: var(--gpante-text); }
 #gpante-support .gpante-chat-toolbar { padding: 0 8px; }
-#gpante-support .gpante-chat-toolbar button { background: transparent; color: var(--gpante-green); font-size: 12px; text-decoration: underline; }
-#gpante-support .gpante-chat-confirm { padding: 10px 16px; background: #fff5d9; font-size: 12px; }
+#gpante-support .gpante-chat-toolbar button { background: transparent; color: var(--gpante-text); font-size: 12px; text-decoration: underline; }
+#gpante-support .gpante-chat-confirm { padding: 10px 16px; background: var(--gpante-surface); font-size: 12px; }
 #gpante-support .gpante-chat-confirm p { margin: 0 0 8px; color: inherit; }
 #gpante-support .gpante-chat-confirm button { padding: 6px 12px; margin-inline-end: 6px; }
-#gpante-support [data-cancel] { background: #fff; color: #263023; border-color: #a5ad9e; }
+#gpante-support [data-cancel] { background: var(--gpante-surface); color: var(--gpante-text); border-color: var(--gpante-border); }
 #gpante-support .gpante-chat-messages {
 	min-height: 70px;
 	flex: 1 1 auto;
 	padding: 12px;
 	overflow-y: auto;
 	overscroll-behavior: contain;
-	background: #f7f9f4;
+	background: var(--gpante-messages);
 	scrollbar-gutter: stable;
 }
-#gpante-support .gpante-chat-message { width: fit-content; max-width: 94%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--gpante-border); border-radius: 12px 12px 3px 12px; background: #fff; }
-#gpante-support .gpante-chat-message > small { display: block; margin-bottom: 3px; color: #59634f; font-size: 10px; }
+#gpante-support .gpante-chat-message { width: fit-content; max-width: 94%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--gpante-border); border-radius: 12px 12px 3px 12px; background: var(--gpante-assistant); }
+#gpante-support .gpante-chat-message > small { display: block; margin-bottom: 3px; color: inherit; font-size: 10px; }
 #gpante-support .gpante-chat-message > div { white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
-#gpante-support .gpante-chat-message--user { margin-inline-start: auto; background: #e9f0e2; border-radius: 12px 12px 12px 3px; }
-#gpante-support .gpante-chat-message a { color: #28561a; text-decoration: underline; text-underline-offset: 3px; }
-#gpante-support .gpante-chat-status { min-height: 26px; flex-shrink: 0; padding: 5px 14px; color: #525d4b; font-size: 11px; }
-#gpante-support[data-error="true"] .gpante-chat-status { color: #9c251c; }
+#gpante-support .gpante-chat-message--user { margin-inline-start: auto; background: var(--gpante-user); border-radius: 12px 12px 12px 3px; }
+#gpante-support .gpante-chat-message a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+#gpante-support .gpante-chat-status { min-height: 26px; flex-shrink: 0; padding: 5px 14px; color: var(--gpante-text); font-size: 11px; }
+#gpante-support[data-error="true"] .gpante-chat-status { font-weight: 700; }
 #gpante-support .gpante-chat-retry { align-self: flex-start; margin: 0 14px 8px; min-height: 36px; padding: 5px 12px; }
-#gpante-support .gpante-chat-form { flex-shrink: 0; margin: 0; padding: 8px 12px 12px; border-top: 1px solid var(--gpante-border); background: #fff; }
+#gpante-support .gpante-chat-form { flex-shrink: 0; margin: 0; padding: 8px 12px 12px; border-top: 1px solid var(--gpante-border); background: var(--gpante-surface); }
 #gpante-support .gpante-chat-form label { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 700; }
 #gpante-support textarea {
 	display: block;
@@ -105,10 +112,10 @@
 	min-height: 56px;
 	max-height: 110px;
 	padding: 8px 10px;
-	border: 1px solid #a9b59e;
+	border: 1px solid var(--gpante-border);
 	border-radius: 8px;
-	background: #fff;
-	color: #263023;
+	background: var(--gpante-surface);
+	color: var(--gpante-text);
 	box-shadow: none;
 	resize: vertical;
 	direction: rtl;
@@ -116,9 +123,9 @@
 	font-size: 14px;
 	line-height: 1.7;
 }
-#gpante-support textarea::placeholder { color: #68725f; opacity: 1; }
+#gpante-support textarea::placeholder { color: var(--gpante-text); opacity: 1; }
 #gpante-support .gpante-chat-compose { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; }
-#gpante-support .gpante-chat-compose small { color: #626c58; font-size: 10px; }
+#gpante-support .gpante-chat-compose small { color: var(--gpante-text); font-size: 10px; }
 @media (max-width: 480px) {
 	#gpante-support { inset-inline-end: max(8px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom)); }
 	#gpante-support .gpante-chat-panel { width: calc(100vw - 16px); height: min(650px, calc(100vh - 88px)); height: min(650px, calc(100dvh - 88px)); margin-bottom: 8px; border-radius: 14px; }
@@ -144,15 +151,18 @@
   #gpante-support .gpante-chat-panel > * { flex-shrink: 0; }
   #gpante-support .gpante-chat-messages { flex: 1 0 80px; }
 }
+
+#gpante-support .gpante-chat-header button:focus-visible { outline-color: var(--gpante-on-primary); }
+#gpante-support .gpante-chat-header strong, #gpante-support .gpante-chat-launcher span { overflow-wrap: anywhere; }
 </style>
 
-<div id="gpante-support" dir="rtl" lang="fa" data-endpoint="/wp-json/gpante-support/v1/chat">
+<div id="gpante-support" dir="rtl" lang="fa" style="--gpante-primary:#365e28;--gpante-on-primary:#ffffff;--gpante-surface:#ffffff;--gpante-text:#263023;--gpante-messages:#f7f9f4;--gpante-user:#e9f0e2;--gpante-assistant:#ffffff;--gpante-accent:#fbbc34;" data-appearance="{&quot;version&quot;:1,&quot;texts&quot;:{&quot;title&quot;:&quot;\u062f\u0633\u062a\u06cc\u0627\u0631 \u067e\u0627\u0646\u062a\u0647&quot;,&quot;subtitle&quot;:&quot;\u0631\u0627\u0647\u0646\u0645\u0627\u06cc \u0637\u0631\u062d \u0648 \u0641\u0627\u06cc\u0644\u060c \u062e\u0631\u06cc\u062f \u0648 \u062f\u0627\u0646\u0644\u0648\u062f&quot;,&quot;launcher&quot;:&quot;\u0627\u0632 \u067e\u0627\u0646\u062a\u0647 \u0628\u067e\u0631\u0633\u06cc\u062f&quot;,&quot;welcome&quot;:&quot;\u0633\u0644\u0627\u0645! \u062f\u0646\u0628\u0627\u0644 \u0686\u0647 \u0637\u0631\u062d \u06cc\u0627 \u0641\u0627\u06cc\u0644\u06cc \u0647\u0633\u062a\u06cc\u062f\u061f \u0645\u0648\u0636\u0648\u0639\u060c \u0645\u062a\u0631\u06cc\u0627\u0644\u060c \u0636\u062e\u0627\u0645\u062a \u0648 \u0641\u0631\u0645\u062a \u062f\u0644\u062e\u0648\u0627\u0647\u062a\u0627\u0646 \u0631\u0627 \u0628\u0646\u0648\u06cc\u0633\u06cc\u062f \u062a\u0627 \u062f\u0642\u06cc\u0642\u200c\u062a\u0631 \u0631\u0627\u0647\u0646\u0645\u0627\u06cc\u06cc\u200c\u062a\u0627\u0646 \u06a9\u0646\u0645.&quot;,&quot;input_label&quot;:&quot;\u067e\u0631\u0633\u0634 \u0634\u0645\u0627&quot;,&quot;placeholder&quot;:&quot;\u0645\u062b\u0644\u0627\u064b \u0628\u0627\u06a9\u0633 MDF \u0628\u0627 \u0636\u062e\u0627\u0645\u062a \u06f2\u066b\u06f7 \u0648 \u0641\u0627\u06cc\u0644 DXF \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645\u2026&quot;,&quot;send&quot;:&quot;\u0627\u0631\u0633\u0627\u0644 \u067e\u06cc\u0627\u0645&quot;,&quot;clear&quot;:&quot;\u067e\u0627\u06a9\u200c\u06a9\u0631\u062f\u0646 \u0648 \u06af\u0641\u062a\u200c\u0648\u06af\u0648\u06cc \u062a\u0627\u0632\u0647&quot;},&quot;colors&quot;:{&quot;primary&quot;:&quot;#365e28&quot;,&quot;on_primary&quot;:&quot;#ffffff&quot;,&quot;surface&quot;:&quot;#ffffff&quot;,&quot;text&quot;:&quot;#263023&quot;,&quot;messages&quot;:&quot;#f7f9f4&quot;,&quot;user&quot;:&quot;#e9f0e2&quot;,&quot;assistant&quot;:&quot;#ffffff&quot;,&quot;accent&quot;:&quot;#fbbc34&quot;}}" data-appearance-endpoint="/wp-json/gpante-support/v1/appearance" data-endpoint="/wp-json/gpante-support/v1/chat">
 	<section id="gpante-support-panel" class="gpante-chat-panel" role="dialog" aria-labelledby="gpante-support-title" tabindex="-1" hidden>
-		<header class="gpante-chat-header">
-			<div><strong id="gpante-support-title">دستیار پانته</strong><span>راهنمای طرح و فایل، خرید و دانلود</span></div>
+		<div class="gpante-chat-header">
+			<div><strong id="gpante-support-title" data-title>دستیار پانته</strong><span data-subtitle>راهنمای طرح و فایل، خرید و دانلود</span></div>
 			<button type="button" data-close aria-label="بستن گفت‌وگو">×</button>
-		</header>
-		<div class="gpante-chat-intro" data-policy>دستیار هوش مصنوعی برای اطلاعات عمومی محصولات و راهنماهاست. به حساب یا سفارش شما دسترسی ندارد. هنگام بازشدن گفتگو، سیاست نگهداری نمایش داده می‌شود. آرشیو مدیریتی پیام‌ها برای بررسی فنی تا ۳۰ روز باقی می‌ماند.</div>
+		</div>
+		<div class="gpante-chat-intro" data-policy tabindex="0">دستیار هوش مصنوعی برای اطلاعات عمومی محصولات و راهنماهاست. به حساب یا سفارش شما دسترسی ندارد. هنگام بازشدن گفتگو، سیاست نگهداری نمایش داده می‌شود. آرشیو مدیریتی پیام‌ها برای بررسی فنی تا ۳۰ روز باقی می‌ماند.</div>
 		<div class="gpante-chat-toolbar"><button type="button" data-new hidden>پاک‌کردن و گفت‌وگوی تازه</button></div>
 		<div class="gpante-chat-confirm" data-confirm hidden>
 			<p>این گفتگو از تاریخچهٔ قابل مشاهدهٔ شما پاک می‌شود و گفتگوی تازه‌ای آغاز خواهد شد. آرشیو مدیریتی آن برای بررسی فنی، تا پایان مهلت ۳۰روزه باقی می‌ماند. ادامه می‌دهید؟</p>
@@ -162,14 +172,14 @@
 		<div class="gpante-chat-status" data-status role="status" aria-live="polite" aria-atomic="true"></div>
 		<button class="gpante-chat-retry" type="button" data-retry hidden>تلاش دوباره</button>
 		<form class="gpante-chat-form" data-form>
-			<label for="gpante-support-input">پرسش شما</label>
+			<label for="gpante-support-input" data-input-label>پرسش شما</label>
 			<textarea id="gpante-support-input" data-input rows="2" maxlength="4000" placeholder="مثلاً باکس MDF با ضخامت ۲٫۷ و فایل DXF می‌خواهم…" required></textarea>
 			<div class="gpante-chat-compose"><small data-count aria-hidden="true">۰ / ۴۰۰۰</small><button type="submit" data-send disabled>ارسال پیام</button></div>
 		</form>
 	</section>
-	<button class="gpante-chat-launcher" type="button" data-launcher aria-label="باز کردن دستیار هوش مصنوعی پانته" aria-controls="gpante-support-panel" aria-expanded="false">
+	<button class="gpante-chat-launcher" type="button" data-launcher aria-label="از پانته بپرسید" aria-controls="gpante-support-panel" aria-expanded="false">
 		<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2v-10A8.5 8.5 0 0 1 9.5 3H12a8 8 0 0 1 8 8.5Z"/><path d="M6 9h9M6 13h6"/></svg>
-		<span>از پانته بپرسید</span>
+		<span data-launcher-label>از پانته بپرسید</span>
 	</button>
 </div>
 
@@ -240,6 +250,42 @@
   let failed = null;
   let policy = null;
   let historyTimer = null;
+  let welcomeItem = null;
+  const appearanceTextLimits = {title:80,subtitle:160,launcher:60,welcome:1000,input_label:80,placeholder:250,send:40,clear:100};
+  let appearanceTexts = {title:'دستیار پانته',welcome:'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.'};
+
+  function applyAppearance(value) {
+    const colors = ['primary','on_primary','surface','text','messages','user','assistant','accent'];
+    if (value?.version !== 1 || !value.texts || !value.colors
+      || Object.entries(appearanceTextLimits).some(([key,limit]) => typeof value.texts[key] !== 'string'
+        || !value.texts[key].trim() || [...value.texts[key]].length > limit)
+      || colors.some(key => typeof value.colors[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(value.colors[key]))) return;
+    appearanceTexts = Object.fromEntries(Object.keys(appearanceTextLimits).map(key => [key,value.texts[key]]));
+    const fields = {title:'title',subtitle:'subtitle',launcher:'launcher-label',input_label:'input-label',send:'send',clear:'new'};
+    for (const [key,selector] of Object.entries(fields)) {
+      const element = find('[data-' + selector + ']');
+      if (element) element.textContent = appearanceTexts[key];
+    }
+    input.setAttribute('placeholder', appearanceTexts.placeholder);
+    launcher.setAttribute('aria-label', appearanceTexts.launcher);
+    for (const key of colors) root.style.setProperty('--gpante-' + key.replace('_','-'), value.colors[key]);
+    for (const item of messages.children) {
+      if (item.className.endsWith('--assistant')) item.children[0].textContent = appearanceTexts.title;
+    }
+    if (welcomeItem && messages.contains(welcomeItem)) welcomeItem.children[1].textContent = appearanceTexts.welcome;
+  }
+
+  try { applyAppearance(JSON.parse(root.dataset.appearance || '{}')); } catch (_) { /* Keep server-rendered defaults. */ }
+  // Read once per page, even behind a full-page cache. This never calls n8n or the model.
+  if (root.dataset.appearanceEndpoint) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    fetch(root.dataset.appearanceEndpoint, {
+      method:'GET', mode:'same-origin', credentials:'omit', redirect:'error', cache:'no-store',
+      headers:{Accept:'application/json'}, signal:controller.signal
+    }).then(response => response.ok ? response.json() : null).then(applyAppearance)
+      .catch(() => {}).finally(() => clearTimeout(timer));
+  }
 
   function updateInput() {
     find('[data-count]').textContent = input.value.length.toLocaleString('fa-IR') + ' / ۴۰۰۰';
@@ -269,7 +315,7 @@
     if (expiresAt) item.dataset.expiresAt = expiresAt;
     item.className = 'gpante-chat-message gpante-chat-message--' + role;
     const label = document.createElement('small');
-    label.textContent = role === 'user' ? 'شما' : 'دستیار پانته';
+    label.textContent = role === 'user' ? 'شما' : appearanceTexts.title;
     const body = document.createElement('div');
     if (role === 'assistant') appendContent(body, text);
     else body.textContent = text;
@@ -280,7 +326,7 @@
   }
 
   function welcome() {
-    addMessage('assistant', 'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.');
+    welcomeItem = addMessage('assistant', appearanceTexts.welcome);
   }
 
   function validPolicy(value) {

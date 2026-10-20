@@ -41,6 +41,7 @@ jobs:
           set -euo pipefail
           node --test tests/*.test.cjs
           php tests/plugin-settings.php
+          php tests/plugin-appearance.php
           php tests/widget-bridge.php
           php tests/catalog-query.php
           find wordpress-plugin/gpante-support-chat -name '*.php' -print0 | xargs -0 -n 1 php -l

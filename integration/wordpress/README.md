@@ -1,15 +1,15 @@
 # اتصال وردپرس و وودمارت
 
-منبع اصلی اتصال اکنون [افزونهٔ GPante Support Chat](../../wordpress-plugin/gpante-support-chat/readme.txt)، نسخهٔ **۰٫۱٫۱** است. PHP، کاتالوگ، template و assetها فقط در پوشهٔ افزونه نگهداری می‌شوند. نصب و اتصال عمومی روی gpante.com بررسی شدند؛ [گزارش تولید](../../docs/production-readiness.md).
+منبع اصلی اتصال اکنون [افزونهٔ GPante Support Chat](../../wordpress-plugin/gpante-support-chat/readme.txt)، نسخهٔ **۰٫۲٫۰** است. PHP، کاتالوگ، template و assetها فقط در پوشهٔ افزونه نگهداری می‌شوند. نصب و اتصال عمومی روی gpante.com بررسی شدند؛ [گزارش تولید](../../docs/production-readiness.md).
 
 ## نصب و تنظیم
 
-1. ZIP رسمی را از [Releases](https://github.com/vahid162/n8n-chat-gpante.com/releases) دریافت کنید یا با `python3 scripts/build-plugin.py` بستهٔ مستقل `dist/gpante-support-chat-wordpress-0.1.1.zip` را بسازید. ZIP شامل ۱۰ فایل runtime است؛ کل مخزن، مهارت، تست یا تنظیم خصوصی را در وردپرس نصب نکنید.
+1. ZIP رسمی را از [Releases](https://github.com/vahid162/n8n-chat-gpante.com/releases) دریافت کنید یا با `python3 scripts/build-plugin.py` بستهٔ مستقل `dist/gpante-support-chat-wordpress-0.2.0.zip` را بسازید. ZIP شامل ۱۱ فایل runtime است؛ کل مخزن، مهارت، تست یا تنظیم خصوصی را در وردپرس نصب نکنید.
 2. در وردپرسِ مجاز برای نصب، WooCommerce فعال، PHP حداقل ۸٫۱ و WordPress حداقل ۶٫۶ لازم است. ZIP را از بخش افزودن افزونه بارگذاری و فعال کنید. **نصب تازه چت را خاموش نگه می‌دارد.**
 3. از «تنظیمات ← چت جی‌پانته»، کلید اختصاصی را خصوصی وارد کنید. ورودی خالی کلید قبلی را حفظ می‌کند؛ مقدار ذخیره‌شده در HTML یا REST تنظیمات بازنمایش داده نمی‌شود.
 4. پس از آماده‌بودن سرویس n8n، HTTPS، پراکسی و cache، نمایش عمومی را روشن کنید. رابط برای همهٔ بازدیدکنندگان از hookهای معمول وردپرس نمایش داده می‌شود؛ به ویرایش قالب نیاز ندارد.
 
-گزینهٔ `gpante_support_runtime` بارگذاری عمومی خودکار ندارد و شامل `schema_version=1`، `enabled`، `backend_url` ثابت و `shared_key` است. ارتقای افزونه migration کوچک و idempotent را اجرا می‌کند؛ کلید، انتخاب قبلی و فیلدهای توسعه حفظ می‌شوند. نسخهٔ schema جدیدتر حفظ و اتصال ناسازگار متوقف می‌شود. غیرفعال‌کردن، تنظیمات را پاک نمی‌کند؛ حذف کامل فقط این option را پاک می‌کند و به دیتابیس یا تاریخچهٔ n8n دست نمی‌زند.
+گزینهٔ `gpante_support_runtime` بارگذاری عمومی خودکار ندارد و شامل `schema_version=2`، `enabled`، `backend_url` ثابت و `shared_key` است. ارتقای افزونه migration کوچک و idempotent را اجرا می‌کند؛ کلید، انتخاب قبلی و فیلدهای توسعه حفظ می‌شوند. نسخهٔ schema جدیدتر حفظ و اتصال ناسازگار متوقف می‌شود. غیرفعال‌کردن، تنظیمات را پاک نمی‌کند؛ حذف کامل فقط این option را پاک می‌کند و به دیتابیس یا تاریخچهٔ n8n دست نمی‌زند.
 
 ## ارتقا
 
@@ -31,7 +31,7 @@ Origin دقیق HTTPS از `home_url` مورد اعتماد وردپرس خوا�
 
 ## آزمون
 
-۴۰ آزمون Node، آزمون تنظیمات/مهاجرت PHP، واسط امن و ۱۰ حالت query/Schema موفق‌اند. نصب محلی با WordPress **۷٫۱٫۳**، WooCommerce **۱۱٫۲٫۱** و PHP **۸٫۴٫۲۵** بررسی شد؛ [گزارش مرحلهٔ محلی](../../specs/001-wordpress-plugin-basic/verification.md). بررسی بعدی روی PHP **۸٫۳٫۳۲** و قالب واقعی WoodMart **۸٫۶٫۴**، ارسال واقعی، تاریخچه، حذف، نشست جدا، خطا/تلاش مجدد و سه اندازهٔ صفحه را پوشش داد؛ [گزارش تولید](../../docs/production-readiness.md). این بررسی، تأیید همهٔ نسخه‌های حداقل، Safari/iOS یا multisite نیست.
+۴۴ آزمون Node، آزمون تنظیمات/مهاجرت PHP، واسط امن و ۱۰ حالت query/Schema موفق‌اند. نصب محلی با WordPress **۷٫۱٫۳**، WooCommerce **۱۱٫۲٫۱** و PHP **۸٫۴٫۲۵** بررسی شد؛ [گزارش مرحلهٔ محلی](../../specs/001-wordpress-plugin-basic/verification.md). بررسی بعدی روی PHP **۸٫۳٫۳۲** و قالب واقعی WoodMart **۸٫۶٫۴**، ارسال واقعی، تاریخچه، حذف، نشست جدا، خطا/تلاش مجدد و سه اندازهٔ صفحه را پوشش داد؛ [گزارش تولید](../../docs/production-readiness.md). این بررسی، تأیید همهٔ نسخه‌های حداقل، Safari/iOS یا multisite نیست.
 
 پیش‌نمایش مستقل: `node scripts/preview-widget.cjs /tmp/gpante-chat-local-preview.html`. شبکهٔ مصنوعی و CSP مسدودکننده دارد؛ برای درج در سایت نیست. تست WordPress نیز با fixture خارج بسته به backend مصنوعی وصل می‌شود، نه n8n یا مدل واقعی.
 

@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,7 +23,7 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 پس از روشن‌کردن توسط مدیر، با بازکردن چت یا ارسال/حذف پیام، سرور سایت به نشانی ثابت
 https://n8n.gpantex.com/webhook/gpante-ai-support-v1
 درخواست می‌فرستد. متن پیام، شناسهٔ امضاشدهٔ نشست و شناسهٔ HMAC از IP سرور ارسال می‌شوند؛ IP خام و کلید اتصال به مرورگر داده نمی‌شوند.
-سرویس موجود از مدل DeepSeek استفاده می‌کند. تاریخچه تا ۳۰ روز نگهداری می‌شود و کاربر می‌تواند همان گفتگو را پاک کند.
+سرویس موجود از مدل DeepSeek استفاده می‌کند. آرشیو مدیر تا ۳۰ روز از زمان اصلی پرسش نگهداری می‌شود. مدیر مدت نمایش کاربران را ۳، ۷، ۱۵ یا ۳۰ روز تعیین می‌کند؛ پاک‌کردن کاربر فقط دسترسی و زمینهٔ مدل را می‌بندد و آرشیو مدیر را حذف نمی‌کند.
 کوکی __Host-gpante_support با Secure، HttpOnly و SameSite=Strict، حداکثر ۳۰ روز معتبر است.
 افزونه اطلاعات گفتگو را در دیتابیس وردپرس ذخیره نمی‌کند. اپراتور سایت مسئول اطلاع‌رسانی سیاست حریم خصوصی و آماده‌بودن سرویس است.
 قرارداد و سیاست عملیاتی پروژه: https://github.com/vahid162/n8n-chat-gpante.com
@@ -33,7 +33,7 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 پوشش تولید سقف تعداد محصول ندارد. اندازهٔ صفحهٔ محصول پنج و راهنما سه است؛ صفحه‌بندی و شمار کل حفظ می‌شوند.
 
 == Installation ==
-1. ZIP مستقل gpante-support-chat-wordpress-0.1.1.zip را در Plugins > Add New > Upload Plugin بارگذاری کنید.
+1. ZIP مستقل gpante-support-chat-wordpress-X.Y.Z.zip را در Plugins > Add New > Upload Plugin بارگذاری کنید.
 2. WooCommerce باید فعال باشد. سپس GPante Support Chat را فعال کنید؛ چت همچنان خاموش است.
 3. اتصال n8n، کلید اختصاصی، HTTPS، پراکسی/IP، timeout و استثنای cache مسیر REST را آماده کنید.
 4. Settings > چت جی‌پانته را باز، کلید را از مسیر خصوصی وارد و نمایش عمومی را روشن کنید.
@@ -53,6 +53,9 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 
 == Changelog ==
 
+= 0.2.1 =
+* اصلاح نام فایل نصب و توضیح دقیق نگهداری/پاک‌کردن در راهنمای داخل بسته؛ رفتار runtime تغییر نکرده است.
+
 = 0.2.0 =
 آرشیو مدیریتی ۳۰روزه، سیاست تاریخچهٔ ۳/۷/۱۵/۳۰ روز و کنترل پاک‌کردن کاربر؛ نیازمند backend جدید.
 = 0.1.1 =
@@ -62,6 +65,11 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 * اولین بستهٔ مستقل: تنظیم امن مدیر، رابط عمومی فارسی، provider کاتالوگ و مهاجرت نسخه‌دار.
 
 == Upgrade Notice ==
+= 0.2.1 =
+اصلاح راهنمای داخل بسته؛ برای ارتقا از 0.2.0 هیچ migration، کلید یا تنظیم تازه‌ای لازم نیست.
+
+= 0.2.0 =
+ابتدا migration 003 و backend سازگار آماده شوند؛ clear کاربر آرشیو مدیر را حذف نمی‌کند.
 = 0.1.1 =
 اصلاح سازگار کاتالوگ؛ تنظیمات و کلید اتصال حفظ می‌شوند. افزونه را حذف کامل نکنید.
 

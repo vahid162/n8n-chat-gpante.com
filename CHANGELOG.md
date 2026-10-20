@@ -2,6 +2,13 @@
 
 تغییرات قابل استفادهٔ افزونهٔ WordPress در این فایل ثبت می‌شوند. نسخهٔ افزونه از workflow و مهارت مستقل است؛ [سیاست انتشار](docs/wordpress-releases.md).
 
+## [0.3.0] - 2026-10-20
+
+### Added
+- صفحهٔ «چت پانته ← ظاهر» برای هشت متن اصلی و هشت رنگ؛ بازگرداندن پیش‌فرض با حفظ اتصال و تاریخچه.
+- اعتبارسنجی متن ساده، رنگ شش‌رقمی و خوانایی متن با حداقل نسبت ۴٫۵؛ تغییر نامعتبر تنظیم قبلی را حفظ می‌کند.
+- دریافت عمومی و بدون cache فقط برای ظاهر، تا صفحات کش‌شده هم تنظیم تازه را نمایش دهند؛ بدون تماس مدل.
+
 ## [0.2.1] - 2026-10-20
 
 ### Fixed
@@ -39,3 +46,5 @@
 [0.2.0]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.2.0
 
 [0.2.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.2.1
+
+[0.3.0]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.3.0

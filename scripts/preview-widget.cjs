@@ -7,6 +7,7 @@ const { buildWidget } = require('./build-widget.cjs');
 const mock = `
 const previewMessages = [];
 window.fetch = async function (url, options) {
+  if (url === '/wp-json/gpante-support/v1/appearance') return new Response(document.getElementById('gpante-support').dataset.appearance, {headers:{'Content-Type':'application/json'}});
   if (url !== '/wp-json/gpante-support/v1/chat') throw new TypeError('Offline preview blocks network requests.');
   const mode = document.getElementById('preview-mode').value;
   if (mode === 'network') throw new TypeError('Simulated offline state');

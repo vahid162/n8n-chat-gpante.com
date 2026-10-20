@@ -10,3 +10,4 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 
 delete_option( 'gpante_support_runtime' );
+delete_option( 'gpante_support_appearance' );

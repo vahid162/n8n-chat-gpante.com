@@ -64,6 +64,42 @@
   let failed = null;
   let policy = null;
   let historyTimer = null;
+  let welcomeItem = null;
+  const appearanceTextLimits = {title:80,subtitle:160,launcher:60,welcome:1000,input_label:80,placeholder:250,send:40,clear:100};
+  let appearanceTexts = {title:'دستیار پانته',welcome:'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.'};
+
+  function applyAppearance(value) {
+    const colors = ['primary','on_primary','surface','text','messages','user','assistant','accent'];
+    if (value?.version !== 1 || !value.texts || !value.colors
+      || Object.entries(appearanceTextLimits).some(([key,limit]) => typeof value.texts[key] !== 'string'
+        || !value.texts[key].trim() || [...value.texts[key]].length > limit)
+      || colors.some(key => typeof value.colors[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(value.colors[key]))) return;
+    appearanceTexts = Object.fromEntries(Object.keys(appearanceTextLimits).map(key => [key,value.texts[key]]));
+    const fields = {title:'title',subtitle:'subtitle',launcher:'launcher-label',input_label:'input-label',send:'send',clear:'new'};
+    for (const [key,selector] of Object.entries(fields)) {
+      const element = find('[data-' + selector + ']');
+      if (element) element.textContent = appearanceTexts[key];
+    }
+    input.setAttribute('placeholder', appearanceTexts.placeholder);
+    launcher.setAttribute('aria-label', appearanceTexts.launcher);
+    for (const key of colors) root.style.setProperty('--gpante-' + key.replace('_','-'), value.colors[key]);
+    for (const item of messages.children) {
+      if (item.className.endsWith('--assistant')) item.children[0].textContent = appearanceTexts.title;
+    }
+    if (welcomeItem && messages.contains(welcomeItem)) welcomeItem.children[1].textContent = appearanceTexts.welcome;
+  }
+
+  try { applyAppearance(JSON.parse(root.dataset.appearance || '{}')); } catch (_) { /* Keep server-rendered defaults. */ }
+  // Read once per page, even behind a full-page cache. This never calls n8n or the model.
+  if (root.dataset.appearanceEndpoint) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    fetch(root.dataset.appearanceEndpoint, {
+      method:'GET', mode:'same-origin', credentials:'omit', redirect:'error', cache:'no-store',
+      headers:{Accept:'application/json'}, signal:controller.signal
+    }).then(response => response.ok ? response.json() : null).then(applyAppearance)
+      .catch(() => {}).finally(() => clearTimeout(timer));
+  }
 
   function updateInput() {
     find('[data-count]').textContent = input.value.length.toLocaleString('fa-IR') + ' / ۴۰۰۰';
@@ -93,7 +129,7 @@
     if (expiresAt) item.dataset.expiresAt = expiresAt;
     item.className = 'gpante-chat-message gpante-chat-message--' + role;
     const label = document.createElement('small');
-    label.textContent = role === 'user' ? 'شما' : 'دستیار پانته';
+    label.textContent = role === 'user' ? 'شما' : appearanceTexts.title;
     const body = document.createElement('div');
     if (role === 'assistant') appendContent(body, text);
     else body.textContent = text;
@@ -104,7 +140,7 @@
   }
 
   function welcome() {
-    addMessage('assistant', 'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.');
+    welcomeItem = addMessage('assistant', appearanceTexts.welcome);
   }
 
   function validPolicy(value) {

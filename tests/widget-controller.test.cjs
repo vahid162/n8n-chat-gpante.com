@@ -13,7 +13,7 @@ const previousMessages = [
 ];
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
-function createWidget() {
+function createWidget(appearance) {
   const document = { activeElement: null };
   // Only the DOM operations used by the actual controller are needed here.
   class Element {
@@ -21,6 +21,7 @@ function createWidget() {
       this.tagName = tag;
       this.children = [];
       this.dataset = {};
+      this.style = {setProperty: (key,value) => { this.styles ||= {}; this.styles[key] = value; }};
       this.attributes = {};
       this.listeners = {};
       this.hidden = false;
@@ -61,13 +62,14 @@ function createWidget() {
   document.createTextNode = text => { const node = new Element('#text'); node.textContent = text; return node; };
   const elements = Object.fromEntries([
     'root', 'panel', 'launcher', 'messages', 'status', 'input', 'form', 'send', 'new',
-    'confirm', 'clear', 'retry', 'count', 'close', 'cancel', 'policy'
+    'confirm', 'clear', 'retry', 'count', 'close', 'cancel', 'policy', 'title', 'subtitle', 'launcher-label', 'input-label'
   ].map(name => [name, new Element()]));
   const { root, panel, launcher } = elements;
   document.body = new Element('body');
   const footer = new Element('footer');
   footer.append(root);
   document.body.append(footer);
+  root.dataset.appearanceEndpoint = '/wp-json/gpante-support/v1/appearance';
   root.dataset.endpoint = '/wp-json/gpante-support/v1/chat';
   root.append(panel, launcher);
   panel.append(...Object.entries(elements).filter(([name]) => !['root', 'panel', 'launcher'].includes(name)).map(([, node]) => node));
@@ -75,6 +77,7 @@ function createWidget() {
   root.querySelector = selector => selector === '#gpante-support-panel' ? panel : elements[selector.slice(6, -1)];
   document.getElementById = id => id === 'gpante-support' ? root : null;
   const requests = [];
+  const appearanceRequests = [];
   const timers = new Map();
   let nextTimer = 0;
   const context = vm.createContext({
@@ -82,6 +85,10 @@ function createWidget() {
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, {callback,delay}); return id; },
     clearTimeout(id) { timers.delete(id); },
     fetch(url, options) {
+      if (options.method === 'GET') {
+        appearanceRequests.push({url,options});
+        return appearance instanceof Error ? Promise.reject(appearance) : Promise.resolve({ok:true,json:async()=>appearance || {}});
+      }
       return new Promise((resolve, reject) => {
         const request = { url, options, body: JSON.parse(options.body), resolve, reject };
         requests.push(request);
@@ -96,7 +103,7 @@ function createWidget() {
   // No CommonJS module is provided: this executes initialization and event handlers.
   vm.runInContext(source, context, { filename: 'wordpress-plugin/gpante-support-chat/assets/chat.js' });
   return {
-    elements, document, requests, timers,
+    elements, document, requests, appearanceRequests, timers,
     initializeAgain() { vm.runInContext(source, context); },
     click(name) { elements[name].dispatch('click'); },
     type(text) { elements.input.value = text; elements.input.dispatch('input'); },
@@ -374,4 +381,70 @@ test('missing policy fails closed and does not allow composing or clearing', asy
   assert.equal(widget.requests.length,1);
   assert.equal(widget.elements.send.disabled,true);
   assert.equal(widget.elements.new.hidden,true);
+});
+
+
+function customAppearance() {
+  return {version:1,texts:{title:'راهنمای فروشگاه',subtitle:'پاسخ پرسش‌ها',launcher:'پرسش دارید؟',welcome:'سلام؛ چطور کمک کنم؟',input_label:'متن پرسش',placeholder:'موضوع را بنویسید',send:'بفرست',clear:'گفتگوی تازه'},colors:{primary:'#123456',on_primary:'#ffffff',surface:'#ffffff',text:'#111111',messages:'#eeeeee',user:'#dddddd',assistant:'#ffffff',accent:'#aa5500'}};
+}
+
+test('fresh appearance bypasses a cached page, updates safe text/colors and preserves real retention copy', async () => {
+  const config = customAppearance();
+  const widget = createWidget(config);
+  await widget.open([]);
+  assert.equal(widget.appearanceRequests.length,1);
+  const request=widget.appearanceRequests[0];
+  assert.equal(request.options.cache,'no-store');
+  assert.equal(request.options.credentials,'omit');
+  assert.equal(request.url,'/wp-json/gpante-support/v1/appearance');
+  assert.equal(widget.elements.title.textContent,config.texts.title);
+  assert.equal(widget.elements['launcher-label'].textContent,config.texts.launcher);
+  assert.equal(widget.elements.launcher.attributes['aria-label'],config.texts.launcher);
+  assert.equal(widget.elements.input.attributes.placeholder,config.texts.placeholder);
+  assert.equal(widget.elements.root.styles['--gpante-primary'],'#123456');
+  assert.deepEqual(widget.messages(),[{role:'assistant',content:config.texts.welcome}]);
+  assert.equal(widget.elements.messages.children[0].children[0].textContent,config.texts.title);
+  assert.match(widget.elements.policy.textContent,/۳۰/);
+  widget.initializeAgain();
+  assert.equal(widget.appearanceRequests.length,1,'one public presentation read per page');
+  assert.equal([...widget.timers.values()].filter(t=>t.delay===6000).length,0);
+});
+
+test('malformed colors, future schema and failed appearance request preserve usable defaults', async () => {
+  for (const value of [new TypeError('offline'),{...customAppearance(),version:99},{...customAppearance(),colors:{...customAppearance().colors,primary:'#123456;position:fixed'}}]) {
+    const widget=createWidget(value);
+    await widget.open([]);
+    assert.match(widget.messages()[0].content,/سلام/);
+    assert.equal(widget.elements.root.styles,undefined);
+    widget.type('سلام');
+    assert.equal(widget.elements.send.disabled,false,'presentation failure does not disable chat');
+  }
+});
+
+test('appearance strings are plain text and cannot render markup or override protected policy', async () => {
+  const config=customAppearance();
+  config.texts.title='<img src=x onerror=alert(1)>';
+  config.texts.welcome='<script>bad()</script>';
+  config.texts.policy='آرشیوی وجود ندارد';
+  const widget=createWidget(config);
+  await widget.open([]);
+  assert.equal(widget.elements.title.textContent,config.texts.title);
+  assert.equal(widget.elements.title.children.length,0);
+  assert.equal(widget.messages()[0].content,config.texts.welcome);
+  assert.match(widget.elements.policy.textContent,/۳۰/);
+  assert.doesNotMatch(widget.elements.policy.textContent,/وجود ندارد/);
+});
+
+test('a slow appearance response updates an already visible welcome without blocking history', async () => {
+  let resolve;
+  const pending=new Promise(done=>{resolve=done;});
+  const widget=createWidget(pending);
+  await widget.open([]);
+  assert.match(widget.messages()[0].content,/سلام!/);
+  assert.equal(widget.elements.input.disabled,false);
+  resolve(customAppearance());
+  await tick();
+  assert.equal(widget.messages()[0].content,customAppearance().texts.welcome);
+  assert.equal(widget.elements.messages.children[0].children[0].textContent,customAppearance().texts.title);
+  assert.match(widget.elements.policy.textContent,/۳۰/);
 });

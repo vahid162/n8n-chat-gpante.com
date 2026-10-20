@@ -3,16 +3,16 @@ import json, os, subprocess
 from pathlib import Path
 root=Path(os.environ.get('GPANTE_WP_TEST_DIR','/home/codexops/n8n/.gpante-wp-test'))
 browser=os.environ.get('AGENT_BROWSER_BIN','/home/codexops/n8n/.tools/agent-browser')
-session='gpante-plugin-20261020'; evidence=root/'evidence';evidence.mkdir(exist_ok=True)
+session=os.environ.get('AGENT_BROWSER_TEST_SESSION','gpante-plugin-archive-local'); evidence=root/'evidence';evidence.mkdir(exist_ok=True)
 def run(*args):
- res=subprocess.run([browser,'--session',session,'--json',*args],text=True,capture_output=True,check=True)
+ res=subprocess.run([browser,'--session',session,'--ignore-https-errors','--json',*args],text=True,capture_output=True,check=True)
  data=json.loads(res.stdout);assert data['success'],data
  return data['data']
 def js(code):return run('eval',code)['result']
 def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled")
 def mode(value):subprocess.run(['php',str(root/'wp-cli.phar'),'--path='+str(root/'wordpress'),'option','update','gptest_backend_mode',value],check=True,capture_output=True)
 def message(text):run('fill','#gpante-support [data-input]',text);run('press','Enter');ready()
-mode('success'); run('reload');run('snapshot','-i');run('click','#gpante-support [data-launcher]');ready()
+mode('success'); run('open','https://127.0.0.1:9443');run('snapshot','-i');run('click','#gpante-support [data-launcher]');ready()
 message('آزمون مرورگر واقعی')
 assert 'پاسخ آزمایشی: آزمون مرورگر واقعی' in js("document.querySelector('#gpante-support [data-messages]').textContent")
 assert js("document.querySelector('#gpante-support [data-messages] a').href")=='https://gpante.com/product/local-test/'

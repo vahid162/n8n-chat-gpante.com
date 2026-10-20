@@ -15,10 +15,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<div><strong id="gpante-support-title"><?php esc_html_e( 'دستیار پانته', 'gpante-support-chat' ); ?></strong><span><?php esc_html_e( 'راهنمای طرح و فایل، خرید و دانلود', 'gpante-support-chat' ); ?></span></div>
 			<button type="button" data-close aria-label="<?php esc_attr_e( 'بستن گفت‌وگو', 'gpante-support-chat' ); ?>">×</button>
 		</header>
-		<div class="gpante-chat-intro"><?php esc_html_e( 'دستیار هوش مصنوعی برای اطلاعات عمومی محصولات و راهنماهاست. به حساب یا سفارش شما دسترسی ندارد. تاریخچهٔ این مرورگر تا ۳۰ روز نگهداری می‌شود.', 'gpante-support-chat' ); ?></div>
-		<div class="gpante-chat-toolbar"><button type="button" data-new><?php esc_html_e( 'پاک‌کردن و گفت‌وگوی تازه', 'gpante-support-chat' ); ?></button></div>
+		<div class="gpante-chat-intro" data-policy><?php esc_html_e( 'دستیار هوش مصنوعی برای اطلاعات عمومی محصولات و راهنماهاست. به حساب یا سفارش شما دسترسی ندارد. هنگام بازشدن گفتگو، سیاست نگهداری نمایش داده می‌شود. آرشیو مدیریتی پیام‌ها برای بررسی فنی تا ۳۰ روز باقی می‌ماند.', 'gpante-support-chat' ); ?></div>
+		<div class="gpante-chat-toolbar"><button type="button" data-new hidden><?php esc_html_e( 'پاک‌کردن و گفت‌وگوی تازه', 'gpante-support-chat' ); ?></button></div>
 		<div class="gpante-chat-confirm" data-confirm hidden>
-			<p><?php esc_html_e( 'تاریخچهٔ این گفت‌وگو از سرور پاک شود؟ این کار برگشت‌پذیر نیست.', 'gpante-support-chat' ); ?></p>
+			<p><?php esc_html_e( 'این گفتگو از تاریخچهٔ قابل مشاهدهٔ شما پاک می‌شود و گفتگوی تازه‌ای آغاز خواهد شد. آرشیو مدیریتی آن برای بررسی فنی، تا پایان مهلت ۳۰روزه باقی می‌ماند. ادامه می‌دهید؟', 'gpante-support-chat' ); ?></p>
 			<button type="button" data-clear><?php esc_html_e( 'بله، پاک شود', 'gpante-support-chat' ); ?></button><button type="button" data-cancel><?php esc_html_e( 'انصراف', 'gpante-support-chat' ); ?></button>
 		</div>
 		<div class="gpante-chat-messages" data-messages role="log" aria-label="<?php esc_attr_e( 'پیام‌های گفت‌وگو', 'gpante-support-chat' ); ?>" aria-live="polite" aria-relevant="additions" tabindex="0"></div>

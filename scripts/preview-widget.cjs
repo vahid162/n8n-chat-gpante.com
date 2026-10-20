@@ -21,6 +21,9 @@ window.fetch = async function (url, options) {
     previewMessages.push({role:'user',content:request.chatInput},{role:'assistant',content:output});
     result = {output};
   } else return new Response('{}', {status:400});
+  result.policy={version:2,userDays:30,archiveDays:30,allowClear:true,revision:1};
+  result.expiresAt=new Date(Date.now()+86400000).toISOString();
+  previewMessages.forEach(m=>m.expiresAt=result.expiresAt);
   return new Response(JSON.stringify(result), {headers:{'Content-Type':'application/json'}});
 };
 `;

@@ -30,7 +30,7 @@ $legacy=$old; unset($legacy['schema_version']); $legacy['extension']='keep';
 update_option('gpante_support_runtime',$legacy,true);
 gpante_support_upgrade();
 $next=get_option('gpante_support_runtime');
-gptest_check($next['schema_version'] === 1 && $next['shared_key'] === $key && $next['extension'] === 'keep', 'legacy upgrade preserves settings');
+gptest_check($next['schema_version'] === 2 && $next['shared_key'] === $key && $next['extension'] === 'keep', 'legacy upgrade preserves settings');
 gpante_support_upgrade();
 gptest_check(get_option('gpante_support_runtime') === $next, 'upgrade idempotent');
 $future=$next; $future['schema_version']=99; update_option('gpante_support_runtime',$future,false);

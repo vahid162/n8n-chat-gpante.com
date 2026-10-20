@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.1.1
+Stable tag: 0.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,9 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 خیر. Update URI از اشتباه با افزونهٔ هم‌نام جلوگیری می‌کند؛ ارتقا فعلاً با ZIP جدید وردپرس انجام می‌شود.
 
 == Changelog ==
+
+= 0.2.0 =
+آرشیو مدیریتی ۳۰روزه، سیاست تاریخچهٔ ۳/۷/۱۵/۳۰ روز و کنترل پاک‌کردن کاربر؛ نیازمند backend جدید.
 = 0.1.1 =
 * رفع خطای کاتالوگ هنگام دریافت ویژگی‌ها، مقادیر ویژگی و تصاویر به‌شکل stdClass از WooCommerce؛ فهرست فیلدهای عمومی مجاز حفظ شد.
 
@@ -64,3 +67,16 @@ GET /wp-json/gpante-support/v1/products و /knowledge، فقط داده‌های
 
 = 0.1.0 =
 اولین انتشار. اگر integration دستی دارید، فقط یک روش بارگذاری bridge و رابط را نگه دارید.
+
+== Conversation archive (0.2.0) ==
+
+Administrators can review anonymous conversations under Chat Pante → Conversations.
+The authoritative archive is in the project's PostgreSQL database, not copied into WordPress.
+Accepted questions, final answers and bounded error metadata remain accessible for 30 days
+from the original question. Failed requests that never reached the backend are not conversations.
+Administrators choose a global user-history period of 3, 7, 15 or 30 days and can disable clearing.
+Clearing removes user access and AI context; it does not remove the administrative archive.
+Expired or cleared user messages never return when the duration increases.
+A separate private administrative connection key is required; the stored key is never rendered.
+Read access closes at 30 days; the hourly retention job physically removes expired rows.
+Backend migration 003 and workflow contract 2 must be deployed before upgrading the plugin.

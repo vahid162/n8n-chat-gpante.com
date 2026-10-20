@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { safeLink, appendContent } = require('../integration/wordpress/assets/chat.js');
+const { safeLink, appendContent } = require('../wordpress-plugin/gpante-support-chat/assets/chat.js');
 
 test('only explicit public HTTPS site links survive raw and encoded path attacks', () => {
   for (const value of ['https://gpante.com/product/sample/', 'https://gpante.com/قوانین-و-مقررات/', 'https://gpante.com/product/%D8%A8%D8%A7%DA%A9%D8%B3/']) {

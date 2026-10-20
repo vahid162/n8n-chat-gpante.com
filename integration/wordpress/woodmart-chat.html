@@ -1,3 +1,179 @@
+<!-- GPante Support Chat: paste once in the global WoodMart footer. Requires the server-side chat endpoint. -->
+<style>
+#gpante-support {
+	--gpante-green: #365e28;
+	--gpante-border: #dfe5da;
+	position: fixed;
+	inset-inline-end: max(20px, env(safe-area-inset-left));
+	bottom: max(20px, env(safe-area-inset-bottom));
+	z-index: 99990;
+	color: #263023;
+	font-family: var(--wd-text-font, "dana", Tahoma, sans-serif);
+	font-size: 14px;
+	line-height: 1.8;
+	text-align: right;
+	direction: rtl;
+}
+#gpante-support *, #gpante-support *::before, #gpante-support *::after { box-sizing: border-box; }
+#gpante-support [hidden] { display: none !important; }
+#gpante-support button, #gpante-support textarea { font: inherit; letter-spacing: normal; text-transform: none; }
+#gpante-support button {
+	min-height: 44px;
+	padding: 8px 14px;
+	border: 1px solid transparent;
+	border-radius: 10px;
+	background: var(--gpante-green);
+	color: #fff;
+	cursor: pointer;
+	line-height: 1.6;
+	box-shadow: none;
+}
+#gpante-support button:disabled { opacity: .55; cursor: default; }
+#gpante-support button:focus-visible, #gpante-support textarea:focus-visible,
+#gpante-support a:focus-visible, #gpante-support [tabindex]:focus-visible {
+	outline: 3px solid #a76b00;
+	outline-offset: 3px;
+}
+#gpante-support .gpante-chat-launcher {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-inline-start: auto;
+	min-height: 52px;
+	padding: 12px 20px;
+	border-radius: 28px;
+	box-shadow: 0 5px 22px #193e242b;
+	font-weight: 700;
+}
+#gpante-support .gpante-chat-launcher svg { flex: 0 0 auto; overflow: visible; }
+#gpante-support .gpante-chat-panel {
+	display: flex;
+	flex-direction: column;
+	width: min(390px, calc(100vw - 32px));
+	height: min(650px, calc(100vh - 110px));
+	height: min(650px, calc(100dvh - 110px));
+	margin-bottom: 12px;
+	overflow: hidden;
+	border: 1px solid var(--gpante-border);
+	border-radius: 18px;
+	background: #fff;
+	box-shadow: 0 10px 50px #23331e30;
+}
+#gpante-support .gpante-chat-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-shrink: 0;
+	padding: 12px 16px;
+	border-top: 4px solid #fbbc34;
+	background: var(--gpante-green);
+	color: #fff;
+}
+#gpante-support .gpante-chat-header strong { display: block; font-size: 17px; color: inherit; }
+#gpante-support .gpante-chat-header span { display: block; font-size: 12px; }
+#gpante-support .gpante-chat-header button { min-width: 44px; padding: 0; font-size: 27px; background: #ffffff14; }
+#gpante-support .gpante-chat-intro { padding: 10px 16px 4px; font-size: 11px; color: #525d4b; }
+#gpante-support .gpante-chat-toolbar { padding: 0 8px; }
+#gpante-support .gpante-chat-toolbar button { background: transparent; color: var(--gpante-green); font-size: 12px; text-decoration: underline; }
+#gpante-support .gpante-chat-confirm { padding: 10px 16px; background: #fff5d9; font-size: 12px; }
+#gpante-support .gpante-chat-confirm p { margin: 0 0 8px; color: inherit; }
+#gpante-support .gpante-chat-confirm button { padding: 6px 12px; margin-inline-end: 6px; }
+#gpante-support [data-cancel] { background: #fff; color: #263023; border-color: #a5ad9e; }
+#gpante-support .gpante-chat-messages {
+	min-height: 70px;
+	flex: 1 1 auto;
+	padding: 12px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	background: #f7f9f4;
+	scrollbar-gutter: stable;
+}
+#gpante-support .gpante-chat-message { width: fit-content; max-width: 94%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--gpante-border); border-radius: 12px 12px 3px 12px; background: #fff; }
+#gpante-support .gpante-chat-message > small { display: block; margin-bottom: 3px; color: #59634f; font-size: 10px; }
+#gpante-support .gpante-chat-message > div { white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+#gpante-support .gpante-chat-message--user { margin-inline-start: auto; background: #e9f0e2; border-radius: 12px 12px 12px 3px; }
+#gpante-support .gpante-chat-message a { color: #28561a; text-decoration: underline; text-underline-offset: 3px; }
+#gpante-support .gpante-chat-status { min-height: 26px; flex-shrink: 0; padding: 5px 14px; color: #525d4b; font-size: 11px; }
+#gpante-support[data-error="true"] .gpante-chat-status { color: #9c251c; }
+#gpante-support .gpante-chat-retry { align-self: flex-start; margin: 0 14px 8px; min-height: 36px; padding: 5px 12px; }
+#gpante-support .gpante-chat-form { flex-shrink: 0; margin: 0; padding: 8px 12px 12px; border-top: 1px solid var(--gpante-border); background: #fff; }
+#gpante-support .gpante-chat-form label { display: block; margin: 0 0 4px; font-size: 12px; font-weight: 700; }
+#gpante-support textarea {
+	display: block;
+	width: 100%;
+	min-height: 56px;
+	max-height: 110px;
+	padding: 8px 10px;
+	border: 1px solid #a9b59e;
+	border-radius: 8px;
+	background: #fff;
+	color: #263023;
+	box-shadow: none;
+	resize: vertical;
+	direction: rtl;
+	text-align: right;
+	font-size: 14px;
+	line-height: 1.7;
+}
+#gpante-support textarea::placeholder { color: #68725f; opacity: 1; }
+#gpante-support .gpante-chat-compose { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; }
+#gpante-support .gpante-chat-compose small { color: #626c58; font-size: 10px; }
+@media (max-width: 480px) {
+	#gpante-support { inset-inline-end: max(8px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom)); }
+	#gpante-support .gpante-chat-panel { width: calc(100vw - 16px); height: min(650px, calc(100vh - 88px)); height: min(650px, calc(100dvh - 88px)); margin-bottom: 8px; border-radius: 14px; }
+	#gpante-support textarea { font-size: 16px; }
+}
+@media (max-height: 520px) {
+	#gpante-support .gpante-chat-panel { height: calc(100vh - 80px); height: calc(100dvh - 80px); }
+	#gpante-support .gpante-chat-intro { max-height: 48px; overflow-y: auto; }
+	#gpante-support .gpante-chat-header { padding-block: 5px; }
+	#gpante-support textarea { min-height: 40px; max-height: 60px; }
+}
+
+/* Short screens scroll the whole panel so the composer and reset controls stay reachable. */
+@media (max-height: 520px) {
+  #gpante-support { bottom: max(8px, env(safe-area-inset-bottom)); }
+  #gpante-support .gpante-chat-launcher[aria-expanded="true"] { display: none; }
+  #gpante-support .gpante-chat-panel {
+    height: calc(100vh - 24px);
+    height: calc(100dvh - 24px);
+    margin-bottom: 0;
+    overflow-y: auto;
+  }
+  #gpante-support .gpante-chat-panel > * { flex-shrink: 0; }
+  #gpante-support .gpante-chat-messages { flex: 1 0 80px; }
+}
+</style>
+
+<div id="gpante-support" dir="rtl" lang="fa" data-endpoint="/wp-json/gpante-support/v1/chat">
+	<section id="gpante-support-panel" class="gpante-chat-panel" role="dialog" aria-labelledby="gpante-support-title" tabindex="-1" hidden>
+		<header class="gpante-chat-header">
+			<div><strong id="gpante-support-title">دستیار پانته</strong><span>راهنمای طرح و فایل، خرید و دانلود</span></div>
+			<button type="button" data-close aria-label="بستن گفت‌وگو">×</button>
+		</header>
+		<div class="gpante-chat-intro">دستیار هوش مصنوعی برای اطلاعات عمومی محصولات و راهنماهاست. به حساب یا سفارش شما دسترسی ندارد. تاریخچهٔ این مرورگر تا ۳۰ روز نگهداری می‌شود.</div>
+		<div class="gpante-chat-toolbar"><button type="button" data-new>پاک‌کردن و گفت‌وگوی تازه</button></div>
+		<div class="gpante-chat-confirm" data-confirm hidden>
+			<p>تاریخچهٔ این گفت‌وگو از سرور پاک شود؟ این کار برگشت‌پذیر نیست.</p>
+			<button type="button" data-clear>بله، پاک شود</button><button type="button" data-cancel>انصراف</button>
+		</div>
+		<div class="gpante-chat-messages" data-messages role="log" aria-label="پیام‌های گفت‌وگو" aria-live="polite" aria-relevant="additions" tabindex="0"></div>
+		<div class="gpante-chat-status" data-status role="status" aria-live="polite" aria-atomic="true"></div>
+		<button class="gpante-chat-retry" type="button" data-retry hidden>تلاش دوباره</button>
+		<form class="gpante-chat-form" data-form>
+			<label for="gpante-support-input">پرسش شما</label>
+			<textarea id="gpante-support-input" data-input rows="2" maxlength="4000" placeholder="مثلاً باکس MDF با ضخامت ۲٫۷ و فایل DXF می‌خواهم…" required></textarea>
+			<div class="gpante-chat-compose"><small data-count aria-hidden="true">۰ / ۴۰۰۰</small><button type="submit" data-send disabled>ارسال پیام</button></div>
+		</form>
+	</section>
+	<button class="gpante-chat-launcher" type="button" data-launcher aria-label="باز کردن دستیار هوش مصنوعی پانته" aria-controls="gpante-support-panel" aria-expanded="false">
+		<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-3 2v-10A8.5 8.5 0 0 1 9.5 3H12a8 8 0 0 1 8 8.5Z"/><path d="M6 9h9M6 13h6"/></svg>
+		<span>از پانته بپرسید</span>
+	</button>
+</div>
+
+<script>
 (function () {
   'use strict';
 
@@ -43,7 +219,10 @@
   }
 
   const root = document.getElementById('gpante-support');
-  if (!root) return;
+  if (!root || root.dataset.gpanteInitialized === 'true') return;
+  root.dataset.gpanteInitialized = 'true';
+  // Footer/page-builder transforms must not contain the fixed chat panel.
+  if (document.body && root.parentElement !== document.body) document.body.appendChild(root);
   const find = selector => root.querySelector(selector);
   const panel = find('#gpante-support-panel');
   const launcher = find('[data-launcher]');
@@ -57,6 +236,7 @@
   const clear = find('[data-clear]');
   const retry = find('[data-retry]');
   let busy = false;
+  let requestHadFocus = false;
   let failed = null;
 
   function updateInput() {
@@ -70,6 +250,7 @@
   }
 
   function setBusy(value) {
+    if (value) requestHadFocus = panel.contains(document.activeElement);
     busy = value;
     input.disabled = value;
     fresh.disabled = value;
@@ -77,6 +258,8 @@
     retry.disabled = value;
     messages.setAttribute('aria-busy', String(value));
     updateInput();
+    // Chrome moves focus to body when its active control is disabled or hidden.
+    if (!value && requestHadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
   }
 
   function addMessage(role, text, scroll = true) {
@@ -185,9 +368,9 @@
 
   async function clearHistory() {
     if (busy) return;
+    setBusy(true);
     confirmation.hidden = true;
     retry.hidden = true;
-    setBusy(true);
     setStatus('در حال پاک‌کردن تاریخچه…');
     try {
       await api('resetSession');
@@ -255,3 +438,4 @@
   });
   updateInput();
 }());
+</script>

@@ -3,3 +3,7 @@ node_modules/
 .env.*
 *.log
 *.local.json
+dist/
+__pycache__/
+*.pyc
+vendor/

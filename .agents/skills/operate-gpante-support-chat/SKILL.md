@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.3.2"
+  version: "0.4.0"
 ---
 
 # Operate GPante Support Chat
@@ -39,9 +39,9 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 ## Current approved operating policy
 
 - Project model budget is USD 2 per calendar month UTC; conversation history is readable for 30 days. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
-- WordPress integration must use code without installing a plugin and is deferred to the final integration stage. Do not install the former custom-plugin scaffold or treat the reference integration code as deployed. Server-side code is still required to keep the inbound key and trusted identities out of the browser.
-- The current request is workflow-only. Do not change gpante.com, its plugins or its themes. Site integration and its live acceptance checks remain outside this request; prepare and verify n8n independently where possible.
-- The user requests a site-wide WoodMart HTML embed for all visitors; do not add an administrator-only preview restriction. Keep the approved budget, trusted identity and abuse controls. Public visibility is not evidence that the inactive backend has been deployed.
+- The latest user request authorizes building and testing the WordPress plugin in this repository. Canonical runtime is `wordpress-plugin/gpante-support-chat/`; its version, settings schema and workflow release are independent. Site installation remains a separate stage. Keep the inbound key and trusted identities server-side.
+- Do not change gpante.com, its installed plugins or its themes. The current scope includes a basic installable plugin and actual local WordPress/browser verification; production deployment remains outside the request. Distinguish a built ZIP, a local test install and a production install.
+- The user requests public site-wide chat for all visitors, now packaged as a WordPress plugin; do not add an administrator-only preview restriction. Use plugin auto-rendering or the optional generated WoodMart embed, with `GPANTE_SUPPORT_INLINE_WIDGET` preventing duplicates. Keep the approved budget, trusted identity and abuse controls. Public visibility is not evidence that the inactive backend has been deployed.
 - Retention is published; verify its actual status at entry. It retains production execution results/errors containing timestamps and cleanup counts, while Main keeps raw execution storage disabled. Distinguish an explicitly triggered published execution from a naturally scheduled run; read filtering at 30 days does not itself prove physical deletion.
 
 ## Respect trust and infrastructure boundaries
@@ -93,3 +93,13 @@ Performance targets, budgets, authenticated features and retention settings rema
 When the user requests specification/planning, separate agreed requirements, proposed design and open questions. Cover the complete public catalog and future access boundaries. If Spec Kit is explicitly requested, inspect this project's setup and use its selected stage or supported setup workflow. Do not assume `.specify`, a constitution, plan or tasks exist; do not launch the entire pipeline or implementation for a skill-maintenance task. This skill remains usable without Spec Kit, Ponytail or another project skill installed.
 
 Report to the user in Persian: result, actual changes, checks performed, material unknowns and next unfinished work. Keep customer-facing behavior separate from developer implementation details.
+
+## Maintain the WordPress plugin
+
+- Read `integration/wordpress/README.md` and `specs/001-wordpress-plugin-basic/verification.md` before plugin changes. Reuse the canonical PHP/template/assets; old integration PHP files are compatibility loaders, not independent implementations. Regenerate `woodmart-chat.html` after template/asset changes.
+- Preserve `gpante_support_runtime`, API v1 and valid settings. Run versioned migrations on normal initialization as well as activation. Settings API sanitization must be idempotent; WordPress may call it repeatedly. Blank keys preserve the secret, forms never echo it, and the option is not autoloaded or exposed in REST. Unknown future schemas must be preserved and fail closed.
+- Deactivation preserves settings; uninstall deletes only the plugin option. WordPress does not own n8n history or the cost ledger. Do not run operational migrations for a plugin-only change.
+- Build WordPress ZIP with `scripts/build-plugin.py`; inspect its explicit runtime allowlist. Never confuse it with a Codex skill/plugin ZIP. Versioned packages are snapshots and must be rebuilt after source changes.
+- Use native WordPress APIs and prefixed functions; no framework, new tables, speculative extension layers or custom updater is needed for this basic version. Future capabilities need their own spec and access rules.
+- Use actual WordPress/WooCommerce for schema compatibility: WooCommerce prices can be `stdClass` before JSON serialization. Keep public allowlists and visibility checks when normalizing that shape.
+- Use real browser checks for layout and focus: short screens scroll the panel; disabling/hiding active controls can move Chrome focus to body. Preserve deliberate focus outside the widget and restore focus after a completed operation when appropriate.

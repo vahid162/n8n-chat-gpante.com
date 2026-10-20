@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 
-const source = readFileSync(require.resolve('../integration/wordpress/assets/chat.js'), 'utf8');
+const source = readFileSync(require.resolve('../wordpress-plugin/gpante-support-chat/assets/chat.js'), 'utf8');
 const previousMessages = [
   { role: 'user', content: 'باکس MDF می‌خواهم.' },
   { role: 'assistant', content: 'چه ضخامتی نیاز دارید؟' }
@@ -43,6 +43,8 @@ function createWidget() {
       if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1);
       this.parent = null;
     }
+    get parentElement() { return this.parent; }
+    appendChild(child) { child.remove(); this.append(child); return child; }
     setAttribute(name, value) { this.attributes[name] = String(value); }
     contains(element) { return this === element || this.children.some(child => child.contains(element)); }
     focus() { document.activeElement = this; }
@@ -60,6 +62,10 @@ function createWidget() {
     'confirm', 'clear', 'retry', 'count', 'close', 'cancel'
   ].map(name => [name, new Element()]));
   const { root, panel, launcher } = elements;
+  document.body = new Element('body');
+  const footer = new Element('footer');
+  footer.append(root);
+  document.body.append(footer);
   root.dataset.endpoint = '/wp-json/gpante-support/v1/chat';
   root.append(panel, launcher);
   panel.append(...Object.entries(elements).filter(([name]) => !['root', 'panel', 'launcher'].includes(name)).map(([, node]) => node));
@@ -86,9 +92,10 @@ function createWidget() {
     }
   });
   // No CommonJS module is provided: this executes initialization and event handlers.
-  vm.runInContext(source, context, { filename: 'integration/wordpress/assets/chat.js' });
+  vm.runInContext(source, context, { filename: 'wordpress-plugin/gpante-support-chat/assets/chat.js' });
   return {
     elements, document, requests, timers,
+    initializeAgain() { vm.runInContext(source, context); },
     click(name) { elements[name].dispatch('click'); },
     type(text) { elements.input.value = text; elements.input.dispatch('input'); },
     submit() { return elements.form.dispatch('submit'); },
@@ -117,6 +124,20 @@ function assertControls(widget, busy) {
   assert.equal(widget.elements.messages.attributes['aria-busy'], String(busy));
   assert.equal(widget.elements.send.disabled, busy || !widget.elements.input.value.trim());
 }
+
+test('a second script load does not attach duplicate handlers or duplicate a request', async () => {
+  const widget = createWidget();
+  widget.initializeAgain();
+  assert.equal(widget.elements.root.parentElement, widget.document.body);
+  widget.click('launcher');
+  assert.equal(widget.elements.panel.hidden, false);
+  assert.equal(widget.requests.length, 1);
+  await widget.respond(0, { messages: previousMessages });
+  widget.type('سلام');
+  widget.submit();
+  assert.equal(widget.requests.length, 2);
+  await widget.respond(1, { output: 'سلام' });
+});
 
 test('opening loads persisted history through the browser controller and enables composing', async () => {
   const widget = createWidget();
@@ -256,4 +277,72 @@ test('closing and reopening during a request keeps one history load; an aborted 
   assert.equal(widget.document.activeElement, widget.elements.input);
   assert.equal(widget.elements.input.value, 'درخواست طولانی');
   assertControls(widget, false);
+});
+
+test('keyboard composing preserves Shift+Enter and IME; Escape cancels reset before closing the panel', async () => {
+  const widget = createWidget();
+  await widget.open([]);
+  widget.type('پرسش فارسی');
+  assert.equal(widget.elements.input.dispatch('keydown', { key: 'Enter', shiftKey: true }).defaultPrevented, false);
+  assert.equal(widget.elements.input.dispatch('keydown', { key: 'Enter', isComposing: true }).defaultPrevented, false);
+  assert.equal(widget.requests.length, 1, 'newlines and composition do not send');
+  assert.equal(widget.elements.input.dispatch('keydown', { key: 'Enter' }).defaultPrevented, true);
+  assert.equal(widget.requests.length, 2);
+  await widget.respond(1, { output: 'پاسخ آزمایشی فارسی' });
+  widget.click('new');
+  assert.equal(widget.elements.confirm.hidden, false);
+  assert.equal(widget.elements.root.dispatch('keydown', { key: 'Escape' }).defaultPrevented, true);
+  assert.equal(widget.elements.confirm.hidden, true);
+  assert.equal(widget.elements.panel.hidden, false);
+  assert.equal(widget.document.activeElement, widget.elements.new);
+  assert.equal(widget.requests.length, 2, 'canceling reset does not delete server history');
+  widget.elements.root.dispatch('keydown', { key: 'Escape' });
+  assert.equal(widget.elements.panel.hidden, true);
+  assert.equal(widget.document.activeElement, widget.elements.launcher);
+});
+
+test('invalid history and reply fail visibly; oversized input does not dispatch a request', async () => {
+  const widget = createWidget();
+  widget.click('launcher');
+  await widget.respond(0, { messages: [{ role: 'system', content: 'internal' }] });
+  assert.deepEqual(widget.messages(), []);
+  assert.equal(widget.elements.root.dataset.error, 'true');
+  assert.equal(widget.elements.retry.hidden, false);
+  widget.click('retry');
+  await widget.respond(1, { messages: previousMessages });
+  widget.type('م'.repeat(4001));
+  widget.submit();
+  assert.equal(widget.requests.length, 2);
+  assert.equal(widget.elements.root.dataset.error, 'true');
+  widget.type('پرسش معتبر');
+  widget.submit();
+  await widget.respond(2, { output: '' });
+  assert.deepEqual(widget.messages(), previousMessages);
+  assert.equal(widget.elements.input.value, 'پرسش معتبر');
+  assert.equal(widget.elements.retry.hidden, false);
+  assert.equal(widget.elements.root.dataset.error, 'true');
+  widget.click('retry');
+  await widget.respond(3, { output: 'پاسخ معتبر' });
+  assert.equal(widget.messages().at(-1).content, 'پاسخ معتبر');
+  assert.equal(widget.elements.retry.hidden, true);
+  assertControls(widget, false);
+});
+
+// Real Chrome revealed that hiding/disabling the focused control blurs it to body.
+test('completed requests restore focus after native blur but preserve focus deliberately moved outside', async () => {
+  const widget = createWidget();
+  await widget.open();
+  widget.type('سلام'); widget.submit();
+  widget.document.activeElement = widget.document.body;
+  await widget.respond(1, {output:'سلام'});
+  assert.equal(widget.document.activeElement, widget.elements.input);
+  widget.click('new'); widget.click('clear');
+  widget.document.activeElement = widget.document.body;
+  await widget.respond(2, {ok:true});
+  assert.equal(widget.document.activeElement, widget.elements.input);
+  widget.type('دوباره'); widget.submit();
+  const outside = widget.document.createElement('a');
+  widget.document.activeElement = outside;
+  await widget.respond(3, {output:'درود'});
+  assert.equal(widget.document.activeElement, outside);
 });

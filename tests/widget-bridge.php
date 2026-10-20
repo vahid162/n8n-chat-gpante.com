@@ -6,8 +6,11 @@ $runtime = array();
 $outbound = array();
 $remote_result = array('status' => 200, 'body' => '{"output":"سلام"}');
 $ssl = true;
-function add_action(...$args) {}
+$registered_actions = array();
+function add_action($hook, $callback) { $GLOBALS['registered_actions'][$hook][] = $callback; }
 function get_option($name, $default = false) { return $GLOBALS['runtime']; }
+function __($text, $domain) { return $text; }
+function sanitize_text_field($text) { return trim(strip_tags($text)); }
 function wp_salt($scheme = 'auth') { return 'fixture-salt-not-a-live-secret-' . $scheme; }
 function is_ssl() { return $GLOBALS['ssl']; }
 function wp_json_encode($value) { return json_encode($value, JSON_UNESCAPED_UNICODE); }
@@ -29,7 +32,13 @@ class WP_REST_Request {
     public function get_body() { return $this->body; }
     public function get_header($name) { return $this->headers[strtolower($name)] ?? ''; }
 }
-require __DIR__ . '/../integration/wordpress/bridge.php';
+define('GPANTE_SUPPORT_VERSION', '0.1.0');
+define('GPANTE_SUPPORT_SCHEMA_VERSION', 1);
+define('GPANTE_SUPPORT_BACKEND', 'https://n8n.gpantex.com/webhook/gpante-ai-support-v1');
+define('GPANTE_SUPPORT_COOKIE', '__Host-gpante_support');
+function home_url($path = '') { return 'https://gpante.com/'; }
+function wp_parse_url($url) { return parse_url($url); }
+require __DIR__ . '/../wordpress-plugin/gpante-support-chat/includes/bridge.php';
 function check($condition, $message) { if (!$condition) throw new RuntimeException($message); }
 function request($payload, $headers = array()) {
     return gpante_support_chat(new WP_REST_Request(is_string($payload) ? $payload : json_encode($payload), array_merge(array(
@@ -106,4 +115,17 @@ foreach (array(new WP_Error(), array('status' => 500, 'body' => 'private secret'
     check($response->get_status() >= 500 && !str_contains(json_encode($response->get_data()), 'private'), 'transport and malformed response errors fail closed');
 }
 check(!str_contains(json_encode($response->get_data()), $runtime['shared_key']), 'public response has no shared key');
+define('GPANTE_SUPPORT_INLINE_WIDGET', true);
+define('GPANTE_SUPPORT_ASSET_BASE', 'https://gpante.com/assets/gpante-support');
+$enqueued = array();
+function wp_enqueue_style(...$args) { $GLOBALS['enqueued'][] = $args; }
+function wp_enqueue_script(...$args) { $GLOBALS['enqueued'][] = $args; }
+enabled();
+ob_start();
+foreach ($registered_actions['wp_footer'] as $callback) $callback();
+$footer = ob_get_clean();
+foreach ($registered_actions['wp_enqueue_scripts'] as $callback) $callback();
+check($footer === '' && $enqueued === array(), 'manual embed must not duplicate PHP markup or assets');
+$remote_result = array('status' => 200, 'body' => '{"output":"سلام"}');
+check(request(array('action' => 'sendMessage', 'chatInput' => 'سلام'))->get_status() === 200, 'manual widget mode leaves the server bridge available');
 fwrite(STDOUT, "Widget bridge security and action checks passed.\n");

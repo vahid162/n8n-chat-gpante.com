@@ -1,0 +1,267 @@
+<?php
+/**
+ * Same-origin chat bridge and widget hooks.
+ *
+ * @package GPanteSupportChat
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+require_once __DIR__ . '/catalog.php';
+
+/** Return valid enabled server settings, or false for unavailable configurations. */
+function gpante_support_runtime() {
+	$config = get_option( 'gpante_support_runtime', array() );
+	if ( ! is_array( $config ) || (int) ( $config['schema_version'] ?? 0 ) > GPANTE_SUPPORT_SCHEMA_VERSION || ( $config['enabled'] ?? false ) !== true
+		|| ( $config['backend_url'] ?? '' ) !== GPANTE_SUPPORT_BACKEND
+		|| ! is_string( $config['shared_key'] ?? null )
+		|| ! preg_match( '/^[\x21-\x7e]{32,256}$/D', $config['shared_key'] ) ) {
+		return false;
+	}
+	return $config;
+}
+
+/**
+ * Build a non-cacheable public response.
+ *
+ * @param mixed $data Public response body.
+ * @param int   $status HTTP status.
+ * @param array $headers Additional response headers.
+ * @return WP_REST_Response
+ */
+function gpante_support_response( $data, $status = 200, $headers = array() ) {
+	return new WP_REST_Response(
+		$data,
+		$status,
+		array_merge(
+			array(
+				'Cache-Control'          => 'no-store, private',
+				'Vary'                   => 'Origin, Cookie',
+				'X-Content-Type-Options' => 'nosniff',
+			),
+			$headers
+		)
+	);
+}
+
+/**
+ * Return a bounded public error without internal service details.
+ *
+ * @param int    $status HTTP status.
+ * @param string $code Public error code.
+ * @param array  $headers Additional response headers.
+ * @return WP_REST_Response
+ */
+function gpante_support_failure( $status, $code, $headers = array() ) {
+	$messages = array(
+		400 => __( 'درخواست معتبر نیست. پرسشتان را با حداکثر ۴۰۰۰ نویسه بنویسید.', 'gpante-support-chat' ),
+		403 => __( 'برای گفت‌وگو، صفحهٔ سایت پانته را دوباره باز کنید.', 'gpante-support-chat' ),
+		413 => __( 'حجم پیام بیش از حد مجاز است. لطفاً متن کوتاه‌تری بنویسید.', 'gpante-support-chat' ),
+		415 => __( 'قالب درخواست معتبر نیست. لطفاً صفحه را تازه کنید.', 'gpante-support-chat' ),
+		429 => __( 'تعداد درخواست‌ها به سقف مجاز رسیده است. لطفاً بعداً دوباره تلاش کنید.', 'gpante-support-chat' ),
+	);
+	return gpante_support_response(
+		array(
+			'error'  => array( 'code' => $code ),
+			'output' => $messages[ $status ] ?? 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.',
+		),
+		$status,
+		$headers
+	);
+}
+
+/**
+ * Read or mint a signed host-only session cookie.
+ *
+ * @return string|false
+ */
+function gpante_support_session_id() {
+	$now    = time();
+	$cookie = isset( $_COOKIE[ GPANTE_SUPPORT_COOKIE ] ) && is_string( $_COOKIE[ GPANTE_SUPPORT_COOKIE ] )
+		? wp_unslash( $_COOKIE[ GPANTE_SUPPORT_COOKIE ] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Strict format and HMAC validation below must not mutate signed bytes.
+	$parts  = explode( '.', $cookie );
+	$valid  = 4 === count( $parts ) && 'v1' === $parts[0]
+		&& preg_match( '/^[0-9]{10}$/D', $parts[1] )
+		&& (int) $parts[1] <= $now && (int) $parts[1] > $now - 30 * DAY_IN_SECONDS
+		&& preg_match( '/^[A-Za-z0-9_-]{43}$/D', $parts[2] )
+		&& preg_match( '/^[a-f0-9]{64}$/D', $parts[3] );
+	if ( $valid ) {
+		$valid = hash_equals( hash_hmac( 'sha256', 'gpante-support-cookie|' . implode( '.', array_slice( $parts, 0, 3 ) ), wp_salt( 'auth' ) ), $parts[3] );
+	}
+	if ( ! $valid ) {
+		try {
+			// Encode cryptographic random bytes in a cookie-safe format.
+			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode
+			$token = rtrim( strtr( base64_encode( random_bytes( 32 ) ), '+/', '-_' ), '=' );
+		} catch ( Exception $error ) {
+			return false;
+		}
+		$value  = 'v1.' . $now . '.' . $token;
+		$cookie = $value . '.' . hash_hmac( 'sha256', 'gpante-support-cookie|' . $value, wp_salt( 'auth' ) );
+		if ( headers_sent() || ! setcookie(
+			GPANTE_SUPPORT_COOKIE,
+			$cookie,
+			array(
+				'expires'  => $now + 30 * DAY_IN_SECONDS,
+				'path'     => '/',
+				'secure'   => true,
+				'httponly' => true,
+				'samesite' => 'Strict',
+			)
+		) ) {
+			return false;
+		}
+	} else {
+		$token = $parts[2];
+	}
+	return hash_hmac( 'sha256', 'gpante-support-session|' . $token, wp_salt( 'auth' ) );
+}
+
+/** Return the exact HTTPS origin from trusted WordPress configuration. */
+function gpante_support_origin() {
+	$parts = wp_parse_url( home_url( '/' ) );
+	if ( ! is_array( $parts ) || 'https' !== ( $parts['scheme'] ?? '' ) || empty( $parts['host'] ) ) {
+		return '';
+	}
+	return 'https://' . $parts['host'] . ( isset( $parts['port'] ) && 443 !== (int) $parts['port'] ? ':' . (int) $parts['port'] : '' );
+}
+
+/**
+ * Validate a same-origin public action and call the fixed trusted backend.
+ *
+ * @param WP_REST_Request $request Incoming REST request.
+ * @return WP_REST_Response
+ */
+function gpante_support_chat( $request ) {
+	// Public endpoint: browser identity comes only from our signed, host-only cookie.
+	if ( '' === gpante_support_origin() || ! is_ssl() || $request->get_header( 'origin' ) !== gpante_support_origin()
+		|| 'same-origin' !== $request->get_header( 'sec-fetch-site' ) ) {
+		return gpante_support_failure( 403, 'origin_rejected' );
+	}
+	$config = gpante_support_runtime();
+	if ( ! $config ) {
+		return gpante_support_failure( 503, 'unavailable' );
+	}
+	if ( ! preg_match( '/^application\/json(?:\s*;\s*charset=utf-8)?$/iD', $request->get_header( 'content-type' ) ) ) {
+		return gpante_support_failure( 415, 'json_required' );
+	}
+	$body = $request->get_body();
+	if ( strlen( $body ) > 32768 ) {
+		return gpante_support_failure( 413, 'body_too_large' );
+	}
+	$input = json_decode( $body, true );
+	if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $input )
+		|| ! in_array( $input['action'] ?? null, array( 'sendMessage', 'loadPreviousSession', 'resetSession' ), true ) ) {
+		return gpante_support_failure( 400, 'invalid_input' );
+	}
+	$action = $input['action'];
+	$text   = is_string( $input['chatInput'] ?? null ) ? trim( $input['chatInput'] ) : '';
+	if ( 'sendMessage' === $action && ( '' === $text || preg_match_all( '/./us', $text ) > 4000 ) ) {
+		return gpante_support_failure( 400, 'invalid_input' );
+	}
+	$ip = isset( $_SERVER['REMOTE_ADDR'] ) && is_string( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
+	if ( ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+		return gpante_support_failure( 503, 'unavailable' );
+	}
+	$session = gpante_support_session_id();
+	if ( ! $session ) {
+		return gpante_support_failure( 503, 'unavailable' );
+	}
+	$payload = array(
+		'action'    => $action,
+		'sessionId' => $session,
+		'clientId'  => hash_hmac( 'sha256', 'gpante-support-client|' . inet_pton( $ip ), wp_salt( 'auth' ) ),
+	);
+	if ( 'sendMessage' === $action ) {
+		$payload['chatInput'] = $text;
+	}
+	$result = wp_remote_post(
+		GPANTE_SUPPORT_BACKEND,
+		array(
+			'headers'             => array(
+				'Content-Type'      => 'application/json',
+				'Accept'            => 'application/json',
+				'X-Gpante-Chat-Key' => $config['shared_key'],
+			),
+			'body'                => wp_json_encode( $payload ),
+			'timeout'             => 155,
+			'redirection'         => 0,
+			'sslverify'           => true,
+			'reject_unsafe_urls'  => true,
+			'limit_response_size' => 131072,
+		)
+	);
+	if ( is_wp_error( $result ) ) {
+		return gpante_support_failure( 502, 'backend_unavailable' );
+	}
+	$status = (int) wp_remote_retrieve_response_code( $result );
+	$data   = json_decode( wp_remote_retrieve_body( $result ), true );
+	if ( $status < 200 || $status >= 300 || ! is_array( $data ) || isset( $data['error'] ) ) {
+		$headers = array();
+		$retry   = wp_remote_retrieve_header( $result, 'retry-after' );
+		if ( 429 === $status && is_string( $retry ) && preg_match( '/^[0-9]{1,6}$/D', $retry ) ) {
+			$headers['Retry-After'] = (string) max( 1, min( 86400, (int) $retry ) );
+		}
+		return gpante_support_failure( 429 === $status ? 429 : 502, 429 === $status ? 'request_limit' : 'backend_unavailable', $headers );
+	}
+	if ( 'resetSession' === $action && true === ( $data['ok'] ?? false ) ) {
+		return gpante_support_response( array( 'ok' => true ) );
+	}
+	if ( 'sendMessage' === $action && is_string( $data['output'] ?? null ) && '' !== trim( $data['output'] ) && strlen( $data['output'] ) <= 32000 ) {
+		return gpante_support_response( array( 'output' => $data['output'] ) );
+	}
+	if ( 'loadPreviousSession' === $action && isset( $data['messages'] ) && is_array( $data['messages'] ) && count( $data['messages'] ) <= 100 ) {
+		$messages = array();
+		foreach ( $data['messages'] as $message ) {
+			if ( ! is_array( $message ) || ! in_array( $message['role'] ?? null, array( 'user', 'assistant' ), true )
+				|| ! is_string( $message['content'] ?? null ) || strlen( $message['content'] ) > 32000 ) {
+				return gpante_support_failure( 502, 'invalid_backend_response' );
+			}
+			$messages[] = array(
+				'role'    => $message['role'],
+				'content' => $message['content'],
+			);
+		}
+		return gpante_support_response( array( 'messages' => $messages ) );
+	}
+	return gpante_support_failure( 502, 'invalid_backend_response' );
+}
+
+add_action(
+	'rest_api_init',
+	function () {
+		register_rest_route(
+			'gpante-support/v1',
+			'/chat',
+			array(
+				'methods'             => 'POST',
+				'callback'            => 'gpante_support_chat',
+				'permission_callback' => '__return_true',
+			)
+		);
+		gpante_support_register_catalog();
+	}
+);
+
+add_action(
+	'wp_enqueue_scripts',
+	function () {
+		if ( ! gpante_support_runtime() || ( defined( 'GPANTE_SUPPORT_INLINE_WIDGET' ) && GPANTE_SUPPORT_INLINE_WIDGET ) ) {
+			return;
+		}
+		wp_enqueue_style( 'gpante-support-chat', GPANTE_SUPPORT_URL . 'assets/chat.css', array(), GPANTE_SUPPORT_VERSION );
+		wp_enqueue_script( 'gpante-support-chat', GPANTE_SUPPORT_URL . 'assets/chat.js', array(), GPANTE_SUPPORT_VERSION, true );
+	}
+);
+
+add_action(
+	'wp_footer',
+	function () {
+		if ( ! gpante_support_runtime() || ( defined( 'GPANTE_SUPPORT_INLINE_WIDGET' ) && GPANTE_SUPPORT_INLINE_WIDGET ) ) {
+			return;
+		}
+		require GPANTE_SUPPORT_DIR . 'templates/widget.php';
+	}
+);

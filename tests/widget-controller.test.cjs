@@ -546,3 +546,19 @@ test('history API failure does not disable the chat or outside close', async () 
   assert.equal(widget.elements.panel.hidden,true);
   assert.equal(widget.window.history.index,1);
 });
+
+
+test('welcome has a separate full-width presentation marker without changing assistant role', async () => {
+  const config=customAppearance();
+  const widget=createWidget(config);await widget.open([]);
+  const welcome=widget.elements.messages.children[0];
+  assert.equal(welcome.dataset.role,'assistant');
+  assert.match(welcome.className,/gpante-chat-message--welcome/);
+  widget.type('سلام');widget.submit();
+  await widget.respond(1,{output:'درود'});
+  const [intro,user,assistant]=widget.elements.messages.children;
+  assert.equal(intro,welcome);
+  assert.equal(user.dataset.role,'user');
+  assert.equal(assistant.dataset.role,'assistant');
+  assert.doesNotMatch(assistant.className,/--welcome/,'ordinary replies stay normal bubbles');
+});

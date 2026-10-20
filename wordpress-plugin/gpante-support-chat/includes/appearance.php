@@ -219,7 +219,7 @@ function gpante_support_sanitize_appearance( $input ) {
 	}
 	$next = gpante_support_appearance_defaults();
 	foreach ( gpante_support_appearance_texts() as $key => $field ) {
-		$value = $input['texts'][ $key ] ?? null;
+		$value = $input['texts'][ $key ] ?? ( 'send' === $key ? ( $old['texts']['send'] ?? $field[1] ) : null );
 		if ( ! is_string( $value ) ) {
 			$next['texts'][ $key ] = '';
 			continue;
@@ -280,6 +280,8 @@ function gpante_support_appearance_page() {
 		return;
 	}
 	$config = gpante_support_get_appearance();
+	$fields = gpante_support_appearance_texts();
+	unset( $fields['send'] );
 	?>
 	<div class="wrap">
 		<h1><?php esc_html_e( 'ظاهر چت پانته', 'gpante-support-chat' ); ?></h1>
@@ -290,7 +292,7 @@ function gpante_support_appearance_page() {
 			<h2><?php esc_html_e( 'متن‌ها', 'gpante-support-chat' ); ?></h2>
 			<p><?php esc_html_e( 'فقط متن ساده وارد کنید. خوشامدگویی در گفتگوی خالی نمایش داده می‌شود؛ دستور مدل را تغییر نمی‌دهد. نام کادر پرسش فقط برای صفحه‌خوان است. مدت تاریخچه و امکان پاک‌کردن در بخش گفتگوها تنظیم می‌شوند.', 'gpante-support-chat' ); ?></p>
 			<table class="form-table" role="presentation">
-				<?php foreach ( gpante_support_appearance_texts() as $key => $field ) : ?>
+				<?php foreach ( $fields as $key => $field ) : ?>
 				<tr><th scope="row"><label for="gpante-appearance-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label></th><td>
 					<?php if ( 'welcome' === $key ) : ?>
 						<textarea class="large-text" rows="3" required id="gpante-appearance-<?php echo esc_attr( $key ); ?>" name="gpante_support_appearance[texts][<?php echo esc_attr( $key ); ?>]" maxlength="<?php echo esc_attr( $field[2] ); ?>"><?php echo esc_textarea( $config['texts'][ $key ] ); ?></textarea>

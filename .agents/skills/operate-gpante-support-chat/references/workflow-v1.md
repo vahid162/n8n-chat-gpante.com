@@ -40,7 +40,7 @@ Retention دو نود دارد: Schedule Trigger ساعتی → `gpante_chat.cle
 
 ## قرارداد provider و کد سایت
 
-منبع ابزارها `https://gpante.com/wp-json/gpante-support/v1/products` و `/knowledge` است. منبع canonical اکنون افزونهٔ `wordpress-plugin/gpante-support-chat/` نسخهٔ ۰٫۴٫۰ است؛ `integration/wordpress` راهنما، loader سازگاری و embed تولیدی را نگه می‌دارد. اتصال تولید با درخواست بعدی کاربر مجاز و بررسی شد؛ نتیجه در [گزارش تولید](../../../../docs/production-readiness.md) است. اجرای PHP سمت سرور لازم است؛ درج JavaScript یا HTML به‌تنهایی واسط امن یا provider را ایجاد نمی‌کند. قالب عمومی عمداً inactive است و وضعیت فعال را باید از سرویس خواند.
+منبع ابزارها `https://gpante.com/wp-json/gpante-support/v1/products` و `/knowledge` است. منبع canonical اکنون افزونهٔ `wordpress-plugin/gpante-support-chat/` نسخهٔ ۰٫۴٫۱ است؛ `integration/wordpress` راهنما، loader سازگاری و embed تولیدی را نگه می‌دارد. اتصال تولید با درخواست بعدی کاربر مجاز و بررسی شد؛ نتیجه در [گزارش تولید](../../../../docs/production-readiness.md) است. اجرای PHP سمت سرور لازم است؛ درج JavaScript یا HTML به‌تنهایی واسط امن یا provider را ایجاد نمی‌کند. قالب عمومی عمداً inactive است و وضعیت فعال را باید از سرویس خواند.
 
 provider محصول publish، بدون رمز، product اصلی و visible/catalog/search را می‌پذیرد؛ hidden، variation، خصوصی و محافظت‌شده رد می‌شوند. جزئیات همان فیلتر را دارد. Schema و ترتیب قیمت بومی WooCommerce بازاستفاده شده‌اند و نبود قابلیت لازم خطا می‌دهد. رکوردهای stdClass قیمت، ویژگی، term و تصویر پیش از انتخاب فیلدهای عمومی به آرایه تبدیل می‌شوند. قیمت، ویژگی‌ها و لینک‌ها allowlist دارند؛ فایل و دادهٔ مشتری هرگز خوانده نمی‌شوند.
 

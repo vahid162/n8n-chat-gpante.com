@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.4.0"
+  version: "0.4.1"
 ---
 
 # Operate GPante Support Chat
@@ -19,7 +19,7 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 ## Establish scope and current truth
 
 1. Read [project-state.md](references/project-state.md) at entry. It contains the latest recorded state, verified integration examples, open decisions and the next unfinished work. Treat its dated observations as historical until refreshed.
-   For implementation or maintenance of the first workflow, also read [workflow-v1.md](references/workflow-v1.md) for its actual graph, source/build boundaries, database contract and validation limits.
+   For implementation or maintenance of the first workflow, also read [workflow-v1.md](references/workflow-v1.md) for its actual graph, source/build boundaries, database contract and validation limits. Operational backups and deployment receipts stay outside this public repository; inspect private project records when available instead of republishing them.
 2. Resolve the selected repository and read its applicable instructions, README and current Git changes. Preserve uncommitted work. When using an installed or packaged copy, compare it with the canonical repository when reachable; disclose an unverified or stale copy.
 3. Classify the request as inspection, product definition, implementation, workflow execution, release or maintenance. Carry forward authorization already given in this session; do not ask again for the same authorized action. Do not expand it to deployment, paid model calls, customer messages or unrelated production changes.
 4. For operational work, retrieve the affected live workflow definitions, draft/current version, published/active version, activation state and relevant recent executions. Compare them with the repository before editing. Identify unexplained drift; do not overwrite it or assume the Git version is current.
@@ -39,9 +39,9 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 ## Current approved operating policy
 
 - Project model budget is USD 2 per calendar month UTC; conversation history is readable for 30 days. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
-- The latest user request authorizes building and testing the WordPress plugin in this repository. Canonical runtime is `wordpress-plugin/gpante-support-chat/`; its version, settings schema and workflow release are independent. Site installation remains a separate stage. Keep the inbound key and trusted identities server-side.
-- Do not change gpante.com, its installed plugins or its themes. The current scope includes a basic installable plugin and actual local WordPress/browser verification; production deployment remains outside the request. Distinguish a built ZIP, a local test install and a production install.
-- The user requests public site-wide chat for all visitors, now packaged as a WordPress plugin; do not add an administrator-only preview restriction. Use plugin auto-rendering or the optional generated WoodMart embed, with `GPANTE_SUPPORT_INLINE_WIDGET` preventing duplicates. Keep the approved budget, trusted identity and abuse controls. Public visibility is not evidence that the inactive backend has been deployed.
+- The user installed and activated the WordPress plugin and subsequently authorized completing its production rollout. Canonical runtime is `wordpress-plugin/gpante-support-chat/`; its version, settings schema and workflow release are independent. Keep the inbound key and trusted identities server-side.
+- Production work is authorized for this chat: scoped plugin upgrades/configuration, its workflow publication and bounded real verification. Preserve unrelated plugins, themes, workflows and storefront configuration. Distinguish a built ZIP, installed files, enabled public display and a verified backend; always refresh the actual state.
+- The user requests public site-wide chat for all visitors, now packaged as a WordPress plugin; do not add an administrator-only preview restriction. Use plugin auto-rendering or the optional generated WoodMart embed, with `GPANTE_SUPPORT_INLINE_WIDGET` preventing duplicates. Keep the approved budget, trusted identity and abuse controls. Public visibility alone is not evidence of a working published backend.
 - Retention is published; verify its actual status at entry. It retains production execution results/errors containing timestamps and cleanup counts, while Main keeps raw execution storage disabled. Distinguish an explicitly triggered published execution from a naturally scheduled run; read filtering at 30 days does not itself prove physical deletion.
 
 ## Respect trust and infrastructure boundaries
@@ -51,6 +51,7 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - Send only the needed public fields to the model. Keep paid files, protected download links, private customer rows, raw execution payloads, secrets and credential bindings out of public Git and reports. Secret-name filtering alone is insufficient: inspect content and diffs too.
 - Use server-side Credentials and scoped service access. CORS is not authentication or abuse prevention. Enforce message size, rate, tool-call, iteration, execution-time and spending limits on the server using actual client identity and trusted proxy configuration.
 - Separate conversations and provide a defined retention/deletion policy. Recheck memory compatibility if execution becomes queue or multi-process. Use application storage, not n8n's internal tables, for chat data.
+- The user prefers direct SSH for server operations. Use the existing trusted host/key and run WP-CLI with the site’s PHP 8.3 as the website owner. Do not weaken host-key checking or expose secrets in arguments/output. Pass private configuration over encrypted stdin; keep rollback copies outside the web root and Git.
 - SSH, Docker and official n8n API/CLI are valid access routes. Discover current commands, schemas and available tooling before use. Do not require an absent MCP server, assume API authentication exists, edit plugin caches or update n8n internal tables to change workflows.
 - A read-only request does not permit production mutations, workflow executions, paid model tests or external messages. If the user forbids file changes too, do not persist inspection artifacts. Respect the exact requested scope.
 
@@ -102,6 +103,8 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 - Build WordPress ZIP with `scripts/build-plugin.py`; inspect its explicit runtime allowlist. Never confuse it with a Codex skill/plugin ZIP. Versioned packages are snapshots and must be rebuilt after source changes.
 - Use native WordPress APIs and prefixed functions; no framework, new tables, speculative extension layers or custom updater is needed for this basic version. Future capabilities need their own spec and access rules.
 - Use actual WordPress/WooCommerce for schema compatibility: WooCommerce prices can be `stdClass` before JSON serialization. Keep public allowlists and visibility checks when normalizing that shape.
+- WooCommerce attribute, term and image records can also be `stdClass`. Normalize only the trusted schema records before applying existing field allowlists; test products with populated attributes and images, not only empty fixtures.
+- Recheck hosting configuration after panel/PHP updates. Long chat requests must fit server timeouts without occupying ordinary storefront workers. Preserve its isolated route/pool, private no-cache responses and trusted client-IP handling; gracefully reload only after configuration validation. Purge cached public pages by the exact site cache key when widget visibility changes.
 - Use real browser checks for layout and focus: short screens scroll the panel; disabling/hiding active controls can move Chrome focus to body. Preserve deliberate focus outside the widget and restore focus after a completed operation when appropriate.
 
 ## Publish WordPress releases

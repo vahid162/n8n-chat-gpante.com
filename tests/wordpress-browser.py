@@ -9,7 +9,7 @@ def run(*args):
  data=json.loads(res.stdout);assert data['success'],data
  return data['data']
 def js(code):return run('eval',code)['result']
-def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled")
+def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled && document.querySelector('#gpante-support [data-messages]').getAttribute('aria-busy')==='false'")
 def mode(value):subprocess.run(['php',str(root/'wp-cli.phar'),'--path='+str(root/'wordpress'),'option','update','gptest_backend_mode',value],check=True,capture_output=True)
 def message(text):run('fill','#gpante-support [data-input]',text);run('press','Enter');ready()
 mode('success'); run('open','https://127.0.0.1:9443');run('snapshot','-i');run('click','#gpante-support [data-launcher]');ready()

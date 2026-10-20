@@ -15,11 +15,12 @@ add_filter('pre_http_request', function ($pre, $args, $url) {
   return array('headers'=>array(),'response'=>array('code'=>200),'body'=>wp_json_encode($body));
  }
  if ($url !== 'https://n8n.gpantex.com/webhook/gpante-ai-support-v1') return $pre;
+ $input = json_decode($args['body'], true);
+ if ($input['action'] === 'loadPreviousSession') usleep(max(0,min(3000,(int)get_option('gptest_history_delay_ms',0)))*1000);
  $mode = get_option('gptest_backend_mode', 'success');
  if ($mode === 'network') return new WP_Error('fixture_offline', 'Synthetic local failure');
  if ($mode === 'error') return array('headers' => array(), 'response' => array('code' => 503), 'body' => '{"error":true}');
  if ($mode === 'malformed') return array('headers' => array(), 'response' => array('code' => 200), 'body' => '<html>invalid</html>');
- $input = json_decode($args['body'], true);
  $key = 'gptest_history_' . $input['sessionId'];
  $history = get_option($key, array());
  if ($input['action'] === 'sendMessage') {

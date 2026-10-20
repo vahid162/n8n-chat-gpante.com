@@ -71,7 +71,9 @@
   const confirmation = find('[data-confirm]');
   const clear = find('[data-clear]');
   const retry = find('[data-retry]');
-  let busy = false;
+  let busy = null;
+  let historyRequest = null;
+  let pendingSend = false;
   let requestHadFocus = false;
   let failed = null;
   let policy = null;
@@ -129,7 +131,11 @@
 
   function updateInput() {
     find('[data-count]').textContent = input.value.length.toLocaleString('fa-IR') + ' / ۴۰۰۰';
-    send.disabled = busy || !policy || !input.value.trim();
+    input.disabled = pendingSend || Boolean(busy && busy !== 'history');
+    send.disabled = input.disabled || !input.value.trim();
+    if (fresh) fresh.disabled = Boolean(busy || pendingSend);
+    if (clear) clear.disabled = Boolean(busy || pendingSend);
+    retry.disabled = Boolean(busy || pendingSend);
   }
 
   function setStatus(text, error) {
@@ -137,17 +143,13 @@
     root.dataset.error = error ? 'true' : 'false';
   }
 
-  function setBusy(value) {
-    if (value) requestHadFocus = panel.contains(document.activeElement);
-    busy = value;
-    input.disabled = value;
-    if (fresh) fresh.disabled = value;
-    if (clear) clear.disabled = value;
-    retry.disabled = value;
-    messages.setAttribute('aria-busy', String(value));
+  function setBusy(action) {
+    if (action) requestHadFocus = panel.contains(document.activeElement);
+    busy = action;
+    messages.setAttribute('aria-busy', String(Boolean(action)));
     updateInput();
     // Chrome moves focus to body when its active control is disabled or hidden.
-    if (!value && requestHadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
+    if (!action && requestHadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
   }
 
   function addMessage(role, text, scroll = true, expiresAt) {
@@ -240,11 +242,17 @@
     retry.hidden = false;
   }
 
-  async function loadHistory(quiet = false) {
+  function loadHistory(quiet = false) {
+    // Reuse the first request so a queued send keeps its signed session cookie.
+    if (!historyRequest) historyRequest = readHistory(quiet).finally(() => { historyRequest = null; });
+    return historyRequest;
+  }
+
+  async function readHistory(quiet) {
     clearTimeout(historyTimer);
     if (!quiet) messages.replaceChildren();
     retry.hidden = true;
-    setBusy(true);
+    setBusy('history');
     setStatus('در حال خواندن گفت‌وگوی پیشین…');
     try {
       const data = await api('loadPreviousSession');
@@ -256,13 +264,15 @@
       else welcome();
       failed = null;
       setStatus('پرسشتان را بنویسید.');
+      return true;
     } catch (error) {
       messages.replaceChildren();
       policy = null;
       if (fresh) fresh.hidden = true;
       failure(error, 'loadPreviousSession');
+      return false;
     } finally {
-      setBusy(false);
+      setBusy(null);
       scheduleHistoryCheck();
       if (!panel.hidden && document.activeElement === panel) input.focus({ preventScroll: true });
     }
@@ -270,16 +280,31 @@
 
   async function submitMessage() {
     const text = input.value.trim();
-    if (busy || !policy || !text) return;
+    if (pendingSend || (busy && busy !== 'history') || !text) return;
     if (text.length > 4000) {
       setStatus('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true);
       return;
+    }
+    if (busy === 'history' || !policy) {
+      const hadFocus = panel.contains(document.activeElement);
+      pendingSend = true;
+      updateInput();
+      const ready = loadHistory();
+      setStatus('پیامتان آمادهٔ ارسال است؛ در حال برقراری ارتباط…');
+      const loaded = await ready;
+      pendingSend = false;
+      updateInput();
+      if (hadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
+      if (!loaded) {
+        failed = { action: 'sendMessage', text };
+        return;
+      }
     }
     retry.hidden = true;
     if (confirmation) confirmation.hidden = true;
     const item = addMessage('user', text);
     input.value = '';
-    setBusy(true);
+    setBusy('send');
     setStatus('در حال بررسی پرسش شما… ممکن است پاسخ کمی زمان ببرد.');
     try {
       const data = await api('sendMessage', text);
@@ -292,7 +317,7 @@
       input.value = text;
       failure(error, 'sendMessage', text);
     } finally {
-      setBusy(false);
+      setBusy(null);
       scheduleHistoryCheck();
       if (!panel.hidden && panel.contains(document.activeElement)) input.focus({ preventScroll: true });
     }
@@ -300,7 +325,7 @@
 
   async function clearHistory() {
     if (busy || !policy?.allowClear) return;
-    setBusy(true);
+    setBusy('reset');
     if (confirmation) confirmation.hidden = true;
     retry.hidden = true;
     setStatus('در حال پاک‌کردن تاریخچه…');
@@ -314,7 +339,7 @@
     } catch (error) {
       failure(error, 'resetSession');
     } finally {
-      setBusy(false);
+      setBusy(null);
       scheduleHistoryCheck();
       if (!panel.hidden && panel.contains(document.activeElement)) input.focus({ preventScroll: true });
     }
@@ -351,6 +376,7 @@
     launcher.setAttribute('aria-expanded', 'true');
     panel.focus({ preventScroll: true });
     if (!busy) loadHistory();
+    if (!input.disabled) input.focus({ preventScroll: true });
   }
 
   launcher.addEventListener('click', () => panel.hidden ? openPanel() : closePanel());

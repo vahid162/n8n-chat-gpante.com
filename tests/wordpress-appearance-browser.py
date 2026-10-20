@@ -55,7 +55,7 @@ try:
     assert js("document.querySelector('[data-launcher-label]').textContent") == 'پرسش دارید؟'
     assert js("getComputedStyle(document.querySelector('[data-launcher]')).backgroundColor") == 'rgb(18, 52, 86)'
     run('click', '#gpante-support [data-launcher]')
-    run('wait', '--fn', "!document.querySelector('#gpante-support [data-input]').disabled")
+    run('wait', '--fn', "!document.querySelector('#gpante-support [data-input]').disabled && document.querySelector('#gpante-support [data-messages]').getAttribute('aria-busy')==='false'")
     assert js("document.querySelector('#gpante-support [data-messages]').textContent") == 'راهنمای فروشگاهسلام؛ چطور کمک کنم؟'
     assert js("document.querySelector('#gpante-support [data-input]').placeholder") == 'موضوع را بنویسید'
     assert js("document.querySelector('#gpante-support [data-policy]')===null")

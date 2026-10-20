@@ -18,7 +18,9 @@ assert 'پاسخ آزمایشی: آزمون مرورگر واقعی' in js("docu
 assert js("document.querySelector('#gpante-support [data-messages] a').href")=='https://gpante.com/product/local-test/'
 print('PASS real WordPress bridge send, safe link, Persian reply')
 # Same signed browser cookie restores history across a real navigation.
-run('reload');run('snapshot','-i');run('click','#gpante-support [data-launcher]');ready()
+run('reload');run('snapshot','-i')
+if js("document.querySelector('#gpante-support-panel').hidden"):run('click','#gpante-support [data-launcher]')
+ready()
 assert 'آزمون مرورگر واقعی' in js("document.querySelector('#gpante-support [data-messages]').textContent")
 print('PASS real persisted session reload')
 mode('error');message('پیش‌نویس پس از خطا')
@@ -45,7 +47,7 @@ assert not js("document.querySelector('#gpante-support [data-confirm]').hidden")
 run('press','Escape');assert js("document.querySelector('#gpante-support [data-confirm]').hidden")
 run('click','#gpante-support [data-new]');run('snapshot','-i');run('scrollintoview','#gpante-support [data-clear]');run('click','#gpante-support [data-clear]');ready()
 assert 'آزمون مرورگر واقعی' not in js("document.querySelector('#gpante-support [data-messages]').textContent")
-run('press','Escape');assert js("document.querySelector('#gpante-support-panel').hidden")
+run('press','Escape');run('wait','--load','networkidle');run('wait','--fn',"document.querySelector('#gpante-support-panel')?.hidden===true");assert js("document.querySelector('#gpante-support-panel').hidden")
 print('PASS reset confirmation, Escape cancellation, successful delete and keyboard close')
 assert js("document.querySelectorAll('#gpante-support').length")==1
 assert 'fixture-only-' not in js('document.documentElement.innerHTML')

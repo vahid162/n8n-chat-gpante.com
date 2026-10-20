@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.6.0"
+  version: "0.7.0"
 ---
 
 # Operate GPante Support Chat
@@ -109,10 +109,12 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 
 ## Maintain presentation settings
 
-- Appearance lives under `چت پانته ← ظاهر`, separate from connection and archive controls. Preserve the nonautoloaded `gpante_support_appearance` option and its independent schema=1; changing/resetting it must never alter `gpante_support_runtime`, central policy or n8n.
+- Appearance lives under `چت پانته ← ظاهر`, separate from connection and archive controls. Preserve the nonautoloaded `gpante_support_appearance` option and its independent schema=2 (migrated idempotently from schema=1 without losing text/colors); changing/resetting it must never alter `gpante_support_runtime`, central policy or n8n.
 - Accept only the existing bounded plain-text fields and six-digit RGB colors. Preserve native capability/nonce checks, output escaping and the minimum 4.5 text/background contrast checks. Do not accept arbitrary HTML, CSS or scripts.
-- Retention and clear-confirmation disclosures remain generated/protected. Custom welcome copy is presentation only, never model instructions or a stored conversation turn.
+- The user explicitly removed the permanent scope/retention notice from the widget in 0.4.0. Preserve the central retention/clear policy and accurate clear confirmation. The input label remains accessible but visually hidden; send is an icon inside the composer with configurable accessible name/tooltip. Custom welcome copy is presentation only, never model instructions or a stored conversation turn.
 - The public no-store GET `/appearance` returns only allowlisted presentation fields. Build its actual URL with `rest_url` for plain permalinks too. Preserve one background read per page, safe initial fallback and scoped CSS variables so cached HTML can pick up current settings without model calls.
+- Preserve up to four administrator navigation links: blank label hides a button; a nonempty label needs a validated HTTPS or site-relative URL. They are never fetched server-side and do not loosen the independent model-output link allowlist. Keep capability/nonce checks and URL/text escaping. Older settings forms without link fields must preserve existing links.
+- Preserve exact panel dimensions. Back consumes only the open widget history entry, manual close consumes it too, and Forward/reload restores an open marker without adding entries. Outside clicks must preserve external focus/navigation, drafts and in-flight requests. Test real Back/Forward/reload and rapid reopen, not only history stubs. Physical device keyboard/Back behavior remains a separate test.
 - Rebuild the optional embed and verify native WordPress saves, public config safety, cached-page refresh and desktop/short-screen browser behavior after changes. Tabs already open need reloading; purge only this site's cached HTML/assets on the first version upgrade.
 
 ## Maintain the conversation archive

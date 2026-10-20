@@ -58,7 +58,7 @@ try:
     run('wait', '--fn', "!document.querySelector('#gpante-support [data-input]').disabled")
     assert js("document.querySelector('#gpante-support [data-messages]').textContent") == 'راهنمای فروشگاهسلام؛ چطور کمک کنم؟'
     assert js("document.querySelector('#gpante-support [data-input]').placeholder") == 'موضوع را بنویسید'
-    assert '۳۰' in js("document.querySelector('#gpante-support [data-policy]').textContent")
+    assert js("document.querySelector('#gpante-support [data-policy]')===null")
     print('PASS cached HTML gets fresh public appearance, matching launcher/header/welcome/placeholder, with authoritative policy')
     for width, height in [(1440,1000),(390,844),(844,390)]:
         run('set', 'viewport', str(width), str(height))
@@ -71,7 +71,7 @@ try:
     assert not run('errors').get('errors', [])
     print('PASS custom appearance fits desktop, portrait and landscape; controls reachable; no runtime errors')
     run('set', 'viewport', '1440', '1000')
-    run('scrollintoview', '#gpante-support [data-policy]')
+    run('scrollintoview', '#gpante-support [data-messages]')
     audit = run('a11y', '--selector', '#gpante-support')
     assert not audit.get('violations', []), audit.get('violations')
     (root/'evidence'/'appearance-a11y.json').write_text(json.dumps(audit, ensure_ascii=False, indent=2))

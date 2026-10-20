@@ -17,6 +17,7 @@ $public_appearance = array(
 	'version' => 1,
 	'texts'   => $appearance['texts'],
 	'colors'  => $appearance['colors'],
+	'links'   => $appearance['links'],
 );
 ?>
 <div id="gpante-support" dir="rtl" lang="fa" style="<?php echo esc_attr( $styles ); ?>" data-appearance="<?php echo esc_attr( wp_json_encode( $public_appearance ) ); ?>" data-appearance-endpoint="<?php echo esc_url( wp_make_link_relative( rest_url( 'gpante-support/v1/appearance' ) ) ); ?>" data-endpoint="<?php echo esc_url( wp_make_link_relative( rest_url( 'gpante-support/v1/chat' ) ) ); ?>">
@@ -25,19 +26,30 @@ $public_appearance = array(
 			<div><strong id="gpante-support-title" data-title><?php echo esc_html( $appearance['texts']['title'] ); ?></strong><span data-subtitle><?php echo esc_html( $appearance['texts']['subtitle'] ); ?></span></div>
 			<button type="button" data-close aria-label="<?php esc_attr_e( 'بستن گفت‌وگو', 'gpante-support-chat' ); ?>">×</button>
 		</div>
-		<div class="gpante-chat-intro" data-policy tabindex="0"><?php esc_html_e( 'دستیار هوش مصنوعی برای اطلاعات عمومی محصولات و راهنماهاست. به حساب یا سفارش شما دسترسی ندارد. هنگام بازشدن گفتگو، سیاست نگهداری نمایش داده می‌شود. آرشیو مدیریتی پیام‌ها برای بررسی فنی تا ۳۰ روز باقی می‌ماند.', 'gpante-support-chat' ); ?></div>
 		<div class="gpante-chat-toolbar"><button type="button" data-new hidden><?php echo esc_html( $appearance['texts']['clear'] ); ?></button></div>
 		<div class="gpante-chat-confirm" data-confirm hidden>
 			<p><?php esc_html_e( 'این گفتگو از تاریخچهٔ قابل مشاهدهٔ شما پاک می‌شود و گفتگوی تازه‌ای آغاز خواهد شد. آرشیو مدیریتی آن برای بررسی فنی، تا پایان مهلت ۳۰روزه باقی می‌ماند. ادامه می‌دهید؟', 'gpante-support-chat' ); ?></p>
 			<button type="button" data-clear><?php esc_html_e( 'بله، پاک شود', 'gpante-support-chat' ); ?></button><button type="button" data-cancel><?php esc_html_e( 'انصراف', 'gpante-support-chat' ); ?></button>
 		</div>
-		<div class="gpante-chat-messages" data-messages role="log" aria-label="<?php esc_attr_e( 'پیام‌های گفت‌وگو', 'gpante-support-chat' ); ?>" aria-live="polite" aria-relevant="additions" tabindex="0"></div>
+		<div class="gpante-chat-messages" data-scroll tabindex="0" role="region" aria-label="<?php esc_attr_e( 'گفتگو و پیوندهای راهنما', 'gpante-support-chat' ); ?>">
+			<div data-messages role="log" aria-label="<?php esc_attr_e( 'پیام‌های گفت‌وگو', 'gpante-support-chat' ); ?>" aria-live="polite" aria-relevant="additions"></div>
+			<nav class="gpante-chat-shortcuts" data-shortcuts aria-label="<?php esc_attr_e( 'پیوندهای راهنما', 'gpante-support-chat' ); ?>" <?php echo array_filter( $appearance['links'], static fn( $shortcut ) => '' !== $shortcut['label'] ) ? '' : 'hidden'; ?>>
+				<?php foreach ( $appearance['links'] as $shortcut ) : ?>
+					<?php if ( '' !== $shortcut['label'] ) : ?>
+						<a href="<?php echo esc_url( $shortcut['url'] ); ?>"><?php echo esc_html( $shortcut['label'] ); ?></a>
+					<?php endif; ?>
+				<?php endforeach; ?>
+			</nav>
+		</div>
 		<div class="gpante-chat-status" data-status role="status" aria-live="polite" aria-atomic="true"></div>
 		<button class="gpante-chat-retry" type="button" data-retry hidden><?php esc_html_e( 'تلاش دوباره', 'gpante-support-chat' ); ?></button>
 		<form class="gpante-chat-form" data-form>
-			<label for="gpante-support-input" data-input-label><?php echo esc_html( $appearance['texts']['input_label'] ); ?></label>
-			<textarea id="gpante-support-input" data-input rows="2" maxlength="4000" placeholder="<?php echo esc_attr( $appearance['texts']['placeholder'] ); ?>" required></textarea>
-			<div class="gpante-chat-compose"><small data-count aria-hidden="true"><?php esc_html_e( '۰ / ۴۰۰۰', 'gpante-support-chat' ); ?></small><button type="submit" data-send disabled><?php echo esc_html( $appearance['texts']['send'] ); ?></button></div>
+			<label class="gpante-chat-sr-only" for="gpante-support-input" data-input-label><?php echo esc_html( $appearance['texts']['input_label'] ); ?></label>
+			<div class="gpante-chat-composer">
+				<textarea id="gpante-support-input" data-input rows="2" maxlength="4000" placeholder="<?php echo esc_attr( $appearance['texts']['placeholder'] ); ?>" required></textarea>
+				<button type="submit" data-send disabled aria-label="<?php echo esc_attr( $appearance['texts']['send'] ); ?>" title="<?php echo esc_attr( $appearance['texts']['send'] ); ?>"><span class="gpante-chat-sr-only" data-send-label><?php echo esc_html( $appearance['texts']['send'] ); ?></span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m22 2-7 20-4-9L2 9Z"/><path d="m22 2-11 11"/></svg></button>
+			</div>
+			<small class="gpante-chat-count" data-count aria-hidden="true"><?php esc_html_e( '۰ / ۴۰۰۰', 'gpante-support-chat' ); ?></small>
 		</form>
 	</section>
 	<button class="gpante-chat-launcher" type="button" data-launcher aria-label="<?php echo esc_attr( $appearance['texts']['launcher'] ); ?>" aria-controls="gpante-support-panel" aria-expanded="false">

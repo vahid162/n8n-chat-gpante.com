@@ -20,9 +20,9 @@ function gpante_support_appearance_texts() {
 		'subtitle'    => array( __( 'زیرعنوان', 'gpante-support-chat' ), __( 'راهنمای طرح و فایل، خرید و دانلود', 'gpante-support-chat' ), 160 ),
 		'launcher'    => array( __( 'متن دکمهٔ بازکردن چت', 'gpante-support-chat' ), __( 'از پانته بپرسید', 'gpante-support-chat' ), 60 ),
 		'welcome'     => array( __( 'پیام خوشامدگویی', 'gpante-support-chat' ), __( 'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.', 'gpante-support-chat' ), 1000 ),
-		'input_label' => array( __( 'عنوان کادر پرسش', 'gpante-support-chat' ), __( 'پرسش شما', 'gpante-support-chat' ), 80 ),
+		'input_label' => array( __( 'نام کادر پرسش برای صفحه‌خوان (نمایش داده نمی‌شود)', 'gpante-support-chat' ), __( 'پرسش شما', 'gpante-support-chat' ), 80 ),
 		'placeholder' => array( __( 'راهنمای داخل کادر پرسش', 'gpante-support-chat' ), __( 'مثلاً باکس MDF با ضخامت ۲٫۷ و فایل DXF می‌خواهم…', 'gpante-support-chat' ), 250 ),
-		'send'        => array( __( 'متن دکمهٔ ارسال', 'gpante-support-chat' ), __( 'ارسال پیام', 'gpante-support-chat' ), 40 ),
+		'send'        => array( __( 'نام و راهنمای دکمهٔ ارسال', 'gpante-support-chat' ), __( 'ارسال پیام', 'gpante-support-chat' ), 40 ),
 		'clear'       => array( __( 'متن دکمهٔ گفتگوی تازه', 'gpante-support-chat' ), __( 'پاک‌کردن و گفت‌وگوی تازه', 'gpante-support-chat' ), 100 ),
 	);
 }
@@ -52,9 +52,17 @@ function gpante_support_appearance_colors() {
  */
 function gpante_support_appearance_defaults() {
 	$config = array(
-		'schema_version' => 1,
+		'schema_version' => 2,
 		'texts'          => array(),
 		'colors'         => array(),
+		'links'          => array_fill(
+			0,
+			4,
+			array(
+				'label' => '',
+				'url'   => '',
+			)
+		),
 	);
 	foreach ( gpante_support_appearance_texts() as $key => $field ) {
 		$config['texts'][ $key ] = $field[1];
@@ -67,8 +75,17 @@ function gpante_support_appearance_defaults() {
 
 /** Create the owned option on updates as well as activation; never downgrade it. */
 function gpante_support_appearance_upgrade() {
-	if ( false === get_option( 'gpante_support_appearance', false ) ) {
+	$config = get_option( 'gpante_support_appearance', false );
+	if ( false === $config ) {
 		add_option( 'gpante_support_appearance', gpante_support_appearance_defaults(), '', false );
+	}
+	if ( is_array( $config ) && 1 === ( $config['schema_version'] ?? null ) ) {
+		$next                   = $config;
+		$next['schema_version'] = 2;
+		$next['links']          = gpante_support_appearance_defaults()['links'];
+		if ( gpante_support_valid_appearance( $next ) ) {
+			update_option( 'gpante_support_appearance', $next, false );
+		}
 	}
 	wp_set_option_autoload( 'gpante_support_appearance', false );
 }
@@ -95,13 +112,30 @@ function gpante_support_color_contrast( $first, $second ) {
 }
 
 /**
+ * Validate administrator navigation URLs without fetching their destination.
+ *
+ * @param mixed $url Candidate HTTPS or site-relative URL.
+ * @return bool
+ */
+function gpante_support_valid_shortcut_url( $url ) {
+	if ( ! is_string( $url ) || strlen( $url ) > 2048 || '' === $url || str_contains( $url, '\\' ) || preg_match( '/[\x00-\x20\x7f]|%(?:0[0-9a-f]|1[0-9a-f]|7f|5c)/i', $url ) || esc_url_raw( $url, array( 'https' ) ) !== $url ) {
+		return false;
+	}
+	if ( str_starts_with( $url, '/' ) && ! str_starts_with( $url, '//' ) ) {
+		return true;
+	}
+	$parts = wp_parse_url( $url );
+	return str_starts_with( $url, 'https://' ) && is_array( $parts ) && ! empty( $parts['host'] ) && ! isset( $parts['user'] ) && ! isset( $parts['pass'] );
+}
+
+/**
  * Validate complete presentation values. No HTML, CSS or secret fields are accepted.
  *
  * @param mixed $config Candidate settings.
  * @return bool
  */
 function gpante_support_valid_appearance( $config ) {
-	if ( ! is_array( $config ) || 1 !== ( $config['schema_version'] ?? null ) || ! is_array( $config['texts'] ?? null ) || ! is_array( $config['colors'] ?? null ) ) {
+	if ( ! is_array( $config ) || 2 !== ( $config['schema_version'] ?? null ) || ! is_array( $config['texts'] ?? null ) || ! is_array( $config['colors'] ?? null ) ) {
 		return false;
 	}
 	foreach ( gpante_support_appearance_texts() as $key => $field ) {
@@ -112,6 +146,19 @@ function gpante_support_valid_appearance( $config ) {
 	}
 	foreach ( gpante_support_appearance_colors() as $key => $field ) {
 		if ( ! is_string( $config['colors'][ $key ] ?? null ) || 1 !== preg_match( '/^#[0-9a-f]{6}$/iD', $config['colors'][ $key ] ) ) {
+			return false;
+		}
+	}
+	if ( ! is_array( $config['links'] ?? null ) || array_keys( $config['links'] ) !== array( 0, 1, 2, 3 ) ) {
+		return false;
+	}
+	foreach ( $config['links'] as $link ) {
+		if ( ! is_array( $link ) ) {
+			return false;
+		}
+		$label = $link['label'] ?? null;
+		$url   = $link['url'] ?? null;
+		if ( ! is_string( $label ) || ! is_string( $url ) || sanitize_text_field( $label ) !== $label || false === preg_match_all( '/./us', $label, $matches ) || count( $matches[0] ) > 80 || ( '' !== $url && ! gpante_support_valid_shortcut_url( $url ) ) || ( '' !== $label && '' === $url ) ) {
 			return false;
 		}
 	}
@@ -143,6 +190,12 @@ function gpante_support_get_appearance() {
 			$defaults[ $group ][ $key ] = $stored[ $group ][ $key ];
 		}
 	}
+	foreach ( $stored['links'] as $index => $link ) {
+		$defaults['links'][ $index ] = array(
+			'label' => $link['label'],
+			'url'   => $link['url'],
+		);
+	}
 	return $defaults;
 }
 
@@ -157,7 +210,7 @@ function gpante_support_sanitize_appearance( $input ) {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return $old;
 	}
-	if ( ! is_array( $input ) || ! is_array( $old ) || (int) ( $old['schema_version'] ?? 0 ) > 1 ) {
+	if ( ! is_array( $input ) || ! is_array( $old ) || (int) ( $old['schema_version'] ?? 0 ) > 2 ) {
 		add_settings_error( 'gpante_support_appearance', 'invalid_version', __( 'ظاهر ذخیره نشد. نسخهٔ افزونه و دادهٔ ورودی را بررسی کنید.', 'gpante-support-chat' ) );
 		return $old;
 	}
@@ -177,8 +230,25 @@ function gpante_support_sanitize_appearance( $input ) {
 		$value                  = $input['colors'][ $key ] ?? null;
 		$next['colors'][ $key ] = is_string( $value ) ? strtolower( $value ) : '';
 	}
+	$links = $input['links'] ?? ( $old['links'] ?? $next['links'] );
+	if ( ! is_array( $links ) || array_keys( $links ) !== array( 0, 1, 2, 3 ) ) {
+		$next['links'] = array();
+	} else {
+		foreach ( $links as $index => $link ) {
+			if ( ! is_array( $link ) ) {
+				$next['links'] = array();
+				break;
+			}
+			$label                   = $link['label'] ?? null;
+			$url                     = $link['url'] ?? null;
+			$next['links'][ $index ] = array(
+				'label' => is_string( $label ) ? sanitize_text_field( $label ) : null,
+				'url'   => is_string( $url ) ? trim( $url ) : null,
+			);
+		}
+	}
 	if ( ! gpante_support_valid_appearance( $next ) ) {
-		add_settings_error( 'gpante_support_appearance', 'invalid_appearance', __( 'ظاهر ذخیره نشد. متن‌ها را خالی نگذارید و از سقف طول عبور نکنید. رنگ‌ها باید شش‌رقمی باشند؛ نسبت خوانایی متن روی پس‌زمینه‌های انتخابی باید حداقل ۴٫۵ باشد.', 'gpante-support-chat' ) );
+		add_settings_error( 'gpante_support_appearance', 'invalid_appearance', __( 'ظاهر ذخیره نشد. متن‌ها را خالی نگذارید و از سقف طول عبور نکنید. برای هر دکمهٔ دارای متن، لینک HTTPS یا مسیر داخلی معتبر وارد کنید (حداکثر چهار دکمه). رنگ‌ها باید شش‌رقمی باشند؛ نسبت خوانایی متن روی پس‌زمینه‌های انتخابی باید حداقل ۴٫۵ باشد.', 'gpante-support-chat' ) );
 		return $old;
 	}
 	return $next;
@@ -218,7 +288,7 @@ function gpante_support_appearance_page() {
 		<form method="post" action="options.php">
 			<?php settings_fields( 'gpante_support_appearance' ); ?>
 			<h2><?php esc_html_e( 'متن‌ها', 'gpante-support-chat' ); ?></h2>
-			<p><?php esc_html_e( 'فقط متن ساده وارد کنید. خوشامدگویی در گفتگوی خالی نمایش داده می‌شود؛ دستور مدل را تغییر نمی‌دهد. متن اطلاع‌رسانی آرشیو و تأیید پاک‌کردن از سیاست واقعی می‌آید.', 'gpante-support-chat' ); ?></p>
+			<p><?php esc_html_e( 'فقط متن ساده وارد کنید. خوشامدگویی در گفتگوی خالی نمایش داده می‌شود؛ دستور مدل را تغییر نمی‌دهد. نام کادر پرسش فقط برای صفحه‌خوان است. مدت تاریخچه و امکان پاک‌کردن در بخش گفتگوها تنظیم می‌شوند.', 'gpante-support-chat' ); ?></p>
 			<table class="form-table" role="presentation">
 				<?php foreach ( gpante_support_appearance_texts() as $key => $field ) : ?>
 				<tr><th scope="row"><label for="gpante-appearance-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label></th><td>
@@ -237,8 +307,23 @@ function gpante_support_appearance_page() {
 				<tr><th scope="row"><label for="gpante-color-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label></th><td><input type="color" id="gpante-color-<?php echo esc_attr( $key ); ?>" name="gpante_support_appearance[colors][<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $config['colors'][ $key ] ); ?>"></td></tr>
 				<?php endforeach; ?>
 			</table>
+			<h2><?php esc_html_e( 'دکمه‌های راهنما (حداکثر چهار مورد)', 'gpante-support-chat' ); ?></h2>
+			<p><?php esc_html_e( 'با خالی‌گذاشتن متن، آن دکمه نمایش داده نمی‌شود. برای متنِ واردشده، نشانی HTTPS کامل یا مسیر داخلی مانند /shop/ لازم است. این دکمه‌ها صفحهٔ مقصد را باز می‌کنند.', 'gpante-support-chat' ); ?></p>
+			<table class="form-table" role="presentation">
+				<?php foreach ( $config['links'] as $index => $link ) : ?>
+				<tr><th scope="row">
+					<?php
+					/* translators: %d: Shortcut number, from one to four. */
+					echo esc_html( sprintf( __( 'دکمهٔ %d', 'gpante-support-chat' ), $index + 1 ) );
+					?>
+					</th><td>
+					<p><label for="gpante-link-label-<?php echo esc_attr( $index ); ?>"><?php esc_html_e( 'متن دکمه', 'gpante-support-chat' ); ?></label><br><input class="regular-text" type="text" id="gpante-link-label-<?php echo esc_attr( $index ); ?>" name="gpante_support_appearance[links][<?php echo esc_attr( $index ); ?>][label]" maxlength="80" value="<?php echo esc_attr( $link['label'] ); ?>"></p>
+					<p><label for="gpante-link-url-<?php echo esc_attr( $index ); ?>"><?php esc_html_e( 'لینک دکمه', 'gpante-support-chat' ); ?></label><br><input class="regular-text" type="text" dir="ltr" id="gpante-link-url-<?php echo esc_attr( $index ); ?>" name="gpante_support_appearance[links][<?php echo esc_attr( $index ); ?>][url]" maxlength="2048" value="<?php echo esc_attr( $link['url'] ); ?>"></p>
+				</td></tr>
+				<?php endforeach; ?>
+			</table>
 			<?php submit_button(); ?>
-			<p><button class="button" type="submit" name="gpante_support_appearance[restore_defaults]" value="1" formnovalidate><?php esc_html_e( 'بازگرداندن متن‌ها و رنگ‌های پیش‌فرض', 'gpante-support-chat' ); ?></button></p>
+			<p><button class="button" type="submit" name="gpante_support_appearance[restore_defaults]" value="1" formnovalidate><?php esc_html_e( 'بازگرداندن ظاهر پیش‌فرض (متن، رنگ و دکمه‌ها)', 'gpante-support-chat' ); ?></button></p>
 		</form>
 	</div>
 	<?php
@@ -259,6 +344,7 @@ function gpante_support_appearance_routes() {
 						'version' => 1,
 						'texts'   => $config['texts'],
 						'colors'  => $config['colors'],
+						'links'   => $config['links'],
 					)
 				);
 			},

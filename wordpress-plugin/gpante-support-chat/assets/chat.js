@@ -14,6 +14,16 @@
     }
   }
 
+  function shortcutUrl(address, base = 'https://gpante.com/') {
+    if (typeof address !== 'string' || address.length > 2048
+      || /[\\\x00-\x20\x7f]|%(?:0[0-9a-f]|1[0-9a-f]|7f|5c)/i.test(address)
+      || !/^(?:https:\/\/|\/(?!\/))/.test(address)) return null;
+    try {
+      const url = new URL(address, base);
+      return url.protocol === 'https:' && !url.username && !url.password ? url.href : null;
+    } catch (_) { return null; }
+  }
+
   function appendContent(container, content) {
     const pattern = /\[([^\]\n]{1,300})\]\((https:\/\/[^\s)]+)\)|https:\/\/[^\s<>()\[\]]+/gu;
     let end = 0;
@@ -38,7 +48,7 @@
 
   // The same rendering functions are exercised by the dependency-free Node checks.
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { safeLink, appendContent };
+    module.exports = { safeLink, appendContent, shortcutUrl };
     return;
   }
 
@@ -51,6 +61,8 @@
   const panel = find('#gpante-support-panel');
   const launcher = find('[data-launcher]');
   const messages = find('[data-messages]');
+  const scrollArea = find('[data-scroll]') || messages;
+  const shortcuts = find('[data-shortcuts]');
   const status = find('[data-status]');
   const input = find('[data-input]');
   const form = find('[data-form]');
@@ -75,18 +87,32 @@
         || !value.texts[key].trim() || [...value.texts[key]].length > limit)
       || colors.some(key => typeof value.colors[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(value.colors[key]))) return;
     appearanceTexts = Object.fromEntries(Object.keys(appearanceTextLimits).map(key => [key,value.texts[key]]));
-    const fields = {title:'title',subtitle:'subtitle',launcher:'launcher-label',input_label:'input-label',send:'send',clear:'new'};
+    const fields = {title:'title',subtitle:'subtitle',launcher:'launcher-label',input_label:'input-label',send:'send-label',clear:'new'};
     for (const [key,selector] of Object.entries(fields)) {
       const element = find('[data-' + selector + ']');
       if (element) element.textContent = appearanceTexts[key];
     }
     input.setAttribute('placeholder', appearanceTexts.placeholder);
+    send.setAttribute('aria-label', appearanceTexts.send);
+    send.setAttribute('title', appearanceTexts.send);
     launcher.setAttribute('aria-label', appearanceTexts.launcher);
     for (const key of colors) root.style.setProperty('--gpante-' + key.replace('_','-'), value.colors[key]);
     for (const item of messages.children) {
       if (item.className.endsWith('--assistant')) item.children[0].textContent = appearanceTexts.title;
     }
     if (welcomeItem && messages.contains(welcomeItem)) welcomeItem.children[1].textContent = appearanceTexts.welcome;
+    if (shortcuts) {
+      shortcuts.replaceChildren();
+      for (const link of Array.isArray(value.links) ? value.links.slice(0,4) : []) {
+        const url = shortcutUrl(link?.url, typeof window !== 'undefined' ? window.location.href : undefined);
+        if (!url || typeof link?.label !== 'string' || !link.label.trim() || [...link.label].length > 80) continue;
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.textContent = link.label;
+        shortcuts.append(anchor);
+      }
+      shortcuts.hidden = !shortcuts.children.length;
+    }
   }
 
   try { applyAppearance(JSON.parse(root.dataset.appearance || '{}')); } catch (_) { /* Keep server-rendered defaults. */ }
@@ -135,7 +161,7 @@
     else body.textContent = text;
     item.append(label, body);
     messages.append(item);
-    if (scroll) messages.scrollTop = messages.scrollHeight;
+    if (scroll) scrollArea.scrollTop = scrollArea.scrollHeight;
     return item;
   }
 
@@ -151,9 +177,6 @@
   function applyPolicy(value) {
     if (!validPolicy(value)) throw new Error('سیاست گفتگو دریافت نشد. لطفاً صفحه را تازه کنید.');
     policy = value;
-    const notice = find('[data-policy]');
-    if (notice) notice.textContent = 'دستیار هوش مصنوعی اطلاعات عمومی محصولات و راهنماها را می‌خواند و به حساب یا سفارش شما دسترسی ندارد. تاریخچهٔ قابل مشاهدهٔ شما تا '
-      + value.userDays.toLocaleString('fa-IR') + ' روز است. آرشیو مدیریتی پیام‌ها مستقل از پاک‌کردن شما، از زمان پرسش تا ۳۰ روز برای بررسی فنی نگهداری می‌شود.';
     if (fresh) fresh.hidden = !value.allowClear;
     if (!value.allowClear && confirmation) confirmation.hidden = true;
   }
@@ -226,7 +249,7 @@
       messages.replaceChildren();
       if (data.messages.length) {
         data.messages.forEach(message => addMessage(message.role, message.content, false, message.expiresAt));
-        messages.scrollTop = messages.scrollHeight;
+        scrollArea.scrollTop = scrollArea.scrollHeight;
       }
       else welcome();
       failed = null;
@@ -295,22 +318,50 @@
     }
   }
 
-  function closePanel() {
+  const browserHistory = typeof window !== 'undefined' ? window.history : null;
+  const storedToken = browserHistory?.state?.gpanteSupportChat;
+  const historyToken = typeof storedToken === 'string' && storedToken.startsWith('gpante-')
+    ? storedToken : 'gpante-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  let historyClosing = false;
+  let reopenRequested = false;
+
+  function closePanel(restoreFocus = true, releaseHistory = true) {
+    if (panel.hidden) return;
     panel.hidden = true;
     clearTimeout(historyTimer);
     if (confirmation) confirmation.hidden = true;
     launcher.setAttribute('aria-expanded', 'false');
-    launcher.focus({ preventScroll: true });
+    if (restoreFocus) launcher.focus({ preventScroll: true });
+    if (releaseHistory && browserHistory?.state?.gpanteSupportChat === historyToken) {
+      historyClosing = true;
+      browserHistory.back();
+    }
   }
 
-  launcher.addEventListener('click', () => {
-    if (!panel.hidden) return closePanel();
+  function openPanel(pushHistory = true) {
+    if (historyClosing) { reopenRequested = true; return; }
+    if (!panel.hidden) return;
+    if (pushHistory && browserHistory && browserHistory.state?.gpanteSupportChat !== historyToken) {
+      try { browserHistory.pushState({ ...browserHistory.state, gpanteSupportChat: historyToken }, ''); }
+      catch (_) { /* The panel remains usable when an embed disallows history writes. */ }
+    }
     panel.hidden = false;
     launcher.setAttribute('aria-expanded', 'true');
     panel.focus({ preventScroll: true });
     if (!busy) loadHistory();
+  }
+
+  launcher.addEventListener('click', () => panel.hidden ? openPanel() : closePanel());
+  find('[data-close]').addEventListener('click', () => closePanel());
+  document.addEventListener('click', event => {
+    if (!panel.hidden && !root.contains(event.target)) closePanel(false);
   });
-  find('[data-close]').addEventListener('click', closePanel);
+  if (typeof window !== 'undefined') window.addEventListener('popstate', () => {
+    historyClosing = false;
+    if (browserHistory?.state?.gpanteSupportChat === historyToken) openPanel(false);
+    else closePanel(true, false);
+    if (reopenRequested) { reopenRequested = false; openPanel(); }
+  });
   root.addEventListener('keydown', event => {
     if (event.key === 'Escape' && !panel.hidden) {
       event.preventDefault();
@@ -348,4 +399,6 @@
   });
   if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (!panel.hidden && !busy) loadHistory(true); });
   updateInput();
+  // Restore an open history entry on reload/forward rather than leaving a dead Back step.
+  if (browserHistory?.state?.gpanteSupportChat === historyToken) openPanel(false);
 }());

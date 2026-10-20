@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.7.1"
+  version: "0.7.2"
 ---
 
 # Operate GPante Support Chat
@@ -33,6 +33,7 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - Use structured WooCommerce attributes as well as text. Normalize Persian/Latin digits, Arabic/Persian letter variants and common thickness/format spellings. Enforce requested attributes together; never silently relax material, thickness or format constraints.
 - Ground specifications, links, images and prices in actual source data. Re-read mutable price/sale/availability data before a recommendation; honor currency and `currency_minor_unit`. Zero is a valid price. Missing facts stay unknown.
 - Distinguish no matches, missing attributes, incomplete retrieval and API failure. Ask a relevant follow-up or report uncertainty; a failed read is not an empty catalog.
+- For product discovery, unspecified format/thickness/material are optional, not a questionnaire before searching. After no matches, use the existing bounded calls for a synonym or close product family; preserve explicit constraints. Recommend only fresh retrieved alternatives with a stated similarity and important difference. Do not fill a list with unrelated components, promise the same absent product after changing irrelevant features, or list rejected results as recommendations. One relevant option is sufficient. Preserve context for “another model”/“cheaper”, allow explicit topic/component changes, and ask only a question that resolves a real ambiguity. See [the discovery spec](../../../specs/006-contextual-product-discovery/spec.md) and its bounded live verification.
 - Keep model choice, UI and bounded tools separable. Reuse the existing n8n and PostgreSQL where they fit. Add indexing, embeddings, queues or services only for demonstrated requirements; full catalog coverage alone does not prescribe a vector database.
 - Customer-account support is a future capability requiring trusted WordPress authentication and ownership checks. A session ID, user-supplied customer/order ID or model assertion is not authorization. Define each order-changing capability separately before adding it.
 

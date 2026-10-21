@@ -173,6 +173,8 @@
   const scrollArea = find('[data-scroll]') || messages;
   const shortcuts = find('[data-shortcuts]');
   const status = find('[data-status]');
+  const statusLabel = find('[data-status-label]');
+  const statusText = find('[data-status-text]') || status;
   const input = find('[data-input]');
   const form = find('[data-form]');
   const send = find('[data-send]');
@@ -250,9 +252,17 @@
     retry.disabled = Boolean(busy || pendingSend);
   }
 
-  function setStatus(text, error) {
-    status.textContent = text;
-    root.dataset.error = error ? 'true' : 'false';
+  function setStatus(text, error = false, state = error ? 'error' : 'ready') {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      state = 'offline';
+      text = busy === 'send' ? 'اینترنت قطع است؛ دریافت نتیجهٔ پیام هنوز تأیید نشده است.' : 'اتصال اینترنت را بررسی کنید؛ متن نوشته‌شده در کادر حفظ می‌شود.';
+    }
+    const labels = {connecting:'در حال اتصال به دستیار',refreshing:'در حال به‌روزرسانی گفتگو',ready:'ارتباط با سرویس برقرار است',
+      waiting:'در حال دریافت پاسخ دستیار',clearing:'در حال پاک‌کردن گفتگو',error:'نیاز به تلاش دوباره',offline:'اتصال اینترنت قطع است',notice:'پیام آمادهٔ ارسال نیست'};
+    status.dataset.state = state;
+    if (statusLabel) statusLabel.textContent = labels[state];
+    statusText.textContent = text;
+    root.dataset.error = error || state === 'offline' ? 'true' : 'false';
   }
 
   function setBusy(action) {
@@ -369,7 +379,7 @@
     if (!quiet) messages.replaceChildren();
     retry.hidden = true;
     setBusy('history');
-    setStatus('در حال خواندن گفت‌وگوی پیشین…');
+    setStatus('گفتگوهای پیشین خوانده می‌شوند؛ می‌توانید پرسشتان را بنویسید.', false, quiet ? 'refreshing' : 'connecting');
     try {
       const data = await api('loadPreviousSession');
       messages.replaceChildren();
@@ -403,7 +413,7 @@
     const text = input.value.trim();
     if (pendingSend || (busy && busy !== 'history') || !text) return;
     if (text.length > 4000) {
-      setStatus('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true);
+      setStatus('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true, 'notice');
       return;
     }
     if (busy === 'history' || !policy) {
@@ -411,7 +421,7 @@
       pendingSend = true;
       updateInput();
       const ready = loadHistory();
-      setStatus('پیامتان آمادهٔ ارسال است؛ در حال برقراری ارتباط…');
+      setStatus('پیامتان آمادهٔ ارسال است؛ پس از تأیید ارتباط، یک‌بار ارسال می‌شود.', false, 'connecting');
       const loaded = await ready;
       pendingSend = false;
       updateInput();
@@ -426,7 +436,7 @@
     const item = addMessage('user', text);
     input.value = '';
     setBusy('send');
-    setStatus('در حال بررسی پرسش شما… ممکن است پاسخ کمی زمان ببرد.');
+    setStatus('پرسشتان در حال بررسی است؛ دریافت پاسخ ممکن است کمی زمان ببرد.', false, 'waiting');
     try {
       const data = await api('sendMessage', text);
       item.dataset.expiresAt = data.expiresAt;
@@ -449,7 +459,7 @@
     setBusy('reset');
     if (confirmation) confirmation.hidden = true;
     retry.hidden = true;
-    setStatus('در حال پاک‌کردن تاریخچه…');
+    setStatus('در حال پاک‌کردن تاریخچه…', false, 'clearing');
     try {
       await api('resetSession');
       messages.replaceChildren();
@@ -547,6 +557,14 @@
     else loadHistory();
   });
   if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (!panel.hidden && !busy) loadHistory(true); });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('offline', () => setStatus('', true, 'offline'));
+    window.addEventListener('online', () => {
+      if (panel.hidden) return;
+      if (!busy) loadHistory(true);
+      else setStatus('منتظر تأیید نتیجهٔ درخواست هستیم.', false, busy === 'send' ? 'waiting' : 'connecting');
+    });
+  }
   updateInput();
   // Restore an open history entry on reload/forward rather than leaving a dead Back step.
   if (browserHistory?.state?.gpanteSupportChat === historyToken) openPanel(false);

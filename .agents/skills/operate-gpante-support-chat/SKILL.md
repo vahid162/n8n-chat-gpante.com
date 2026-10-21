@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.7.7"
+  version: "0.7.8"
 ---
 
 # Operate GPante Support Chat
@@ -39,6 +39,7 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 
 ## Current approved operating policy
 
+- The user requires the latest officially released stable version of the selected DeepSeek Flash family, at least the currently verified DeepSeek-V4.1-Flash-1017. Use the official current alias (`deepseek-flash` as verified on 2026-10-21), not a frozen older snapshot; never fall back to an older model on errors. Recheck official model/version mapping, API compatibility, context and pricing on future maintenance; migrate to a new official alias when needed while preserving the USD 2 budget and accounting. Do not select models by sorting identifiers, switch families implicitly, or promise that an alias guarantees a specific unexposed backend build. See [the model policy](references/workflow-v1.md#سیاست-نسخهٔ-مدل).
 - Project model budget is USD 2 per calendar month UTC; the administrator archive is readable for 30 days from the original question. The administrator sets one global user-history duration of 3/7/15/30 days; default 30, clear enabled. User clear/expiry must also exclude the old messages from model context and must never erase the administrator archive. Preserve atomic per-call reservation/settlement and the no-refund-on-unknown-usage rule described in workflow-v1.md. This budget does not limit unrelated uses of the shared credential.
 - The user installed and activated the WordPress plugin and subsequently authorized completing its production rollout. Canonical runtime is `wordpress-plugin/gpante-support-chat/`; its version, settings schema and workflow release are independent. Keep the inbound key and trusted identities server-side.
 - Production work is authorized for this chat: scoped plugin upgrades/configuration, its workflow publication and bounded real verification. Preserve unrelated plugins, themes, workflows and storefront configuration. Distinguish a built ZIP, installed files, enabled public display and a verified backend; always refresh the actual state.

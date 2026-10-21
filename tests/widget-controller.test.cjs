@@ -243,7 +243,7 @@ test('failed connection preserves an early message and needs an explicit retry b
   assert.equal(widget.requests.length, 1);
   assert.equal(widget.elements.input.value, 'پرسش محفوظ');
   assert.equal(widget.elements.retry.hidden, false);
-  assert.equal(widget.elements.status.textContent, 'ارتباط برقرار نشد.');
+  assert.equal(widget.elements.status.textContent.startsWith('ارتباط برقرار نشد.'), true);
   assertControls(widget, false);
   widget.click('retry');
   widget.click('retry');
@@ -322,6 +322,61 @@ test('busy send blocks duplicates; failure restores the draft and one explicit r
   assertControls(widget, false);
   widget.type('پرسش بعدی');
   assert.equal(widget.elements.send.disabled, false);
+});
+
+test('temporary refusal shows the supplied wait and next step, preserves the draft and never resends automatically', async () => {
+  const widget = createWidget();
+  await widget.open();
+  widget.type('پرسش هنگام شلوغی');
+  widget.submit();
+  const guidance = 'دستیار مشغول است؛ ۱۰ ثانیه صبر کنید، سپس روی «تلاش دوباره» بزنید.';
+  await widget.respond(1, {error:{code:'capacity'},output:guidance}, false);
+  assert.equal(widget.elements.status.textContent.startsWith(guidance), true);
+  assert.match(widget.elements.status.textContent, /متن نوشته‌شده در کادر محفوظ/);
+  assert.equal(widget.elements.input.value, 'پرسش هنگام شلوغی');
+  assert.equal(widget.elements.input.disabled, false, 'composing remains available');
+  assert.equal(widget.elements.retry.hidden, false);
+  assert.deepEqual(widget.messages(), previousMessages, 'refusal does not add a successful user turn');
+  await tick();
+  assert.equal(widget.requests.length, 2, 'no automatic retry or timer dispatch');
+  widget.type('پرسش اصلاح‌شده');
+  assert.equal(widget.elements.retry.hidden, true, 'editing discards the stale retry');
+  widget.submit();
+  assert.equal(widget.requests.length, 3);
+  assert.equal(widget.requests[2].body.chatInput, 'پرسش اصلاح‌شده');
+  await widget.respond(2, {output:'پاسخ تازه'});
+  assert.equal(widget.elements.retry.hidden, true);
+  assert.equal(widget.elements.root.dataset.error, 'false');
+});
+
+test('history refresh, focus and reopen retain the failed action while policy continues refreshing', async () => {
+  const widget = createWidget(undefined, true);
+  await widget.open();
+  widget.type('پرسش منتظر تلاش دوباره');
+  widget.submit();
+  const refusal = {error:{code:'rate_limit'},output:'۱ دقیقه صبر کنید، سپس روی «تلاش دوباره» بزنید.'};
+  await widget.respond(1, refusal, false);
+  const guidance = widget.elements.status.textContent;
+  const [id, timer] = [...widget.timers].find(([,timer]) => timer.delay === 60000);
+  widget.timers.delete(id); timer.callback();
+  assert.equal(widget.requests[2].body.action, 'loadPreviousSession');
+  await widget.respond(2, {messages:previousMessages,policy:{...policy,userDays:7,allowClear:false,revision:2}});
+  assert.equal(widget.elements.status.textContent, guidance);
+  assert.equal(widget.elements.retry.hidden, false);
+  assert.equal(widget.elements.new.hidden, true, 'fresh central policy remains authoritative');
+  widget.window.dispatch('focus');
+  await widget.respond(3, {messages:previousMessages});
+  widget.click('close'); await tick();
+  widget.click('launcher');
+  await widget.respond(4, {messages:previousMessages});
+  assert.equal(widget.elements.status.textContent, guidance);
+  assert.equal(widget.elements.retry.hidden, false);
+  assert.equal(widget.elements.input.value, 'پرسش منتظر تلاش دوباره');
+  assert.equal(widget.requests.filter(r => r.body.action === 'sendMessage').length, 1);
+  widget.click('retry');
+  assert.equal(widget.requests[5].body.chatInput, 'پرسش منتظر تلاش دوباره');
+  await widget.respond(5, {output:'پاسخ پس از تلاش صریح'});
+  assert.equal(widget.elements.retry.hidden, true);
 });
 
 test('failed reset preserves history and draft; a successful reset replaces them with the welcome', async () => {

@@ -92,8 +92,33 @@ function gpante_support_failure( $status, $code, $headers = array() ) {
 		403 => __( 'برای گفت‌وگو، صفحهٔ سایت پانته را دوباره باز کنید.', 'gpante-support-chat' ),
 		413 => __( 'حجم پیام بیش از حد مجاز است. لطفاً متن کوتاه‌تری بنویسید.', 'gpante-support-chat' ),
 		415 => __( 'قالب درخواست معتبر نیست. لطفاً صفحه را تازه کنید.', 'gpante-support-chat' ),
-		429 => __( 'تعداد درخواست‌ها به سقف مجاز رسیده است. لطفاً بعداً دوباره تلاش کنید.', 'gpante-support-chat' ),
 	);
+	if ( 429 === $status ) {
+		$reasons       = array(
+			'rate_limit'   => __( 'در مدت کوتاهی چند درخواست از این اتصال دریافت شده است.', 'gpante-support-chat' ),
+			'session_busy' => __( 'یک درخواست دیگر در همین گفتگو هنوز در حال انجام است.', 'gpante-support-chat' ),
+			'capacity'     => __( 'دستیار فعلاً مشغول پاسخ‌گویی به کاربران دیگر است.', 'gpante-support-chat' ),
+		);
+		$messages[429] = $reasons[ $code ] ?? __( 'فعلاً امکان انجام درخواست دیگری نیست.', 'gpante-support-chat' );
+		$seconds       = (int) ( $headers['Retry-After'] ?? 0 );
+		if ( $seconds > 0 ) {
+			/* translators: %s: Number of seconds before retrying. */
+			$wait = __( '%s ثانیه صبر کنید، سپس روی «تلاش دوباره» بزنید.', 'gpante-support-chat' );
+			if ( $seconds >= 3600 ) {
+				/* translators: %s: Number of hours before retrying. */
+				$wait    = __( '%s ساعت صبر کنید، سپس روی «تلاش دوباره» بزنید.', 'gpante-support-chat' );
+				$seconds = (int) ceil( $seconds / 3600 );
+			} elseif ( $seconds >= 60 ) {
+				/* translators: %s: Number of minutes before retrying. */
+				$wait    = __( '%s دقیقه صبر کنید، سپس روی «تلاش دوباره» بزنید.', 'gpante-support-chat' );
+				$seconds = (int) ceil( $seconds / 60 );
+			}
+			$number         = str_replace( range( 0, 9 ), array( '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' ), (string) $seconds );
+			$messages[429] .= ' ' . sprintf( $wait, $number );
+		} else {
+			$messages[429] .= ' ' . __( 'زمان دقیق رفع این وضعیت مشخص نیست؛ کمی بعد روی «تلاش دوباره» بزنید.', 'gpante-support-chat' );
+		}
+	}
 	return gpante_support_response(
 		array(
 			'error'  => array( 'code' => $code ),
@@ -240,7 +265,11 @@ function gpante_support_chat( $request ) {
 		if ( 429 === $status && is_string( $retry ) && preg_match( '/^[0-9]{1,6}$/D', $retry ) ) {
 			$headers['Retry-After'] = (string) max( 1, min( 86400, (int) $retry ) );
 		}
-		return gpante_support_failure( 429 === $status ? 429 : ( 403 === $status ? 403 : 502 ), 429 === $status ? 'request_limit' : 'backend_unavailable', $headers );
+		$code = 429 === $status ? 'request_limit' : 'backend_unavailable';
+		if ( 429 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'rate_limit', 'session_busy', 'capacity' ), true ) ) {
+			$code = $data['error']['code'];
+		}
+		return gpante_support_failure( 429 === $status ? 429 : ( 403 === $status ? 403 : 502 ), $code, $headers );
 	}
 	if ( ! gpante_support_valid_policy( $data['policy'] ?? null ) ) {
 		return gpante_support_failure( 502, 'invalid_policy' );

@@ -112,6 +112,25 @@ $remote_result = array('status' => 429, 'body' => '{"error":{"code":"monthly_lim
 $response = request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));
 check($response->get_status() === 429 && $response->get_headers()['Retry-After'] === '120', 'propagate bounded retry delay');
 check(!str_contains(json_encode($response->get_data()), 'private'), 'backend errors cannot expose private detail');
+check($response->get_data()['error']['code'] === 'request_limit' && str_contains($response->get_data()['output'], '۲ دقیقه') && str_contains($response->get_data()['output'], '«تلاش دوباره»'), 'unknown refusal has bounded wait and an explicit next action');
+foreach (array('rate_limit' => 'از این اتصال', 'session_busy' => 'همین گفتگو', 'capacity' => 'کاربران دیگر') as $reason => $meaning) {
+    $remote_result = array('status' => 429, 'body' => json_encode(array('error' => array('code' => $reason, 'private' => 'private backend detail'), 'output' => 'private backend detail')), 'retry-after' => $reason === 'rate_limit' ? '60' : '10');
+    $response = request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));
+    check($response->get_data()['error'] === array('code' => $reason), 'only allowlisted public reason crosses the bridge');
+    check(str_contains($response->get_data()['output'], $meaning) && str_contains($response->get_data()['output'], $reason === 'rate_limit' ? '۱ دقیقه' : '۱۰ ثانیه'), 'wait and explanation reflect the actual refusal');
+    check(!str_contains(json_encode($response->get_data()), 'private'), 'known refusals do not forward raw backend text');
+}
+foreach (array('0' => array('1','۱ ثانیه'), '90' => array('90','۲ دقیقه'), '3600' => array('3600','۱ ساعت'), '999999' => array('86400','۲۴ ساعت')) as $delay => [$bounded, $label]) {
+    $remote_result = array('status' => 429, 'body' => '{"error":{"code":"rate_limit"}}', 'retry-after' => (string)$delay);
+    $response = request(array('action' => 'loadPreviousSession'));
+    check($response->get_headers()['Retry-After'] === $bounded && str_contains($response->get_data()['output'], $label), 'displayed wait rounds up and follows the bounded header');
+}
+foreach (array('', '-1', '1.5', '1000000', 'tomorrow', "60\r\nprivate", array('60')) as $delay) {
+    $remote_result = array('status' => 429, 'body' => '{"error":"private","output":"private"}', 'retry-after' => $delay);
+    $response = request(array('action' => 'resetSession'));
+    check(!isset($response->get_headers()['Retry-After']) && str_contains($response->get_data()['output'], 'زمان دقیق'), 'missing or invalid delay must not invent a precise recovery time');
+    check($response->get_data()['error']['code'] === 'request_limit' && !str_contains(json_encode($response->get_data()), 'private'), 'malformed reason fails to the safe public fallback');
+}
 foreach (array(new WP_Error(), array('status' => 500, 'body' => 'private secret'), array('status' => 200, 'body' => '<html>private</html>')) as $broken) {
     $remote_result = $broken;
     $response = request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));

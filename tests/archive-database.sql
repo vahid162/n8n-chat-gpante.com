@@ -28,9 +28,11 @@ BEGIN
   ASSERT (SELECT count(*)=2 FROM gpante_chat.histories WHERE turn_id=r),'clear preserves archive';
   ASSERT jsonb_array_length(gpante_chat.admin_api(jsonb_build_object('operation','getSession','sessionId',s))->'turns')=1,'admin reads cleared';
   a:=gpante_chat.admit_v3(s,c,'sendMessage','failed accepted question',2); r:=a->>'requestId';
-  ASSERT (gpante_chat.finish_v3(r,NULL,'error','model_unavailable')->>'saved')::boolean,'error finished';
+  ASSERT (gpante_chat.finish_v3(r,NULL,'error','model_tool_duplicate_id')->>'saved')::boolean,'error finished';
   ASSERT (SELECT count(*)=1 FROM gpante_chat.histories WHERE turn_id=r),'failure has question and no invented answer';
-  ASSERT (SELECT status='error' AND error_code='model_unavailable' FROM gpante_chat.turns WHERE request_id=r),'error metadata';
+  ASSERT (SELECT status='error' AND error_code='model_tool_duplicate_id' FROM gpante_chat.turns WHERE request_id=r),'precise error metadata';
+  b:=gpante_chat.admin_api(jsonb_build_object('operation','getSession','sessionId',s));
+  ASSERT b->'turns'->1->>'errorCode'='model_tool_duplicate_id','fixed reason available in existing admin archive';
   a:=gpante_chat.admit_v3(s,c,'sendMessage','interrupted question',2); r:=a->>'requestId';
   UPDATE gpante_chat.requests SET expires_at=clock_timestamp()-INTERVAL '1 second' WHERE request_id=r;
   b:=gpante_chat.admin_api(jsonb_build_object('operation','getSession','sessionId',s));

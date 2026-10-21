@@ -62,10 +62,11 @@ const TOOLS = [
 
 function modelRequest(state, system) {
   if (state.done || state.callIndex >= 4) return { ...state, ...failure('iteration_limit') };
+  if (state.pendingTool) return { ...state, ...failure('tool_sequence') };
   const body = { model: 'deepseek-flash', thinking: { type: 'disabled' }, stream: false,
     max_tokens: 1536, temperature: 0.2,
     messages: [{ role: 'system', content: system }, ...state.messages], tools: TOOLS,
-    tool_choice: state.callIndex === 3 ? 'none' : 'auto' };
+    tool_choice: state.callIndex === 3 || state.toolCount >= 3 ? 'none' : 'auto' };
   if (JSON.stringify(body).length > 96000) return { ...state, ...failure('context_limit') };
   return { ...state, callIndex: state.callIndex + 1, body };
 }
@@ -87,31 +88,46 @@ function modelResult(state, response) {
     ? { prompt: usage.prompt_tokens, completion: usage.completion_tokens, total: usage.total_tokens }
     : { prompt: null, completion: null, total: null };
   const choice = body?.choices?.[0];
-  if (response?.statusCode !== 200 || !choice?.message || next.usage.prompt === null) return { ...next, ...failure('model_unavailable') };
+  // Persist only fixed reason codes; provider text and payloads never become diagnostics.
+  const rejected = code => ({ ...next, ...failure(code) });
+  if (response?.statusCode !== 200) return rejected('model_http_error');
+  if (!choice?.message) return rejected('model_message_missing');
+  if (next.usage.prompt === null) return rejected('model_usage_invalid');
   const message = choice.message;
   if (choice.finish_reason === 'stop' && typeof message.content === 'string' && message.content.trim() && !message.tool_calls?.length) {
     const output = finish({ output: message.content });
     return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt } };
   }
   const calls = message.tool_calls;
-  if (choice.finish_reason !== 'tool_calls' || !Array.isArray(calls) || calls.length !== 1 || state.callIndex >= 4
-    || state.toolCount >= 6 || !calls.every(c => /^[\w-]{1,128}$/.test(c.id || '')
-      && c.type === 'function' && TOOLS.some(t => t.function.name === c.function?.name)
-      && typeof c.function.arguments === 'string' && c.function.arguments.length <= 6000)) {
-    return { ...next, ...failure('invalid_model_response') };
+  if (choice.finish_reason !== 'tool_calls') {
+    const reasons = { length: 'model_finish_length', content_filter: 'model_content_filter',
+      insufficient_system_resource: 'model_provider_resource', aborted: 'model_provider_aborted' };
+    return rejected(choice.finish_reason === 'stop'
+      ? calls?.length ? 'model_finish_mismatch' : 'model_empty_content'
+      : typeof choice.finish_reason === 'string' && Object.hasOwn(reasons, choice.finish_reason) ? reasons[choice.finish_reason] : 'model_finish_unexpected');
   }
-  const call = calls[0];
-  return { ...next, toolCount: state.toolCount + 1, pendingTool: call,
+  if (!Array.isArray(calls) || !calls.length) return rejected('model_tool_calls_missing');
+  if (state.callIndex >= 4 || calls.length > 3 || state.toolCount + calls.length > 3) return rejected('model_tool_limit');
+  if (calls.some(c => !c || typeof c.id !== 'string' || !/^[\w-]{1,128}$/.test(c.id))) return rejected('model_tool_invalid_id');
+  if (new Set(calls.map(c => c.id)).size !== calls.length) return rejected('model_tool_duplicate_id');
+  if (calls.some(c => c.type !== 'function')) return rejected('model_tool_invalid_type');
+  if (calls.some(c => !TOOLS.some(t => t.function.name === c.function?.name))) return rejected('model_tool_unknown_name');
+  if (calls.some(c => typeof c.function.arguments !== 'string' || c.function.arguments.length > 6000)) return rejected('model_tool_invalid_arguments');
+  return { ...next, toolCount: state.toolCount + calls.length, pendingTool: calls[0], pendingTools: calls.slice(1),
     messages: [...state.messages, { role: 'assistant', content: typeof message.content === 'string' ? message.content.slice(0, 8000) : null, tool_calls: calls }] };
 }
 
 function settled(state, result) {
-  if (result?.confirmed !== true) return { ...state, ...failure('accounting_unavailable'), success: false };
+  if (result?.confirmed !== true) return state.done && state.response?.error
+    ? { ...state, success: false } : { ...state, ...failure('accounting_unavailable'), success: false };
   return state;
 }
 
 function toolResult(state, facts) {
-  const next = { ...state }; delete next.pendingTool; delete next.usage;
+  const next = { ...state }; delete next.pendingTool; delete next.pendingTools; delete next.usage;
+  const remaining = state.pendingTools || [];
+  if (remaining.length) { next.pendingTool = remaining[0]; next.pendingTools = remaining.slice(1); }
+  next.toolsPending = remaining.length > 0;
   return { ...next, messages: [...state.messages, { role: 'tool', tool_call_id: state.pendingTool.id, content: JSON.stringify(facts) }] };
 }
 

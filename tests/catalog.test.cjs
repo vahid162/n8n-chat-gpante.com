@@ -265,3 +265,54 @@ test('knowledge requires explicit public non-password metadata', () => {
   assert.equal(shape(context, response([{ ...item, is_password_protected: true }])).status, 'invalid_response');
   assert.equal(shape(context, response([{ ...item, status: undefined }])).status, 'invalid_response');
 });
+
+test('discovery supports explicit catalog browsing, real categories and article categories', () => {
+  for (const sort of ['newest', 'best_selling']) {
+    assert.equal(prepare('search', { sort }).qs.sort, sort);
+  }
+  const request = prepare('search', { categoryId: '۱۲', material: 'mdf', sort: 'newest' });
+  assert.equal(request.qs.categoryId, 12);
+  assert.equal(request.qs.material, 'mdf');
+  assert.throws(() => prepare('search', {}));
+  assert.throws(() => prepare('search', { categoryId: 0 }));
+  assert.equal(prepare('knowledge', { search: 'کورل', categoryId: 140 }).qs.categoryId, 140);
+  assert.throws(() => prepare('knowledge', { source: 'guides', categoryId: 140 }));
+  const categories = prepare('categories', { source: 'products', search: 'باکس', parentId: 0, page: 2 });
+  assert.equal(categories.url, 'https://gpante.com/wp-json/gpante-support/v1/categories');
+  assert.deepEqual(categories.qs, { page: 2, source: 'products', search: 'باکس', parentId: 0 });
+  assert.throws(() => prepare('categories', { source: 'users' }));
+  assert.throws(() => prepare('categories', { parentId: -1 }));
+  assert.throws(() => prepare('categories', { parentId: [0] }));
+});
+
+test('discovery verifies the requested source ordering and category scope', () => {
+  const headers = { 'X-GPante-Sort': 'newest' };
+  const context = prepare('search', { categoryId: 12, sort: 'newest' }).context;
+  const first = product({ id: 10, category_ids: [12, 13], published_at: '2026-10-21T10:00:00Z' });
+  const second = product({ id: 9, category_ids: [12], published_at: '2026-10-20T10:00:00Z' });
+  const result = shape(context, response([first, second], headers));
+  assert.equal(result.ok, true);
+  assert.equal(result.categoryId, 12);
+  assert.equal(result.results[0].publishedAt, first.published_at);
+  assert.equal(shape(context, response([second, first], headers)).status, 'sort_mismatch');
+  assert.equal(shape(context, response([first])).status, 'sort_unverifiable');
+  assert.equal(shape(context, response([{ ...first, category_ids: [99] }], headers)).status, 'constraint_mismatch');
+  const sold = prepare('search', { sort: 'best_selling' }).context;
+  assert.equal(shape(sold, response([product()], { 'X-GPante-Sort': 'best_selling' })).status, 'sort_unverifiable');
+  const ranked = shape(sold, response([product()], { 'X-GPante-Sort': 'best_selling', 'X-GPante-Sales-Period': 'all_time' }));
+  assert.equal(ranked.ok, true);
+  assert.equal(ranked.salesPeriod, 'all_time');
+});
+
+test('categories expose bounded public navigation and honor source and parent scope', () => {
+  const context = prepare('categories', { source: 'products', parentId: 0 }).context;
+  const item = { id: 12, name: 'باکس', parent: 0, link: 'https://gpante.com/product-category/box/', source: 'products', private: 'secret' };
+  const result = shape(context, response([item], { 'X-WP-Total': '1', 'X-WP-TotalPages': '1' }));
+  assert.equal(result.ok, true);
+  assert.equal(result.results[0].url, item.link);
+  assert.equal(result.source, 'products');
+  assert.equal(JSON.stringify(result).includes('secret'), false);
+  for (const invalid of [{ source: 'articles' }, { parent: 99 }, { link: 'https://evil.example/category/' }]) {
+    assert.equal(shape(context, response([{ ...item, ...invalid }])).ok, false);
+  }
+});

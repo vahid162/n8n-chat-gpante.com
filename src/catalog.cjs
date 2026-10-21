@@ -72,21 +72,34 @@ function attributeTerm(kind, value) {
 }
 
 function prepare(kind, rawQuery) {
-  if (!['search', 'details', 'knowledge'].includes(kind)) throw new Error('Unsupported tool kind.');
+  if (!['search', 'details', 'knowledge', 'categories'].includes(kind)) throw new Error('Unsupported tool kind.');
   let query = rawQuery;
   if (typeof query === 'string') {
     if (query.length > 6000) throw new Error('Query is too long.');
     try { query = JSON.parse(query); } catch { throw new Error('Query must be a JSON object.'); }
   }
   if (!plainObject(query)) throw new Error('Query must be an object.');
-  const allowed = { search: ['search', 'format', 'thickness', 'material', 'page', 'sort'], details: ['productId'], knowledge: ['search', 'source', 'page'] }[kind];
+  const allowed = { search: ['search', 'format', 'thickness', 'material', 'page', 'sort', 'categoryId'], details: ['productId'],
+    knowledge: ['search', 'source', 'page', 'categoryId'], categories: ['search', 'source', 'parentId', 'page'] }[kind];
   if (Object.keys(query).some((key) => !allowed.includes(key))) throw new Error('Unsupported query field.');
   const page = query.page === undefined ? 1 : positiveInteger(query.page, 'page');
   const context = { kind, page, perPage: kind === 'details' ? 1 : kind === 'knowledge' ? 3 : 5, constraints: {} };
   const qs = { page };
+  if (query.categoryId !== undefined) context.categoryId = qs.categoryId = positiveInteger(query.categoryId, 'categoryId');
+  if (kind === 'categories') {
+    context.source = qs.source = query.source === undefined ? 'products' : inputText(query.source, 'source');
+    if (!['products', 'articles'].includes(context.source)) throw new Error('Unsupported category source.');
+    if (query.search !== undefined) qs.search = searchText(query.search);
+    if (query.parentId !== undefined) {
+      const root = ['string', 'number'].includes(typeof query.parentId) && normalize(String(query.parentId)) === '0';
+      context.parentId = qs.parentId = root ? 0 : positiveInteger(query.parentId, 'parentId');
+    }
+    return { url: 'https://gpante.com/wp-json/gpante-support/v1/categories', qs, context };
+  }
   if (kind === 'knowledge') {
     const source = query.source === undefined ? 'articles' : inputText(query.source, 'source');
     if (!['articles', 'guides'].includes(source)) throw new Error('Unsupported knowledge source.');
+    if (source === 'guides' && context.categoryId !== undefined) throw new Error('Guides do not support article categories.');
     context.source = source;
     qs.source = source;
     if (query.search !== undefined) qs.search = searchText(query.search);
@@ -99,7 +112,7 @@ function prepare(kind, rawQuery) {
   } else {
     qs.search = query.search === undefined ? '' : searchText(query.search);
     context.sort = query.sort === undefined ? 'relevance' : inputText(query.sort, 'sort');
-    if (!['relevance', 'price_asc'].includes(context.sort)) throw new Error('Unsupported sort.');
+    if (!['relevance', 'price_asc', 'newest', 'best_selling'].includes(context.sort)) throw new Error('Unsupported sort.');
     qs.sort = context.sort;
     for (const key of ['format', 'thickness', 'material']) {
       if (query[key] !== undefined) {
@@ -108,7 +121,8 @@ function prepare(kind, rawQuery) {
         qs[key] = slug;
       }
     }
-    if (!qs.search && !Object.keys(context.constraints).length) throw new Error('Supply search text or at least one attribute.');
+    if (!qs.search && !Object.keys(context.constraints).length && !context.categoryId
+      && !['newest', 'best_selling'].includes(context.sort)) throw new Error('Supply search text, a category, an attribute or an explicit browse order.');
   }
   return { url: 'https://gpante.com/wp-json/gpante-support/v1/products', qs, context };
 }
@@ -161,6 +175,18 @@ function publicPrice(value) {
   return { amount: unit ? `${padded.slice(0, -unit)}.${padded.slice(-unit)}` : padded, minorAmount, currency: value.currency_code, minorUnit: unit };
 }
 
+function categoryIds(item, context) {
+  const ids = item.category_ids === undefined ? [] : item.category_ids;
+  if (!Array.isArray(ids) || ids.length > 100 || ids.some(id => !Number.isSafeInteger(id) || id < 1 || id > 2147483647)
+    || new Set(ids).size !== ids.length) throw new Error('Invalid categories.');
+  if (context.categoryId && !ids.includes(context.categoryId)) {
+    const error = new Error('Source did not honor requested category.');
+    error.code = 'constraint_mismatch';
+    throw error;
+  }
+  return ids;
+}
+
 function publicProduct(item, context) {
   if (!plainObject(item) || !Number.isSafeInteger(item.id) || item.id < 1
     || typeof item.name !== 'string' || !item.name.trim() || !safeLink(item.permalink, 'product')
@@ -195,8 +221,11 @@ function publicProduct(item, context) {
   const images = (item.images || []).filter((entry) => plainObject(entry) && safeLink(entry.src, 'image')).slice(0, 3)
     .map((entry) => ({ url: safeLink(entry.src, 'image'), alt: publicText(entry.alt || '', 160).text }));
   const summary = publicText(item.short_description || '', 800);
+  const publishedAt = typeof item.published_at === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(item.published_at)
+    && Number.isFinite(Date.parse(item.published_at)) && new Date(item.published_at).toISOString().replace('.000Z', 'Z') === item.published_at ? item.published_at : null;
   return { id: item.id, name: publicText(item.name, 240).text, url: safeLink(item.permalink, 'product'),
     summary: summary.text, truncated: summary.truncated, price: publicPrice(item.prices), attributes, images,
+    categoryIds: categoryIds(item, context), publishedAt,
     inStock: typeof item.is_in_stock === 'boolean' ? item.is_in_stock : null,
     onSale: typeof item.on_sale === 'boolean' ? item.on_sale : null };
 }
@@ -211,13 +240,22 @@ function publicArticle(item, context) {
     || item.title.protected === true || snippet.protected === true) throw new Error('Invalid public article.');
   const title = publicText(item.title.rendered, 240);
   const excerpt = publicText(snippet.rendered, 1200);
-  return { id: item.id, title: title.text, url: safeLink(item.link, 'page'), excerpt: excerpt.text, truncated: title.truncated || excerpt.truncated };
+  return { id: item.id, title: title.text, url: safeLink(item.link, 'page'), excerpt: excerpt.text,
+    categoryIds: categoryIds(item, context), truncated: title.truncated || excerpt.truncated || snippet.truncated === true };
+}
+
+function publicCategory(item, context) {
+  if (!plainObject(item) || !Number.isSafeInteger(item.id) || item.id < 1 || item.id > 2147483647
+    || typeof item.name !== 'string' || !publicText(item.name, 160).text || !safeLink(item.link, 'page')
+    || !Number.isSafeInteger(item.parent) || item.parent < 0 || item.parent > 2147483647
+    || item.source !== context.source || context.parentId !== undefined && item.parent !== context.parentId) throw new Error('Invalid public category.');
+  return { id: item.id, name: publicText(item.name, 160).text, parent: item.parent, url: safeLink(item.link, 'page') };
 }
 
 function shape(context, httpResponse) {
   const kind = context && context.kind;
   const fail = (status, extra = {}) => ({ ok: false, status, kind, results: [], ...extra });
-  if (!plainObject(context) || !['search', 'details', 'knowledge'].includes(kind)
+  if (!plainObject(context) || !['search', 'details', 'knowledge', 'categories'].includes(kind)
     || !Number.isSafeInteger(context.page) || context.page < 1 || ![1, 3, 5].includes(context.perPage)
     || !plainObject(context.constraints)) return fail('invalid_response');
   if (!plainObject(httpResponse) || !Number.isInteger(httpResponse.statusCode)) return fail('transport_error');
@@ -260,9 +298,16 @@ function shape(context, httpResponse) {
     : total !== null ? context.page * context.perPage < total : body.length < context.perPage ? false : null;
   let results;
   try {
-    results = body.map((item) => kind === 'knowledge' ? publicArticle(item, context) : publicProduct(item, context));
+    results = body.map((item) => kind === 'categories' ? publicCategory(item, context) : kind === 'knowledge' ? publicArticle(item, context) : publicProduct(item, context));
     if (new Set(results.map((item) => item.id)).size !== results.length) return fail('invalid_response');
   } catch (error) { return fail(error.code === 'constraint_mismatch' ? error.code : 'invalid_response'); }
+  if (kind === 'search' && ['newest', 'best_selling'].includes(context.sort)) {
+    if (headers['x-gpante-sort'] !== context.sort
+      || context.sort === 'best_selling' && headers['x-gpante-sales-period'] !== 'all_time'
+      || context.sort === 'newest' && results.some(item => !item.publishedAt)) return fail('sort_unverifiable');
+    if (context.sort === 'newest' && results.some((item, index) => index > 0
+      && (item.publishedAt > results[index - 1].publishedAt || item.publishedAt === results[index - 1].publishedAt && item.id > results[index - 1].id))) return fail('sort_mismatch');
+  }
   if (kind === 'search' && context.sort === 'price_asc') {
     if (results.some((item) => item.price === null)
       || results.some((item) => item.price.currency !== results[0].price.currency || item.price.minorUnit !== results[0].price.minorUnit)) return fail('sort_unverifiable');
@@ -275,6 +320,9 @@ function shape(context, httpResponse) {
   const result = {
     ok: true, status: !results.length ? 'no_matches' : hasMore === false ? 'ok' : 'partial', kind, results,
     pagination: { page: context.page, perPage: context.perPage, total, totalPages, hasMore, scope: 'server_filtered_page' },
+    ...(context.categoryId ? { categoryId: context.categoryId } : {}),
+    ...(context.source ? { source: context.source } : {}),
+    ...(kind === 'search' && context.sort === 'best_selling' ? { salesPeriod: 'all_time' } : {}),
     ...(kind === 'search' ? { sort: context.sort, ...(Object.keys(context.constraints).length
       ? { constraints: context.constraints, attributeMatching: 'verified_taxonomy_compatibility' } : {}) } : {}),
   };

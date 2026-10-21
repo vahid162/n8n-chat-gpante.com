@@ -152,6 +152,22 @@ function assertControls(widget, busy, composing = !busy) {
   assert.equal(widget.elements.send.disabled, !composing || !widget.elements.input.value.trim());
 }
 
+test('restored assistant details render as a table and buttons while user Markdown stays plain text', async () => {
+  const widget = createWidget();
+  const content = '**محصول**\n\n| ویژگی | مشخصات |\n| --- | --- |\n| قیمت | رایگان |\n| فرمت | DXF |\n\n[مشاهدهٔ محصول](https://gpante.com/product/a/)';
+  await widget.open([{role:'user',content},{role:'assistant',content}]);
+  const [user, assistant] = widget.elements.messages.children;
+  assert.equal(user.children[1].textContent, content);
+  assert.equal(user.children[1].children.length, 0);
+  assert(assistant.className.includes('gpante-chat-message--rich'));
+  const descendants = element => [element, ...element.children.flatMap(descendants)];
+  assert.equal(descendants(assistant).filter(element => element.tagName === 'table').length, 1);
+  const link = descendants(assistant).find(element => element.tagName === 'a');
+  assert.equal(link.href, 'https://gpante.com/product/a/');
+  assert.equal(link.className, 'gpante-chat-link');
+  assertControls(widget, false);
+});
+
 test('a second script load does not attach duplicate handlers or duplicate a request', async () => {
   const widget = createWidget();
   widget.initializeAgain();

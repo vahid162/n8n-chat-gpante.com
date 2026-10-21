@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.7.4"
+  version: "0.7.5"
 ---
 
 # Operate GPante Support Chat
@@ -118,6 +118,7 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 - Preserve exact panel dimensions. User bubbles belong physically right and assistant bubbles left regardless of RTL text direction; welcome alone fills the content width. One shortcut and the last of an odd count fill their grid row. Keep send/icon vertically centered even when the textarea height changes. Verify actual browser geometry and padding, including the active theme. Back consumes only the open widget history entry, manual close consumes it too, and Forward/reload restores an open marker without adding entries. Outside clicks must preserve external focus/navigation, drafts and in-flight requests. Test real Back/Forward/reload and rapid reopen, not only history stubs. Physical device keyboard/Back behavior remains a separate test.
 - Rebuild the optional embed and verify native WordPress saves, public config safety, cached-page refresh and desktop/short-screen browser behavior after changes. Tabs already open need reloading; purge only this site's cached HTML/assets on the first version upgrade.
 - Keep composing focused and immediately usable during history/session reads, including background refreshes. Early submit holds exactly one message in the current document and reuses the same history promise; dispatch only after valid policy/session readiness, never overlap the first signed-cookie request. Initialization failure preserves the draft and requires explicit retry; edits replace that retry text. Keep send/reset duplicate guards, outside focus, retention/clear authorization and close/reopen behavior. Input availability is no longer proof of network completion: browser tests must wait for the log's aria-busy=false. This is not a durable queue across page navigation.
+- Render assistant replies with the dependency-free safe subset: paragraphs, strong text, allowlisted navigation buttons and bounded semantic Markdown tables. User messages remain plain text. Never enable raw HTML or widen the link allowlist; malformed/oversized tables must preserve their text. Keep mobile tables inside the existing panel and preserve the administrator colors. Pair plugin 0.5.0 with Main 1.2.3's concise two-column source-grounded facts; plain replies need no table. See `specs/009-friendly-replies/`; distinguish a tested browser-only candidate from installed assets and real model output.
 
 ## Maintain the conversation archive
 

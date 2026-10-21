@@ -24,16 +24,30 @@
     } catch (_) { return null; }
   }
 
-  function appendContent(container, content) {
+  function appendText(container, text) {
+    let end = 0;
+    for (const match of text.matchAll(/\*\*([^*\n]{1,300})\*\*/gu)) {
+      container.append(document.createTextNode(text.slice(end, match.index)));
+      const strong = document.createElement('strong');
+      strong.textContent = match[1];
+      container.append(strong);
+      end = match.index + match[0].length;
+    }
+    container.append(document.createTextNode(text.slice(end)));
+  }
+
+  function appendInline(container, content) {
     const pattern = /\[([^\]\n]{1,300})\]\((https:\/\/[^\s)]+)\)|https:\/\/[^\s<>()\[\]]+/gu;
     let end = 0;
     for (const match of content.matchAll(pattern)) {
-      container.append(document.createTextNode(content.slice(end, match.index)));
+      appendText(container, content.slice(end, match.index));
       const address = match[2] || match[0].replace(/[.,،؛]+$/u, '');
       if (safeLink(address)) {
         const link = document.createElement('a');
         link.href = address;
-        link.textContent = match[1] || address;
+        link.className = 'gpante-chat-link';
+        link.textContent = match[1]?.replace(/\*\*/g, '') || (address.startsWith('https://gpante.com/product/') ? 'مشاهدهٔ محصول' : 'مشاهدهٔ صفحه');
+        link.title = 'بازکردن در برگهٔ تازه';
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         container.append(link);
@@ -43,7 +57,98 @@
       }
       end = match.index + match[0].length;
     }
-    container.append(document.createTextNode(content.slice(end)));
+    appendText(container, content.slice(end));
+  }
+
+  function tableCells(line) {
+    const value = line.trim();
+    if (!value.startsWith('|') || !value.endsWith('|')) return null;
+    const cells = [];
+    let cell = '';
+    for (let i = 1; i < value.length - 1; i++) {
+      if (value[i] === '\\' && value[i + 1] === '|') { cell += '|'; i++; }
+      else if (value[i] === '|') { cells.push(cell.trim()); cell = ''; }
+      else cell += value[i];
+    }
+    cells.push(cell.trim());
+    return cells.length >= 2 && cells.length <= 4 ? cells : null;
+  }
+
+  function readTable(lines, start) {
+    const header = tableCells(lines[start]);
+    const separator = tableCells(lines[start + 1] || '');
+    if (!header || !separator || separator.length !== header.length || header.some(cell => !cell)
+      || separator.some(cell => !/^:?-{3,}:?$/.test(cell))) return null;
+    const rows = [];
+    let next = start + 2;
+    while (next < lines.length && lines[next].trim().startsWith('|')) {
+      const cells = tableCells(lines[next]);
+      if (!cells || cells.length !== header.length || rows.length >= 20) return null;
+      rows.push(cells);
+      next++;
+    }
+    return rows.length ? { header, rows, next } : null;
+  }
+
+  function appendTable(container, data) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'gpante-chat-table-wrap';
+    if (data.header.length > 2) {
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute('role', 'region');
+      wrapper.setAttribute('aria-label', 'جدول مشخصات؛ برای دیدن ستون‌ها به طرفین پیمایش کنید');
+    }
+    const table = document.createElement('table');
+    table.className = 'gpante-chat-table';
+    const caption = document.createElement('caption');
+    caption.className = 'gpante-chat-sr-only';
+    caption.textContent = 'مشخصات و جزئیات';
+    table.append(caption);
+    const head = document.createElement('thead');
+    const body = document.createElement('tbody');
+    for (const [index, cells] of [data.header, ...data.rows].entries()) {
+      const row = document.createElement('tr');
+      for (const [column, value] of cells.entries()) {
+        const cell = document.createElement(index === 0 || column === 0 ? 'th' : 'td');
+        if (index === 0 || column === 0) cell.scope = index === 0 ? 'col' : 'row';
+        cell.setAttribute('dir', 'auto');
+        appendInline(cell, value);
+        row.append(cell);
+      }
+      (index === 0 ? head : body).append(row);
+    }
+    table.append(head, body);
+    wrapper.append(table);
+    container.append(wrapper);
+  }
+
+  function appendContent(container, content) {
+    const lines = content.replace(/\r\n?/g, '\n').split('\n');
+    let buffer = [];
+    let rich = false;
+    const flush = () => {
+      const text = buffer.join('\n').trim();
+      buffer = [];
+      if (!text) return;
+      const paragraph = document.createElement('p');
+      appendInline(paragraph, text);
+      container.append(paragraph);
+    };
+    for (let i = 0; i < lines.length;) {
+      const table = readTable(lines, i);
+      if (table) {
+        flush();
+        appendTable(container, table);
+        rich = true;
+        i = table.next;
+      } else {
+        if (lines[i].trim()) buffer.push(lines[i]);
+        else flush();
+        i++;
+      }
+    }
+    flush();
+    return rich;
   }
 
   // The same rendering functions are exercised by the dependency-free Node checks.
@@ -102,7 +207,10 @@
     for (const item of messages.children) {
       if (item.dataset.role === 'assistant') item.children[0].textContent = appearanceTexts.title;
     }
-    if (welcomeItem && messages.contains(welcomeItem)) welcomeItem.children[1].textContent = appearanceTexts.welcome;
+    if (welcomeItem && messages.contains(welcomeItem)) {
+      welcomeItem.children[1].replaceChildren();
+      appendContent(welcomeItem.children[1], appearanceTexts.welcome);
+    }
     if (shortcuts) {
       shortcuts.replaceChildren();
       for (const link of Array.isArray(value.links) ? value.links.slice(0,4) : []) {
@@ -160,7 +268,10 @@
     const label = document.createElement('small');
     label.textContent = role === 'user' ? 'شما' : appearanceTexts.title;
     const body = document.createElement('div');
-    if (role === 'assistant') appendContent(body, text);
+    if (role === 'assistant') {
+      body.className = 'gpante-chat-reply';
+      if (appendContent(body, text)) item.className += ' gpante-chat-message--rich';
+    }
     else body.textContent = text;
     item.append(label, body);
     messages.append(item);

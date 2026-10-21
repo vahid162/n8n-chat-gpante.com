@@ -111,7 +111,63 @@
 #gpante-support .gpante-chat-message--user { margin-left: auto; margin-right: 0; background: var(--gpante-user); border-radius: 16px 16px 4px 16px; }
 #gpante-support .gpante-chat-message--assistant { margin-right: auto; margin-left: 0; border-radius: 16px 16px 16px 4px; }
 #gpante-support .gpante-chat-message--welcome { width: 100%; max-width: none; margin-left: 0; margin-right: 0; padding: 14px; border-radius: 16px; }
-#gpante-support .gpante-chat-message a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+#gpante-support .gpante-chat-message--rich { width: 100%; max-width: 100%; }
+#gpante-support .gpante-chat-reply { white-space: normal; min-width: 0; }
+#gpante-support .gpante-chat-reply p { margin: 0 0 10px; color: inherit; white-space: pre-wrap; }
+#gpante-support .gpante-chat-reply > :last-child { margin-bottom: 0; }
+#gpante-support .gpante-chat-reply strong { color: inherit; font-weight: 700; }
+#gpante-support .gpante-chat-message a.gpante-chat-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  margin-block: 4px;
+  padding: 9px 14px;
+  border: 1px solid var(--gpante-primary);
+  border-radius: 12px;
+  background: var(--gpante-primary);
+  color: var(--gpante-on-primary);
+  text-decoration: none;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#gpante-support .gpante-chat-message a.gpante-chat-link:hover { text-decoration: none; box-shadow: 0 2px 8px #00000018; }
+#gpante-support .gpante-chat-reply p > a.gpante-chat-link:only-child { display: flex; width: 100%; }
+#gpante-support .gpante-chat-table-wrap { max-width: 100%; margin: 10px 0; overflow-x: auto; border: 1px solid var(--gpante-border); border-radius: 12px; }
+#gpante-support .gpante-chat-table {
+  width: 100%;
+  table-layout: fixed;
+  margin: 0;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--gpante-text);
+  font-size: 13px;
+  line-height: 1.8;
+}
+#gpante-support .gpante-chat-table caption { color: inherit; }
+#gpante-support .gpante-chat-table th, #gpante-support .gpante-chat-table td {
+  padding: 9px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--gpante-border);
+  vertical-align: top;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: inherit;
+  background: var(--gpante-assistant);
+  font-size: inherit;
+  line-height: inherit;
+}
+#gpante-support .gpante-chat-table thead th { background: var(--gpante-messages); font-weight: 700; }
+#gpante-support .gpante-chat-table thead th:first-child { width: 38%; }
+#gpante-support .gpante-chat-table tbody th { font-weight: 600; }
+#gpante-support .gpante-chat-table tbody tr:last-child > * { border-bottom: 0; }
+#gpante-support .gpante-chat-table-wrap[tabindex] .gpante-chat-table { min-width: 460px; }
 #gpante-support .gpante-chat-status { min-height: 26px; flex-shrink: 0; padding: 5px 14px; color: var(--gpante-text); font-size: 11px; }
 #gpante-support[data-error="true"] .gpante-chat-status { font-weight: 700; }
 #gpante-support .gpante-chat-retry { align-self: flex-start; margin: 0 14px 8px; min-height: 36px; padding: 5px 12px; }
@@ -285,16 +341,30 @@
     } catch (_) { return null; }
   }
 
-  function appendContent(container, content) {
+  function appendText(container, text) {
+    let end = 0;
+    for (const match of text.matchAll(/\*\*([^*\n]{1,300})\*\*/gu)) {
+      container.append(document.createTextNode(text.slice(end, match.index)));
+      const strong = document.createElement('strong');
+      strong.textContent = match[1];
+      container.append(strong);
+      end = match.index + match[0].length;
+    }
+    container.append(document.createTextNode(text.slice(end)));
+  }
+
+  function appendInline(container, content) {
     const pattern = /\[([^\]\n]{1,300})\]\((https:\/\/[^\s)]+)\)|https:\/\/[^\s<>()\[\]]+/gu;
     let end = 0;
     for (const match of content.matchAll(pattern)) {
-      container.append(document.createTextNode(content.slice(end, match.index)));
+      appendText(container, content.slice(end, match.index));
       const address = match[2] || match[0].replace(/[.,،؛]+$/u, '');
       if (safeLink(address)) {
         const link = document.createElement('a');
         link.href = address;
-        link.textContent = match[1] || address;
+        link.className = 'gpante-chat-link';
+        link.textContent = match[1]?.replace(/\*\*/g, '') || (address.startsWith('https://gpante.com/product/') ? 'مشاهدهٔ محصول' : 'مشاهدهٔ صفحه');
+        link.title = 'بازکردن در برگهٔ تازه';
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         container.append(link);
@@ -304,7 +374,98 @@
       }
       end = match.index + match[0].length;
     }
-    container.append(document.createTextNode(content.slice(end)));
+    appendText(container, content.slice(end));
+  }
+
+  function tableCells(line) {
+    const value = line.trim();
+    if (!value.startsWith('|') || !value.endsWith('|')) return null;
+    const cells = [];
+    let cell = '';
+    for (let i = 1; i < value.length - 1; i++) {
+      if (value[i] === '\\' && value[i + 1] === '|') { cell += '|'; i++; }
+      else if (value[i] === '|') { cells.push(cell.trim()); cell = ''; }
+      else cell += value[i];
+    }
+    cells.push(cell.trim());
+    return cells.length >= 2 && cells.length <= 4 ? cells : null;
+  }
+
+  function readTable(lines, start) {
+    const header = tableCells(lines[start]);
+    const separator = tableCells(lines[start + 1] || '');
+    if (!header || !separator || separator.length !== header.length || header.some(cell => !cell)
+      || separator.some(cell => !/^:?-{3,}:?$/.test(cell))) return null;
+    const rows = [];
+    let next = start + 2;
+    while (next < lines.length && lines[next].trim().startsWith('|')) {
+      const cells = tableCells(lines[next]);
+      if (!cells || cells.length !== header.length || rows.length >= 20) return null;
+      rows.push(cells);
+      next++;
+    }
+    return rows.length ? { header, rows, next } : null;
+  }
+
+  function appendTable(container, data) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'gpante-chat-table-wrap';
+    if (data.header.length > 2) {
+      wrapper.tabIndex = 0;
+      wrapper.setAttribute('role', 'region');
+      wrapper.setAttribute('aria-label', 'جدول مشخصات؛ برای دیدن ستون‌ها به طرفین پیمایش کنید');
+    }
+    const table = document.createElement('table');
+    table.className = 'gpante-chat-table';
+    const caption = document.createElement('caption');
+    caption.className = 'gpante-chat-sr-only';
+    caption.textContent = 'مشخصات و جزئیات';
+    table.append(caption);
+    const head = document.createElement('thead');
+    const body = document.createElement('tbody');
+    for (const [index, cells] of [data.header, ...data.rows].entries()) {
+      const row = document.createElement('tr');
+      for (const [column, value] of cells.entries()) {
+        const cell = document.createElement(index === 0 || column === 0 ? 'th' : 'td');
+        if (index === 0 || column === 0) cell.scope = index === 0 ? 'col' : 'row';
+        cell.setAttribute('dir', 'auto');
+        appendInline(cell, value);
+        row.append(cell);
+      }
+      (index === 0 ? head : body).append(row);
+    }
+    table.append(head, body);
+    wrapper.append(table);
+    container.append(wrapper);
+  }
+
+  function appendContent(container, content) {
+    const lines = content.replace(/\r\n?/g, '\n').split('\n');
+    let buffer = [];
+    let rich = false;
+    const flush = () => {
+      const text = buffer.join('\n').trim();
+      buffer = [];
+      if (!text) return;
+      const paragraph = document.createElement('p');
+      appendInline(paragraph, text);
+      container.append(paragraph);
+    };
+    for (let i = 0; i < lines.length;) {
+      const table = readTable(lines, i);
+      if (table) {
+        flush();
+        appendTable(container, table);
+        rich = true;
+        i = table.next;
+      } else {
+        if (lines[i].trim()) buffer.push(lines[i]);
+        else flush();
+        i++;
+      }
+    }
+    flush();
+    return rich;
   }
 
   // The same rendering functions are exercised by the dependency-free Node checks.
@@ -363,7 +524,10 @@
     for (const item of messages.children) {
       if (item.dataset.role === 'assistant') item.children[0].textContent = appearanceTexts.title;
     }
-    if (welcomeItem && messages.contains(welcomeItem)) welcomeItem.children[1].textContent = appearanceTexts.welcome;
+    if (welcomeItem && messages.contains(welcomeItem)) {
+      welcomeItem.children[1].replaceChildren();
+      appendContent(welcomeItem.children[1], appearanceTexts.welcome);
+    }
     if (shortcuts) {
       shortcuts.replaceChildren();
       for (const link of Array.isArray(value.links) ? value.links.slice(0,4) : []) {
@@ -421,7 +585,10 @@
     const label = document.createElement('small');
     label.textContent = role === 'user' ? 'شما' : appearanceTexts.title;
     const body = document.createElement('div');
-    if (role === 'assistant') appendContent(body, text);
+    if (role === 'assistant') {
+      body.className = 'gpante-chat-reply';
+      if (appendContent(body, text)) item.className += ' gpante-chat-message--rich';
+    }
     else body.textContent = text;
     item.append(label, body);
     messages.append(item);

@@ -1,10 +1,10 @@
 # اتصال وردپرس و وودمارت
 
-منبع اصلی اتصال اکنون [افزونهٔ GPante Support Chat](../../wordpress-plugin/gpante-support-chat/readme.txt)، نسخهٔ **۰٫۴٫۱** است. PHP، کاتالوگ، template و assetها فقط در پوشهٔ افزونه نگهداری می‌شوند. نصب و اتصال عمومی روی gpante.com بررسی شدند؛ [گزارش تولید](../../docs/production-readiness.md).
+منبع اصلی اتصال [افزونهٔ GPante Support Chat](../../wordpress-plugin/gpante-support-chat/readme.txt)، نسخهٔ **۰٫۵٫۰** است. PHP، کاتالوگ، template و assetها فقط در پوشهٔ افزونه نگهداری می‌شوند. نسخهٔ واقعاً نصب‌شده و نتیجهٔ ارتقا در [گزارش تولید](../../docs/production-readiness.md) ثبت می‌شوند؛ وجود منبع یا ZIP، نصب را اثبات نمی‌کند.
 
 ## نصب و تنظیم
 
-1. ZIP رسمی را از [Releases](https://github.com/vahid162/n8n-chat-gpante.com/releases) دریافت کنید یا با `python3 scripts/build-plugin.py` بستهٔ مستقل `dist/gpante-support-chat-wordpress-0.4.2.zip` را بسازید. ZIP شامل ۱۲ فایل runtime است؛ کل مخزن، مهارت، تست یا تنظیم خصوصی را در وردپرس نصب نکنید.
+1. ZIP رسمی را از [Releases](https://github.com/vahid162/n8n-chat-gpante.com/releases) دریافت کنید یا با `python3 scripts/build-plugin.py` بستهٔ مستقل `dist/gpante-support-chat-wordpress-0.5.0.zip` را بسازید. ZIP شامل ۱۲ فایل runtime است؛ کل مخزن، مهارت، تست یا تنظیم خصوصی را در وردپرس نصب نکنید.
 2. در وردپرسِ مجاز برای نصب، WooCommerce فعال، PHP حداقل ۸٫۱ و WordPress حداقل ۶٫۶ لازم است. ZIP را از بخش افزودن افزونه بارگذاری و فعال کنید. **نصب تازه چت را خاموش نگه می‌دارد.**
 3. از «تنظیمات ← چت جی‌پانته»، کلید اختصاصی را خصوصی وارد کنید. ورودی خالی کلید قبلی را حفظ می‌کند؛ مقدار ذخیره‌شده در HTML یا REST تنظیمات بازنمایش داده نمی‌شود.
 4. پس از آماده‌بودن سرویس n8n، HTTPS، پراکسی و cache، نمایش عمومی را روشن کنید. رابط برای همهٔ بازدیدکنندگان از hookهای معمول وردپرس نمایش داده می‌شود؛ به ویرایش قالب نیاز ندارد.

@@ -209,6 +209,22 @@ namespace {
         }
         check($response->headers['X-WP-Total'] === 2 && $response->headers['X-GPante-Sales-Period'] === 'all_time', 'Bestseller totals/period must describe the same filtered scope');
     };
+    $cases['products: whole subject titles rank before substring and date matches'] = static function () {
+        run_callback('gpante_support_catalog_products', ['search' => 'اسب'], [[]]);
+        $query = $GLOBALS['query_calls'][0];
+        $order = $query['clauses']['orderby'];
+        check(str_contains($order, ' REGEXP ') && str_contains($order, '(^|[^[:alnum:]_])اسب([^[:alnum:]_]|$)'), 'Whole subject words must receive title priority');
+        check(strpos($order, ' REGEXP ') < strpos($order, ' LIKE '), 'Whole title words must precede partial title matches');
+        check(str_ends_with($order, 'post_date DESC, ID DESC'), 'Relevance must precede the deterministic date tie-break');
+        check(str_contains($query['search'], '%اسب%'), 'Ranking must retain all literal candidates');
+    };
+    $cases['products: explicit sort overrides subject relevance'] = static function () {
+        foreach (['price_asc' => 'price ASC', 'best_selling' => 'total_sales DESC', 'newest' => 'post_date_gmt DESC'] as $sort => $expected) {
+            run_callback('gpante_support_catalog_products', ['search' => 'اسب', 'sort' => $sort], [[]]);
+            $order = $GLOBALS['query_calls'][0]['clauses']['orderby'];
+            check(str_contains($order, $expected) && !str_contains($order, ' REGEXP '), 'Explicit sort was replaced by relevance: ' . $sort);
+        }
+    };
     $cases['products: newest uses the serialized GMT publication clock before pagination'] = static function () {
         run_callback('gpante_support_catalog_products', ['sort' => 'newest', 'page' => '3'], [[], ['total' => 8]]);
         foreach ($GLOBALS['query_calls'] as $call) {

@@ -134,6 +134,42 @@ try {
     $source_pages[] = ['query' => $query, 'response' => ['statusCode' => $read->get_status(), 'headers' => $read->get_headers(), 'body' => $read->get_data()]];
     remove_filter('post_type_link', $canonical);
     remove_filter('pre_option_timezone_string', $tehran);
+    $horse_ids = [];
+    $horse_names = ['طرح cnc کتابخانه اسب', 'طرح تندیس‌اسب', 'طرح كتابخانه اسب', 'طرح کتابخانه اسباب بازی', 10 => 'باکس هدیه تست'];
+    for ($i = 0; $i < 14; $i++) {
+        $p = new WC_Product_Simple();
+        $p->set_name($horse_names[$i] ?? ($i < 11 ? 'طرح باکس هدیه مناسب تست ' . $i : 'طرح اسب محافظت شده ' . $i));
+        $p->set_description($i === 10 ? 'طرح اسب برای برش لیزر' : 'مناسب برای برش لیزر');
+        $p->set_status($i === 12 ? 'private' : 'publish');
+        $p->set_catalog_visibility($i === 11 ? 'hidden' : 'visible');
+        $p->set_regular_price((string) ($i < 3 ? 20 + $i : 1 + $i));
+        $p->set_total_sales($i + 1);
+        $p->set_category_ids([$terms['product_cat'][1]]);
+        $p->set_date_created(sprintf('%d-01-%02d 10:00:00', $i < 3 ? 2000 + $i : 2026, $i + 1));
+        $id = $p->save(); $posts[] = $id; $horse_ids[] = $id;
+        if ($i === 13) wp_update_post(['ID' => $id, 'post_password' => 'local-only']);
+    }
+    $horse_order = [$horse_ids[2], $horse_ids[1], $horse_ids[0]];
+    foreach (['اسب', 'طرح اسب'] as $search) {
+        $read = discovery_read('products', $scope + ['search' => $search]);
+        discovery_check(array_slice(array_column($read->get_data(), 'id'), 0, 3) === $horse_order, 'horse subject ranks real whole-word titles before newer suitable and toy substrings: ' . $search);
+        discovery_check($read->get_headers()['X-WP-Total'] === 11, 'horse ranking preserves every eligible candidate and excludes protected products');
+    }
+    $read = discovery_read('products', $scope + ['search' => 'كتابخانه اسب']);
+    discovery_check(array_slice(array_column($read->get_data(), 'id'), 0, 2) === [$horse_ids[2], $horse_ids[0]], 'normalized Arabic title and every requested topic precede a partial toy match');
+    $all_horses = [];
+    foreach ([1, 2, 3] as $page) {
+        $read = discovery_read('products', $scope + ['search' => 'اسب', 'page' => $page]);
+        $all_horses = array_merge($all_horses, array_column($read->get_data(), 'id'));
+    }
+    discovery_check(count($all_horses) === 11 && count(array_unique($all_horses)) === 11, 'horse relevance ranks before pagination without losing or duplicating candidates');
+    discovery_check(array_search($horse_ids[3], $all_horses, true) < array_search($horse_ids[10], $all_horses, true), 'substring title match precedes a newer description-only match when whole-word title scores tie');
+    foreach (['newest' => 10, 'best_selling' => 10, 'price_asc' => 3] as $sort => $index) {
+        $read = discovery_read('products', $scope + ['search' => 'اسب', 'sort' => $sort]);
+        discovery_check($read->get_data()[0]['id'] === $horse_ids[$index], 'explicit ' . $sort . ' remains authoritative over title relevance');
+    }
+    $read = discovery_read('products', $scope + ['search' => 'اسب', 'page' => 99]);
+    discovery_check($read->get_data() === [] && $read->get_headers()['X-WP-Total'] === 11, 'horse ranking keeps accurate out-of-range totals');
     $article_ids = [];
     foreach ([
         ['CorelDRAW قدیمی', 'موضوع کورل', '2020-01-01 10:00:00', ''],

@@ -347,8 +347,8 @@
   }
 
   function failure(error, action, text) {
-    failed = { action, text };
-    setStatus(error.message, true);
+    failed = { action, text, message: error.message };
+    setStatus(error.message + (input.value.trim() ? ' متن نوشته‌شده در کادر محفوظ است؛ نیازی به نوشتن دوبارهٔ آن نیست.' : ''), true);
     retry.textContent = action === 'resetSession' ? 'تلاش دوباره برای پاک‌کردن' : 'تلاش دوباره';
     retry.hidden = false;
   }
@@ -360,6 +360,7 @@
   }
 
   async function readHistory(quiet) {
+    const previousFailure = failed;
     clearTimeout(historyTimer);
     if (!quiet) messages.replaceChildren();
     retry.hidden = true;
@@ -373,8 +374,13 @@
         scrollArea.scrollTop = scrollArea.scrollHeight;
       }
       else welcome();
-      failed = null;
-      setStatus('پرسشتان را بنویسید.');
+      if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession'
+        && (previousFailure.action !== 'resetSession' || policy.allowClear)) {
+        failure(new Error(previousFailure.message), previousFailure.action, previousFailure.text);
+      } else {
+        failed = null;
+        setStatus('پرسشتان را بنویسید.');
+      }
       return true;
     } catch (error) {
       messages.replaceChildren();
@@ -407,7 +413,7 @@
       updateInput();
       if (hadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
       if (!loaded) {
-        failed = { action: 'sendMessage', text };
+        failed = { ...failed, action: 'sendMessage', text };
         return;
       }
     }

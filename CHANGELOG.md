@@ -2,6 +2,12 @@
 
 تغییرات قابل استفادهٔ افزونهٔ WordPress در این فایل ثبت می‌شوند. نسخهٔ افزونه از workflow و مهارت مستقل است؛ [سیاست انتشار](docs/wordpress-releases.md).
 
+## [0.5.1] - 2026-10-21
+
+### Fixed
+- تفکیک محدودیت نرخ، درخواست در حال انجام و شلوغی دستیار در پیام عمومی؛ نمایش زمان انتظار معتبر و اقدام بعدی.
+- اعلام حفظ پیش‌نویس در همان کادر و نگه‌داشتن اقدام retry پس از بازخوانی تاریخچه، با تلاش مجدد صریح و بدون تغییر سقف درخواست یا هزینه.
+
 ## [0.5.0] - 2026-10-21
 
 ### Added
@@ -86,3 +92,5 @@
 [0.4.0]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.4.0
 
 [0.4.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.4.1
+
+[0.5.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.5.1

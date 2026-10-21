@@ -138,7 +138,7 @@ function gpante_support_catalog_search_groups( $search, $articles = false ) {
 }
 
 /**
- * Literal AND search, with controlled aliases and article title relevance.
+ * Literal AND search, with controlled aliases and normalized title relevance.
  * All values use esc_like + prepare. The filter applies only to this query object.
  * It never drops a token or an attribute, and is removed before any other read.
  *
@@ -156,8 +156,9 @@ function gpante_support_catalog_run_query( $args, $search = '', $sort = 'relevan
 	}
 	$query         = new WP_Query();
 	$articles      = 'post' === $args['post_type'];
+	$products      = 'product' === $args['post_type'];
 	$title_order   = '';
-	$search_filter = static function ( $sql, $current ) use ( $query, $search, $wpdb, $articles, &$title_order ) {
+	$search_filter = static function ( $sql, $current ) use ( $query, $search, $wpdb, $articles, $products, &$title_order ) {
 		if ( $current !== $query || '' === $search ) {
 			return $sql;
 		}
@@ -199,25 +200,38 @@ function gpante_support_catalog_run_query( $args, $search = '', $sort = 'relevan
 		unset( $column );
 		$groups = array();
 		$scores = array();
+		$words  = array();
 		foreach ( gpante_support_catalog_search_groups( $search, $articles ) as $aliases ) {
 			$matches = array();
 			$titles  = array();
+			$whole   = array();
 			foreach ( $aliases as $alias ) {
 				foreach ( $columns as $column_index => $column ) {
 					// $column contains only fixed identifiers and already-prepared normalization.
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					$matches[] = $wpdb->prepare( "$column LIKE %s", '%' . $wpdb->esc_like( $alias ) . '%' );
-					if ( $articles && 0 === $column_index ) {
+					if ( ( $articles || $products ) && 0 === $column_index ) {
 						$titles[] = end( $matches );
+						if ( $products ) {
+							// Whole subject words outrank substrings such as اسب inside مناسب.
+							// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+							$whole[] = $wpdb->prepare( "$column REGEXP %s", '(^|[^[:alnum:]_])' . preg_quote( $alias, '/' ) . '([^[:alnum:]_]|$)' );
+						}
 					}
 				}
 			}
 			$groups[] = '(' . implode( ' OR ', $matches ) . ')';
-			if ( $articles ) {
+			if ( $titles ) {
 				$scores[] = '(CASE WHEN (' . implode( ' OR ', $titles ) . ') THEN 1 ELSE 0 END)';
 			}
+			if ( $whole ) {
+				$words[] = '(CASE WHEN (' . implode( ' OR ', $whole ) . ') THEN 1 ELSE 0 END)';
+			}
 		}
-		$title_order = $articles ? '(' . implode( ' + ', $scores ) . ') DESC' : '';
+		$title_order = $scores ? '(' . implode( ' + ', $scores ) . ') DESC' : '';
+		if ( $words ) {
+			$title_order = '(' . implode( ' + ', $words ) . ') DESC, ' . $title_order;
+		}
 		return ' AND (' . implode( ' AND ', $groups ) . ') ';
 	};
 	$sort_filter   = static function ( $clauses, $current ) use ( $query, $sort, $wpdb, &$title_order ) {

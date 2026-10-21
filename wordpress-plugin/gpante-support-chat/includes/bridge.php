@@ -93,6 +93,11 @@ function gpante_support_failure( $status, $code, $headers = array() ) {
 		413 => __( 'حجم پیام بیش از حد مجاز است. لطفاً متن کوتاه‌تری بنویسید.', 'gpante-support-chat' ),
 		415 => __( 'قالب درخواست معتبر نیست. لطفاً صفحه را تازه کنید.', 'gpante-support-chat' ),
 	);
+	if ( 'monthly_budget' === $code ) {
+		$messages[ $status ] = __( 'سهمیهٔ پاسخ‌گویی دستیار برای این ماه به پایان رسیده است. می‌توانید از پیوندهای راهنمای فروشگاه استفاده کنید؛ تلاش دوباره در همین لحظه این محدودیت را برطرف نمی‌کند.', 'gpante-support-chat' );
+	} elseif ( 'pricing_review' === $code ) {
+		$messages[ $status ] = __( 'پاسخ‌گویی دستیار موقتاً در دسترس نیست و به بررسی مدیر سایت نیاز دارد. فعلاً از پیوندهای راهنمای فروشگاه استفاده کنید.', 'gpante-support-chat' );
+	}
 	if ( 429 === $status ) {
 		$reasons       = array(
 			'rate_limit'   => __( 'در مدت کوتاهی چند درخواست از این اتصال دریافت شده است.', 'gpante-support-chat' ),
@@ -267,6 +272,9 @@ function gpante_support_chat( $request ) {
 		}
 		$code = 429 === $status ? 'request_limit' : 'backend_unavailable';
 		if ( 429 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'rate_limit', 'session_busy', 'capacity' ), true ) ) {
+			$code = $data['error']['code'];
+		}
+		if ( 503 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'monthly_budget', 'pricing_review' ), true ) ) {
 			$code = $data['error']['code'];
 		}
 		return gpante_support_failure( 429 === $status ? 429 : ( 403 === $status ? 403 : 502 ), $code, $headers );

@@ -62,7 +62,7 @@ function createWidget(appearance, withHistory = false) {
   document.createTextNode = text => { const node = new Element('#text'); node.textContent = text; return node; };
   const elements = Object.fromEntries([
     'root', 'panel', 'launcher', 'messages', 'status', 'input', 'form', 'send', 'new',
-    'confirm', 'clear', 'retry', 'count', 'close', 'cancel', 'shortcuts', 'send-label', 'title', 'subtitle', 'launcher-label', 'input-label', 'status-label', 'status-text'
+    'confirm', 'clear', 'retry', 'reconnect', 'notice', 'activity', 'activity-text', 'count', 'close', 'cancel', 'shortcuts', 'send-label', 'title', 'subtitle', 'launcher-label', 'input-label', 'status-label', 'status-text'
   ].map(name => [name, new Element()]));
   const { root, panel, launcher } = elements;
   document.body = new Element('body');
@@ -131,10 +131,10 @@ function createWidget(appearance, withHistory = false) {
         content: item.children[1].textContent
       }));
     },
-    async respond(index, data, ok = true) {
+    async respond(index, data, ok = true, status = ok ? 200 : 429) {
       data = {policy, expiresAt:expiry, ...data};
       if(Array.isArray(data.messages)) data.messages=data.messages.map(m=>({...m,expiresAt:m.expiresAt||expiry}));
-      requests[index].resolve({ ok, json: async () => data });
+      requests[index].resolve({ ok, status, json: async () => data });
       await tick();
       assert.equal(timers.has(requests[index].timeoutId), false, 'each completed request clears its own network timeout');
     },
@@ -144,6 +144,53 @@ function createWidget(appearance, withHistory = false) {
     }
   };
 }
+
+test('header stays online while reply activity is separate and background refresh does not flicker', async () => {
+  const widget = createWidget(undefined, true);await widget.open([]);
+  assert.equal(widget.elements['status-label'].textContent, 'Online');
+  widget.window.dispatch('focus');
+  assert.equal(widget.elements.status.dataset.state, 'ready');
+  await widget.respond(1, {messages:[]});
+  widget.type('پیام');widget.submit();
+  assert.equal(widget.elements.status.dataset.state, 'ready');
+  assert.equal(widget.elements.activity.hidden, false);
+  assert.match(widget.elements['activity-text'].textContent, /پاسخ/);
+  await widget.respond(2, {output:'پاسخ'});
+  assert.equal(widget.elements.activity.hidden, true);
+  assert.equal(widget.elements.notice.hidden, true);
+});
+
+test('uncertain send requires a history check; reconnect never resends and retains messages after a failed refresh', async () => {
+  const widget = createWidget(undefined, true);await widget.open();
+  widget.type('پرسش محفوظ');widget.submit();
+  await widget.respond(1, {error:{code:'backend_unavailable'},output:'دریافت پاسخ تأیید نشد.'}, false, 502);
+  assert.equal(widget.elements.status.dataset.state, 'offline');
+  assert.equal(widget.elements.retry.hidden, true);
+  assert.equal(widget.elements.reconnect.hidden, false);
+  widget.submit();
+  widget.click('reconnect');widget.click('reconnect');
+  assert.equal(widget.requests.length, 3, 'the composer also checks history before an uncertain resend');
+  assert.equal(widget.requests[2].body.action, 'loadPreviousSession');
+  await widget.respond(2, {error:{code:'backend_unavailable'},output:'سرویس در دسترس نیست.'}, false, 502);
+  assert.deepEqual(widget.messages(), previousMessages);
+  assert.equal(widget.elements.input.value, 'پرسش محفوظ');
+  widget.click('reconnect');
+  await widget.respond(3, {messages:[...previousMessages,{role:'user',content:'پرسش محفوظ'},{role:'assistant',content:'پاسخ ثبت‌شده'}]});
+  assert.equal(widget.elements.status.dataset.state, 'ready');
+  assert.equal(widget.requests.filter(r=>r.body.action==='sendMessage').length, 1);
+  assert.equal(widget.messages().at(-1).content, 'پاسخ ثبت‌شده');
+  assert.match(widget.elements['status-text'].textContent, /درخواست تازه/);
+});
+
+test('safe temporary refusals retain online status and do not expose an unrelated reconnect action', async () => {
+  const widget = createWidget();await widget.open();
+  widget.type('پرسش');widget.submit();
+  await widget.respond(1, {error:{code:'rate_limit'},output:'۱ دقیقه صبر کنید، سپس روی «تلاش دوباره» بزنید.'}, false, 429);
+  assert.equal(widget.elements.status.dataset.state, 'ready');
+  assert.equal(widget.elements.reconnect.hidden, true);
+  assert.equal(widget.elements.retry.hidden, false);
+  assert.match(widget.elements['status-text'].textContent, /۱ دقیقه/);
+});
 
 function assertControls(widget, busy, composing = !busy) {
   assert.equal(widget.elements.input.disabled, !composing, 'input disabled state');
@@ -161,9 +208,9 @@ test('connection status confirms valid service readiness and distinguishes a pen
   assert.equal(widget.elements.input.disabled, false);
   await widget.respond(0, {messages:[]});
   assert.equal(widget.elements.status.dataset.state, 'ready');
-  assert.match(widget.elements['status-label'].textContent, /برقرار/u);
+  assert.equal(widget.elements['status-label'].textContent, 'Online');
   widget.type('پرسش آزمایشی');widget.submit();
-  assert.equal(widget.elements.status.dataset.state, 'waiting');
+  assert.equal(widget.elements.status.dataset.state, 'ready');
   await widget.respond(1, {output:'پاسخ آزمایشی'});
   assert.equal(widget.elements.status.dataset.state, 'ready');
 });
@@ -172,14 +219,14 @@ test('invalid history never shows ready; background refresh retains a failed sen
   const widget = createWidget(undefined,true);
   widget.click('launcher');
   await widget.respond(0, {policy:null,messages:[]});
-  assert.equal(widget.elements.status.dataset.state, 'error');
-  widget.click('retry');await widget.respond(1,{messages:[]});
+  assert.equal(widget.elements.status.dataset.state, 'offline');
+  widget.click('reconnect');await widget.respond(1,{messages:[]});
   widget.type('پرسش محفوظ');widget.submit();
   await widget.respond(2,{output:'خطای موقت'},false);
   widget.window.dispatch('focus');
-  assert.equal(widget.elements.status.dataset.state, 'refreshing');
+  assert.equal(widget.elements.status.dataset.state, 'ready');
   await widget.respond(3,{messages:[]});
-  assert.equal(widget.elements.status.dataset.state, 'error');
+  assert.equal(widget.elements.status.dataset.state, 'ready');
   assert.equal(widget.elements.input.value,'پرسش محفوظ');
   assert.equal(widget.elements.retry.hidden,false);
   assert.equal(widget.requests.filter(r=>r.body.action==='sendMessage').length,1);
@@ -192,7 +239,7 @@ test('offline status preserves composing and online checks the service without r
   assert.equal(widget.elements.input.disabled,false);
   assert.equal(widget.requests.length,1);
   widget.network(true);
-  assert.equal(widget.elements.status.dataset.state,'refreshing');
+  assert.equal(widget.elements.status.dataset.state,'connecting');
   await widget.respond(1,{messages:[]});
   assert.equal(widget.elements.status.dataset.state,'ready');
   assert.equal(widget.elements.input.value,'متن محفوظ');
@@ -208,7 +255,7 @@ test('reconnecting during a pending reply waits for that response without dispat
   assert.equal(widget.elements.status.dataset.state,'offline');
   assert.equal(widget.elements.input.disabled,true);
   widget.network(true);
-  assert.equal(widget.elements.status.dataset.state,'waiting');
+  assert.equal(widget.elements.status.dataset.state,'connecting');
   assert.equal(widget.requests.length,2);
   await widget.respond(1,{output:'یک پاسخ'});
   assert.equal(widget.elements.status.dataset.state,'ready');
@@ -281,7 +328,7 @@ test('early submit waits for the existing history request and dispatches exactly
   assert.equal(widget.requests.length, 1, 'no send or duplicate history before session readiness');
   assert.equal(widget.elements.input.value, 'پیام هنگام اتصال');
   assertControls(widget, true);
-  assert.match(widget.elements['status-text'].textContent, /آمادهٔ ارسال/u);
+  assert.match(widget.elements['activity-text'].textContent, /آمادهٔ ارسال/u);
   widget.click('close');
   widget.click('launcher');
   assert.equal(widget.requests.length, 1, 'rapid reopen keeps the queued operation');
@@ -297,23 +344,22 @@ test('early submit waits for the existing history request and dispatches exactly
   assertControls(widget, false);
 });
 
-test('failed connection preserves an early message and needs an explicit retry before sending', async () => {
+test('failed initialization preserves the early draft; reconnect checks history and a separate retry sends it', async () => {
   const widget = createWidget();
-  widget.click('launcher');
-  widget.type('پرسش محفوظ');
-  widget.submit();
-  await widget.respond(0, {error:true,output:'ارتباط برقرار نشد.'}, false);
+  widget.click('launcher');widget.type('پرسش محفوظ');widget.submit();
+  await widget.respond(0, {error:true,output:'ارتباط برقرار نشد.'}, false, 502);
   assert.equal(widget.requests.length, 1);
   assert.equal(widget.elements.input.value, 'پرسش محفوظ');
-  assert.equal(widget.elements.retry.hidden, false);
-  assert.equal(widget.elements['status-text'].textContent.startsWith('ارتباط برقرار نشد.'), true);
+  assert.equal(widget.elements.reconnect.hidden, false);
+  assert.equal(widget.elements.retry.hidden, true);
   assertControls(widget, false);
-  widget.click('retry');
-  widget.click('retry');
+  widget.click('reconnect');widget.click('reconnect');
   assert.equal(widget.requests.length, 2);
   assert.equal(widget.requests[1].body.action, 'loadPreviousSession');
   await widget.respond(1, {messages:[]});
-  assert.equal(widget.requests.length, 3);
+  assert.equal(widget.requests.length, 2, 'connection recovery does not send the former queued draft');
+  assert.equal(widget.elements.retry.hidden, false);
+  widget.click('retry');
   assert.equal(widget.requests[2].body.chatInput, 'پرسش محفوظ');
   await widget.respond(2, {output:'پاسخ معتبر'});
   assert.equal(widget.messages().at(-1).content, 'پاسخ معتبر');
@@ -478,10 +524,10 @@ test('failed history load permits a retry and restores the normal controls after
   const widget = createWidget();
   widget.click('launcher');
   await widget.respond(0, { error: 'unavailable', output: 'تاریخچه در دسترس نیست.' }, false);
-  assert.equal(widget.elements.retry.hidden, false);
+  assert.equal(widget.elements.reconnect.hidden, false);
   assert.equal(widget.elements['status-text'].textContent, 'تاریخچه در دسترس نیست.');
   assertControls(widget, false);
-  widget.click('retry');
+  widget.click('reconnect');
   assertControls(widget, true, true);
   assert.deepEqual(widget.requests[1].body, { action: 'loadPreviousSession', policyVersion:0 });
   await widget.respond(1, { messages: previousMessages });
@@ -512,8 +558,8 @@ test('closing and reopening during a request keeps one history load; an aborted 
   assert.equal(widget.timers.size, 0);
   assert.deepEqual(widget.messages(), previousMessages);
   assert.equal(widget.elements.input.value, 'درخواست طولانی');
-  assert.equal(widget.elements.retry.hidden, false);
-  assert.match(widget.elements['status-text'].textContent, /دریافت پاسخ طول کشید/u);
+  assert.equal(widget.elements.reconnect.hidden, false);
+  assert.match(widget.elements['status-text'].textContent, /زمان دریافت پاسخ/u);
   assert.equal(widget.document.activeElement, widget.elements.launcher, 'a hidden panel does not steal focus');
   assertControls(widget, false);
   widget.click('launcher');
@@ -551,8 +597,8 @@ test('invalid history and reply fail visibly; oversized input does not dispatch 
   await widget.respond(0, { messages: [{ role: 'system', content: 'internal' }] });
   assert.deepEqual(widget.messages(), []);
   assert.equal(widget.elements.root.dataset.error, 'true');
-  assert.equal(widget.elements.retry.hidden, false);
-  widget.click('retry');
+  assert.equal(widget.elements.reconnect.hidden, false);
+  widget.click('reconnect');
   await widget.respond(1, { messages: previousMessages });
   widget.type('م'.repeat(4001));
   widget.submit();
@@ -563,10 +609,13 @@ test('invalid history and reply fail visibly; oversized input does not dispatch 
   await widget.respond(2, { output: '' });
   assert.deepEqual(widget.messages(), previousMessages);
   assert.equal(widget.elements.input.value, 'پرسش معتبر');
-  assert.equal(widget.elements.retry.hidden, false);
+  assert.equal(widget.elements.reconnect.hidden, false);
   assert.equal(widget.elements.root.dataset.error, 'true');
+  widget.click('reconnect');
+  await widget.respond(3, { messages: previousMessages });
+  assert.equal(widget.requests.length, 4, 'invalid reply recovery checks history only');
   widget.click('retry');
-  await widget.respond(3, { output: 'پاسخ معتبر' });
+  await widget.respond(4, { output: 'پاسخ معتبر' });
   assert.equal(widget.messages().at(-1).content, 'پاسخ معتبر');
   assert.equal(widget.elements.retry.hidden, true);
   assertControls(widget, false);
@@ -784,4 +833,36 @@ test('welcome has a separate full-width presentation marker without changing ass
   assert.equal(user.dataset.role,'user');
   assert.equal(assistant.dataset.role,'assistant');
   assert.doesNotMatch(assistant.className,/--welcome/,'ordinary replies stay normal bubbles');
+});
+
+
+test('budget refusal does not disconnect or encourage an immediate retry, and clear reconnect never deletes', async () => {
+  const widget=createWidget();await widget.open();
+  widget.type('پرسش');widget.submit();
+  await widget.respond(1,{error:{code:'monthly_budget'},output:'سهمیهٔ این ماه به پایان رسیده است.'},false,502);
+  assert.equal(widget.elements.status.dataset.state,'ready');
+  assert.equal(widget.elements.retry.hidden,true);
+  assert.equal(widget.elements.reconnect.hidden,true);
+  widget.click('new');widget.click('clear');
+  await widget.respond(2,{error:{code:'backend_unavailable'},output:'پاک‌کردن تأیید نشد.'},false,502);
+  widget.click('reconnect');
+  await widget.respond(3,{messages:previousMessages});
+  assert.equal(widget.requests.filter(r=>r.body.action==='resetSession').length,1);
+  assert.equal(widget.elements.retry.textContent,'تلاش دوباره برای پاک‌کردن');
+  widget.click('retry');await widget.respond(4,{ok:true});
+  assert.equal(widget.requests.filter(r=>r.body.action==='resetSession').length,2);
+});
+
+
+test('failed history refresh preserves unexpired messages but still removes known expired text without network retries', async () => {
+  const widget=createWidget(undefined,true);await widget.open();
+  widget.window.dispatch('focus');
+  widget.elements.messages.children[0].dataset.expiresAt=new Date(Date.now()-1000).toISOString();
+  widget.elements.messages.children[1].dataset.expiresAt=new Date(Date.now()+30*86400000).toISOString();
+  await widget.respond(1,{error:{code:'backend_unavailable'},output:'Unavailable'},false,502);
+  assert.deepEqual(widget.messages(),[previousMessages[1]]);
+  assert([...widget.timers.values()].some(t=>t.delay>60000),'remaining message expiry has a local timer even without valid policy');
+  assert([...widget.timers.values()].every(t=>t.delay<=2147483647),'a 30-day deadline must not overflow browser timeouts into an immediate loop');
+  widget.click('close');await tick();
+  assert.equal(widget.timers.size,0);
 });

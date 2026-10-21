@@ -9,7 +9,7 @@
 | افزونهٔ نصب‌شدهٔ WordPress | **0.6.1**؛ [انتشار رسمی](https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.6.1) |
 | قرارداد افزونه | `wordpress-plugin/gpante-support-chat/`؛ schema اتصال ۲، schema مستقل ظاهر ۲، REST v1 و policy contract ۲ |
 | منابع workflow | Main نسخهٔ 1.3.0 منتشر و فعال؛ Admin و Retention نسخهٔ 1.2.0؛ `src/` و خروجی قطعی `scripts/build-workflow.cjs` |
-| مهارت canonical | همین پوشه؛ **0.8.1**؛ نسخهٔ مهارت از افزونه و workflow مستقل است |
+| مهارت canonical | همین پوشه؛ **0.8.2**؛ نسخهٔ مهارت از افزونه و workflow مستقل است |
 | راهنما | [آرشیو و ارتقا](../../../../docs/conversation-archive.md)، [گزارش تولید](../../../../docs/production-readiness.md) |
 
 نسخهٔ نمایش پاسخ 0.5.0 از Release رسمی نصب و Main 1.2.3 پس از آن منتشر شد. همهٔ فایل‌ها، تنظیمات و گراف با منبع تطبیق داده شدند؛ آزمون مرورگرِ نصب‌شده و یک پرسش واقعی، جدول و دکمهٔ مطابق کاتالوگ و بازیابی پس از reload را تأیید کردند. [شواهد و حدود](../../../../specs/009-friendly-replies/verification.md).
@@ -90,3 +90,8 @@ Release رسمی 0.6.0 پس از موفقیت CI و ادغام PR 26 نصب شد
 ## وضعیت ارتباط 0.6.1 — نصب‌شده و تأییدشده
 
 ناحیهٔ وضعیت دو سطح متن، spinner و نشان تأیید دارد؛ connecting/refreshing/waiting/clearing/ready/error/offline/notice از نتیجهٔ عملیات می‌آیند. آمادگی پس از پاسخ معتبر chat API است، نه صرفاً ظاهر یا navigator.online. آفلاین‌شدن متن را حفظ می‌کند و بازگشت اینترنت فقط history مشترک را بررسی می‌کند؛ ارسال دوبارهٔ خودکار ندارد. ۷۵ آزمون Node و Chromium/Firefox در چهار اندازه با intercept کامل درخواست‌ها موفق‌اند؛ هیچ پیام واقعی/تماس مدل نداشتند. Release رسمی 0.6.1 با تطبیق tag/commit، checksum و ۱۲ فایل نصب شد؛ کل اتصال/ظاهر، enabled، policy و revision، قالب و افزونه‌های فعال حفظ شدند. هر ۲۵ workflow، Main 1.3.0، SQL و schemaها ثابت‌اند. بررسی Chromium/Firefox روی فایل نصب‌شده نیز در چهار اندازه موفق بود و یک خواندن واقعی تاریخچه در Chrome، نشان ready و ورودی فعال را بدون پیام/مدل تأیید کرد. Retention طبیعی موفق بازخوانی شد. [شواهد](../../../../specs/011-chat-connection-status/verification.md).
+
+
+## بازطراحی سربرگ 0.6.2 — نامزد آمادهٔ انتشار
+
+سناریوی تأییدشده در `specs/012-header-connection-status/` ثبت و رابط، اعلان‌ها، تفکیک اتصال مجدد/ارسال و علت ثابت خطا آماده شده‌اند. ۸۰ آزمون Node، PHP settings/appearance/bridge، ۲۴ بررسی query، WPCS و پنج آزمون بسته/انتشار موفق‌اند؛ نامزد Chromium/Firefox در چهار اندازه، فضای بیشتر پیام، ابعاد و سربرگ ثابت، offline/reconnect، خطای نامعلوم و rate limit را با صفر پیام واقعی/تماس مدل تأیید کرد. کد نصب‌شده در این نقطه هنوز 0.6.1 است؛ Release و نصب نامزد ادعای انجام‌شده نیستند. SQL/n8n و تنظیمات تولید تغییر نکرده‌اند. [شواهد](../../../../specs/012-header-connection-status/verification.md).

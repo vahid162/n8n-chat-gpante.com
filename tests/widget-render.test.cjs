@@ -23,21 +23,64 @@ test('only explicit public HTTPS site links survive raw and encoded path attacks
   ]) assert.equal(safeLink(value), false, value);
 });
 
-test('assistant content stays text except independently validated anchors', () => {
-  const node = (type, text = '') => ({ type, textContent: text, children: [],
+function node(type, text = '') { return { type, textContent: text, children: [],
     append(...items) { this.children.push(...items); },
+    setAttribute(name, value) { this[name] = value; },
     set innerHTML(value) { throw new Error('HTML rendering is forbidden'); }
-  });
+  }; }
+const all = root => [root, ...root.children.flatMap(all)];
+const text = root => root.textContent + root.children.map(text).join('');
+
+test('assistant content stays text except independently validated button links', () => {
   global.document = { createTextNode: text => node('#text', text), createElement: tag => node(tag) };
   const target = node('div');
   appendContent(target, '<img src=x onerror=alert(1)> [محصول](https://gpante.com/product/a/) https://evil.example/ [خصوصی](https://gpante.com/wp-content/paid.zip)');
-  const links = target.children.filter(child => child.type === 'a');
+  const links = all(target).filter(child => child.type === 'a');
   assert.equal(links.length, 1);
   assert.equal(links[0].href, 'https://gpante.com/product/a/');
   assert.equal(links[0].textContent, 'محصول');
   assert.equal(links[0].rel, 'noopener noreferrer');
   assert.equal(links[0].target, '_blank');
-  assert(target.children.some(child => child.type === '#text' && child.textContent.includes('<img')));
-  assert.equal(target.children.some(child => child.type === 'img'), false);
+  assert.equal(links[0].className, 'gpante-chat-link');
+  assert(text(target).includes('<img'));
+  assert.equal(all(target).some(child => child.type === 'img'), false);
   delete global.document;
+});
+
+test('known details become an accessible table without executing HTML, while links stay allowlisted', () => {
+  global.document = { createTextNode: value => node('#text', value), createElement: tag => node(tag) };
+  try {
+    const target = node('div');
+    assert.equal(appendContent(target, '**باکس آجیل**\n\n| ویژگی | مشخصات |\n| --- | --- |\n| قیمت | رایگان |\n| فرمت | DXF \\| CDR |\n| توضیح | <img src=x onerror=alert(1)> |\n| لینک نامعتبر | [فایل](https://gpante.com/wp-content/paid.zip) |\n\n[مشاهدهٔ محصول](https://gpante.com/product/a/)'), true);
+    const nodes = all(target);
+    assert.equal(nodes.filter(n => n.type === 'table').length, 1);
+    assert.equal(nodes.filter(n => n.type === 'tr').length, 5);
+    assert.equal(nodes.filter(n => n.type === 'th' && n.scope === 'col').length, 2);
+    assert.equal(nodes.filter(n => n.type === 'th' && n.scope === 'row').length, 4);
+    assert.equal(nodes.filter(n => n.type === 'caption').length, 1);
+    assert(nodes.some(n => n.type === 'strong' && n.textContent === 'باکس آجیل'));
+    assert(text(target).includes('DXF | CDR'));
+    assert(text(target).includes('<img src=x onerror=alert(1)>'));
+    assert.equal(nodes.filter(n => ['img', 'script', 'iframe'].includes(n.type)).length, 0);
+    assert.equal(nodes.filter(n => n.type === 'a').length, 1);
+    assert.equal(nodes.find(n => n.type === 'a').textContent, 'مشاهدهٔ محصول');
+  } finally { delete global.document; }
+});
+
+test('malformed or oversized tables preserve every value as text, and plain replies still work', () => {
+  global.document = { createTextNode: value => node('#text', value), createElement: tag => node(tag) };
+  try {
+    const malformed = '| ویژگی | مقدار |\n| --- | --- |\n| ردیف | مقدار | اضافی |';
+    const oversized = '| ویژگی | مقدار |\n| --- | --- |\n' + Array.from({length:21}, (_, i) => '| ردیف | value-' + i + ' |').join('\n');
+    for (const value of [malformed, oversized, 'سلام\nچطور می‌توانم کمک کنم؟']) {
+      const target = node('div');
+      assert.equal(appendContent(target, value), false);
+      assert.equal(text(target), value);
+      assert.equal(all(target).filter(n => n.type === 'table').length, 0);
+    }
+    const raw = node('div');
+    appendContent(raw, 'https://gpante.com/product/a/،');
+    assert.equal(all(raw).find(n => n.type === 'a').textContent, 'مشاهدهٔ محصول');
+    assert(text(raw).endsWith('،'));
+  } finally { delete global.document; }
 });

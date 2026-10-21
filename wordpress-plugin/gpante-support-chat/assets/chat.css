@@ -137,37 +137,21 @@
   overflow-wrap: anywhere;
 }
 #gpante-support .gpante-chat-message a.gpante-chat-link:hover { text-decoration: none; box-shadow: 0 2px 8px #00000018; }
-#gpante-support .gpante-chat-table-wrap { max-width: 100%; margin: 6px 0; overflow-x: auto; border: 1px solid var(--gpante-border); border-radius: 12px; }
-#gpante-support .gpante-chat-table {
-  width: 100%;
-  table-layout: fixed;
-  margin: 0;
-  border: 0;
-  border-collapse: separate;
-  border-spacing: 0;
-  color: var(--gpante-text);
-  font-size: 13px;
-  line-height: 1.6;
-}
-#gpante-support .gpante-chat-table caption { color: inherit; }
-#gpante-support .gpante-chat-table th, #gpante-support .gpante-chat-table td {
-  padding: 6px 8px;
-  border: 0;
-  border-bottom: 1px solid var(--gpante-border);
-  vertical-align: top;
-  text-align: start;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  color: inherit;
-  background: var(--gpante-assistant);
-  font-size: inherit;
-  line-height: inherit;
-}
-#gpante-support .gpante-chat-table thead th { background: var(--gpante-messages); font-weight: 700; }
-#gpante-support .gpante-chat-table thead th:first-child { width: 38%; }
-#gpante-support .gpante-chat-table tbody th { font-weight: 600; }
-#gpante-support .gpante-chat-table tbody tr:last-child > * { border-bottom: 0; }
-#gpante-support .gpante-chat-table-wrap[tabindex] .gpante-chat-table { min-width: 460px; }
+#gpante-support .gpante-chat-message--assistant { width: 100%; max-width: 100%; padding: 0; background: transparent; box-shadow: none; }
+#gpante-support .gpante-chat-message--assistant > small { width: fit-content; margin-right: auto; margin-left: 0; padding-inline: 4px; }
+#gpante-support .gpante-chat-segment { width: fit-content; max-width: 88%; margin: 0 auto 10px 0; padding: 10px 12px; border: 1px solid var(--gpante-border); border-radius: 16px 16px 16px 4px; background: var(--gpante-assistant); box-shadow: 0 1px 3px #0000000a; }
+#gpante-support .gpante-chat-segment:last-child { margin-bottom: 0; }
+#gpante-support .gpante-chat-segment--card { width: 100%; max-width: 100%; }
+#gpante-support .gpante-chat-facts { margin: 8px 0; padding: 0 16px 0 0; list-style: disc; font-size: 13px; line-height: 1.8; }
+#gpante-support .gpante-chat-facts li { margin: 2px 0; padding: 0; color: inherit; overflow-wrap: anywhere; }
+#gpante-support .gpante-chat-facts strong { font-weight: 600; }
+#gpante-support .gpante-chat-card-heading { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+#gpante-support .gpante-chat-thumbnail { display: block; flex: 0 0 48px; width: 48px; height: 48px; margin: 0; border: 1px solid var(--gpante-border); border-radius: 10px; object-fit: contain; background: #fff; }
+#gpante-support .gpante-chat-card-copy { flex: 1; min-width: 0; }
+#gpante-support .gpante-chat-card-title { display: block; margin: 0 0 3px; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+#gpante-support .gpante-chat-card-copy p { margin: 0; font-size: 13px; line-height: 1.7; }
+#gpante-support .gpante-chat-message--welcome { padding: 14px; background: var(--gpante-assistant); box-shadow: 0 1px 3px #0000000d; }
+#gpante-support .gpante-chat-message--welcome .gpante-chat-segment { max-width: 100%; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 #gpante-support .gpante-chat-status { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 110px; gap: 5px; padding: 2px 6px; border-radius: 20px; background: #fff; color: #263023; font-size: 12px; font-weight: 400; line-height: 1.6; white-space: nowrap; }
 #gpante-support .gpante-chat-status-icon { position: relative; display: block; flex: 0 0 14px; width: 14px; height: 14px; border: 2px solid #946600; border-radius: 50%; background: #f9d873; }
 #gpante-support .gpante-chat-status[data-state="connecting"] .gpante-chat-status-icon { border-inline-end-color: transparent; animation: gpante-chat-status-spin 1s linear infinite; }

@@ -40,7 +40,9 @@ with sync_playwright() as playwright:
                 page.set_viewport_size(dict(width=width,height=height))
                 baseline[width] = root.evaluate('''r=>{const p=r.querySelector('#gpante-support-panel'),n=r.querySelector('[data-new]'),hidden=n.hidden;p.hidden=false;n.hidden=false;
                   const h=r.querySelector('.gpante-chat-header').getBoundingClientRect().height,
-                    m=r.querySelector('[data-scroll]').getBoundingClientRect().height;p.hidden=true;n.hidden=hidden;return {header:h,messages:m};}''')
+                    m=r.querySelector('[data-scroll]').getBoundingClientRect().height,s=r.querySelector('[data-status]'),
+                    footer=r.querySelector('.gpante-chat-header').contains(s)?0:s.getBoundingClientRect().height;
+                  p.hidden=true;n.hidden=hidden;return {header:h,messages:m,footer};}''')
             page.set_viewport_size(dict(width=1440,height=1000))
             if args.candidate:
                 markup = subprocess.check_output(['php', str(repo/'scripts/render-widget.php')], text=True)
@@ -97,7 +99,7 @@ with sync_playwright() as playwright:
                 assert geometry['closeWidth'] >= 44 and geometry['titleTruncation'] == 'ellipsis', geometry
                 assert geometry['header'] <= baseline[width]['header'] + 1, (geometry,baseline[width])
                 if args.candidate and height > 520:
-                    assert geometry['messages'] >= baseline[width]['messages'] + 40, (geometry,baseline[width])
+                    assert geometry['messages'] >= baseline[width]['messages'] + baseline[width]['footer'] - 1, (geometry,baseline[width])
                 page.screenshot(path=str(args.evidence_dir/f'{engine}-ready-{width}.png'))
                 results.append(dict(engine=engine, version=browser.version, viewport=[width,height], **geometry))
 

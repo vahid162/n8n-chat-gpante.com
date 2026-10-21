@@ -372,6 +372,74 @@ function gpante_support_catalog_response( $items, $query, $per_page ) {
 }
 
 /**
+ * Validate the fixed public page or image path before URL normalization.
+ *
+ * @param mixed  $url Public URL.
+ * @param string $prefix Fixed allowed path prefix.
+ * @return bool
+ */
+function gpante_support_reply_url( $url, $prefix ) {
+	if ( ! is_string( $url ) || strlen( $url ) > 2048 || ! str_starts_with( $url, 'https://gpante.com/' . $prefix ) ) {
+		return false;
+	}
+	$path = rawurldecode( substr( $url, strlen( 'https://gpante.com' ) ) );
+	return ! preg_match( '/[\\\\\x00-\x20\x7f%?#]/', $path ) && ! str_contains( $path, '//' ) && ! preg_match( '~(?:^|/)\.{1,2}(?:/|$)~', $path );
+}
+
+/**
+ * Enrich reply links with current public product thumbnails; never fetch a URL.
+ *
+ * @param string $text Already bounded assistant reply.
+ * @param array  $cache Per-request lookups, including misses.
+ * @return array
+ */
+function gpante_support_reply_products( $text, &$cache ) {
+	$items = array();
+	if ( ! function_exists( 'wc_get_product' ) ) {
+		return $items;
+	}
+	preg_match_all( '~https://gpante\.com/product/[^\s<>()\[\]]+~u', $text, $matches );
+	foreach ( array_unique( $matches[0] ) as $address ) {
+		$address = preg_replace( '/[.,،؛]+$/u', '', $address );
+		if ( ! gpante_support_reply_url( $address, 'product/' ) ) {
+			continue;
+		}
+		if ( ! array_key_exists( $address, $cache ) ) {
+			if ( count( $cache ) >= 30 ) {
+				continue;
+			}
+			$cache[ $address ] = null;
+			try {
+				$id      = url_to_postid( $address );
+				$post    = $id ? get_post( $id ) : null;
+				$product = $post && 'product' === $post->post_type && 'publish' === $post->post_status && '' === $post->post_password ? wc_get_product( $id ) : false;
+				if ( ! $product || 'publish' !== $product->get_status() || 'variation' === $product->get_type()
+					|| ! in_array( $product->get_catalog_visibility(), array( 'visible', 'catalog', 'search' ), true )
+					|| rawurldecode( $address ) !== rawurldecode( get_permalink( $id ) ) ) {
+					continue;
+				}
+				$image = wp_get_attachment_image_url( $product->get_image_id(), 'thumbnail' );
+				if ( ! gpante_support_reply_url( $image, 'wp-content/uploads/' ) || ! preg_match( '/\.(?:jpe?g|png|webp|avif|gif)$/Di', $image ) ) {
+					continue;
+				}
+				$cache[ $address ] = array(
+					'url'       => $address,
+					'title'     => wp_html_excerpt( html_entity_decode( wp_strip_all_tags( get_the_title( $id ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), 200, '' ),
+					'thumbnail' => $image,
+				);
+			} catch ( Throwable $error ) {
+				// Optional presentation must not turn a valid reply into a failed send.
+				continue;
+			}
+		}
+		if ( is_array( $cache[ $address ] ) ) {
+			$items[] = $cache[ $address ];
+		}
+	}
+	return $items;
+}
+
+/**
  * Retrieve only eligible public WooCommerce products.
  *
  * @param WP_REST_Request $request Incoming request.

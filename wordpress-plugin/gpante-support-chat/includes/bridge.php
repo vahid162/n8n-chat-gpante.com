@@ -282,7 +282,8 @@ function gpante_support_chat( $request ) {
 	if ( ! gpante_support_valid_policy( $data['policy'] ?? null ) ) {
 		return gpante_support_failure( 502, 'invalid_policy' );
 	}
-	$policy = gpante_support_public_policy( $data['policy'] );
+	$policy   = gpante_support_public_policy( $data['policy'] );
+	$previews = array();
 	if ( 'resetSession' === $action && true === ( $data['ok'] ?? false ) ) {
 		return gpante_support_response(
 			array(
@@ -295,6 +296,7 @@ function gpante_support_chat( $request ) {
 		return gpante_support_response(
 			array(
 				'output'    => $data['output'],
+				'products'  => gpante_support_reply_products( $data['output'], $previews ),
 				'policy'    => $policy,
 				'expiresAt' => $data['expiresAt'],
 			)
@@ -310,6 +312,7 @@ function gpante_support_chat( $request ) {
 			$messages[] = array(
 				'role'      => $message['role'],
 				'content'   => $message['content'],
+				'products'  => 'assistant' === $message['role'] ? gpante_support_reply_products( $message['content'], $previews ) : array(),
 				'expiresAt' => $message['expiresAt'],
 			);
 		}

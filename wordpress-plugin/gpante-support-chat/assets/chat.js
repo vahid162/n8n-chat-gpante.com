@@ -94,70 +94,131 @@
     return rows.length ? { header, rows, next } : null;
   }
 
-  function appendTable(container, data) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'gpante-chat-table-wrap';
-    if (data.header.length > 2) {
-      wrapper.tabIndex = 0;
-      wrapper.setAttribute('role', 'region');
-      wrapper.setAttribute('aria-label', 'جدول مشخصات؛ برای دیدن ستون‌ها به طرفین پیمایش کنید');
-    }
-    const table = document.createElement('table');
-    table.className = 'gpante-chat-table';
-    const caption = document.createElement('caption');
-    caption.className = 'gpante-chat-sr-only';
-    caption.textContent = 'مشخصات و جزئیات';
-    table.append(caption);
-    const head = document.createElement('thead');
-    const body = document.createElement('tbody');
-    for (const [index, cells] of [data.header, ...data.rows].entries()) {
-      const row = document.createElement('tr');
-      for (const [column, value] of cells.entries()) {
-        const cell = document.createElement(index === 0 || column === 0 ? 'th' : 'td');
-        if (index === 0 || column === 0) cell.scope = index === 0 ? 'col' : 'row';
-        cell.setAttribute('dir', 'auto');
-        appendInline(cell, value);
-        row.append(cell);
-      }
-      (index === 0 ? head : body).append(row);
-    }
-    table.append(head, body);
-    wrapper.append(table);
-    container.append(wrapper);
+  function safeThumbnail(address) {
+    if (typeof address !== 'string' || address.length > 2048
+      || !/^https:\/\/gpante\.com\/wp-content\/uploads\/[^\s?#\\]+\.(?:jpe?g|png|webp|avif|gif)$/iu.test(address)) return false;
+    try {
+      const path = decodeURIComponent(address.slice('https://gpante.com'.length));
+      return !/[\\\x00-\x20\x7f%?#]/u.test(path) && !path.includes('//') && !/(?:^|\/)\.{1,2}(?:\/|$)/u.test(path);
+    } catch (_) { return false; }
   }
 
-  function appendContent(container, content) {
+  function navigationItems(text) {
+    const pattern = /\[[^\]\n]{1,300}\]\((https:\/\/[^\s)]+)\)|(https:\/\/[^\s<>()\[\]]+)/gu;
+    const items = [...text.matchAll(pattern)];
+    return items.length && !text.replace(pattern, '').trim() && items.every(item => safeLink(item[1] || item[2]))
+      ? items.map(item => item[0]) : null;
+  }
+
+  function replySections(content) {
     const lines = content.replace(/\r\n?/g, '\n').split('\n');
-    let buffer = [];
-    let rich = false;
+    const sections = [];
+    let blocks = [], buffer = [], grouped = false;
+    const finishSection = () => { if (blocks.length) sections.push(blocks); blocks = []; grouped = false; };
     const flush = () => {
       const text = buffer.join('\n').trim();
       buffer = [];
       if (!text) return;
-      const paragraph = document.createElement('p');
-      appendInline(paragraph, text);
-      container.append(paragraph);
+      if (!grouped) finishSection();
+      const navigation = navigationItems(text);
+      if (navigation) {
+        if (navigation.length > 1) finishSection();
+        for (const line of navigation) { blocks.push({type:'text',text:line}); finishSection(); }
+      } else blocks.push({type:'text',text});
     };
     for (let i = 0; i < lines.length;) {
+      const heading = lines[i].trim().match(/^(?:#{1,3}\s+(.+)|(?:[0-9۰-۹]+[.)]\s*)?\*\*([^*\n]{1,300})\*\*)$/u);
       const table = readTable(lines, i);
-      if (table) {
+      if (heading) {
+        flush();finishSection();
+        blocks.push({type:'heading',text:heading[1] || heading[2]});grouped = true;i++;
+      } else if (table) {
         flush();
-        appendTable(container, table);
-        rich = true;
-        i = table.next;
+        if (!grouped) finishSection();
+        blocks.push({type:'facts',data:table});grouped = true;i = table.next;
       } else {
-        if (lines[i].trim()) buffer.push(lines[i]);
-        else flush();
+        if (lines[i].trim()) buffer.push(lines[i]); else flush();
         i++;
       }
     }
+    flush();finishSection();
+    return sections;
+  }
+
+  function appendFacts(container, data) {
+    const list = document.createElement('ul');
+    list.className = 'gpante-chat-facts';
+    for (const cells of data.rows) {
+      const item = document.createElement('li');
+      const label = document.createElement('strong');
+      label.textContent = (cells.length > 2 ? data.header[0] + ': ' : '') + cells[0].replace(/\*\*/g, '') + ': ';
+      item.append(label);
+      appendInline(item, cells.length === 2 ? cells[1] : cells.slice(1).map((value, i) => data.header[i + 1] + ': ' + value).join(' / '));
+      list.append(item);
+    }
+    container.append(list);
+  }
+
+  function appendParagraph(container, text) {
+    let buffer = [], list = null;
+    const flush = () => {
+      if (!buffer.length) return;
+      const paragraph = document.createElement('p');
+      appendInline(paragraph, buffer.join('\n'));container.append(paragraph);buffer = [];
+    };
+    for (const line of text.split('\n')) {
+      const bullet = line.match(/^\s*(?:[-*•]|[0-9۰-۹]+[.)])\s+(.+)$/u);
+      if (bullet) {
+        flush();
+        if (!list) { list = document.createElement('ul');list.className = 'gpante-chat-facts';container.append(list); }
+        const item = document.createElement('li');appendInline(item, bullet[1]);list.append(item);
+      } else { list = null;buffer.push(line); }
+    }
     flush();
+  }
+
+  function appendContent(container, content, products = []) {
+    const previews = new Map();
+    for (const product of Array.isArray(products) ? products.slice(0,30) : []) {
+      if (safeLink(product?.url) && product.url.startsWith('https://gpante.com/product/')
+        && safeThumbnail(product.thumbnail) && typeof product.title === 'string' && product.title.trim() && product.title.length <= 300) previews.set(product.url, product);
+    }
+    let rich = false;
+    for (const blocks of replySections(content)) {
+      const text = blocks.map(block => block.text || block.data.rows.flat().join(' ')).join('\n');
+      const links = [...new Set([...text.matchAll(/https:\/\/[^\s<>()\[\]]+/gu)].map(match => match[0].replace(/[.,،؛]+$/u, '')).filter(safeLink))];
+      const product = links.length === 1 ? previews.get(links[0]) : null;
+      const heading = blocks.find(block => block.type === 'heading');
+      const section = document.createElement('div');
+      section.className = 'gpante-chat-segment';
+      if (product || heading || blocks.some(block => block.type === 'facts')) { section.className += ' gpante-chat-segment--card';rich = true; }
+      let subtitle;
+      if (product || heading) {
+        const header = document.createElement('div');header.className = 'gpante-chat-card-heading';
+        if (product) {
+          const image = document.createElement('img');
+          image.className = 'gpante-chat-thumbnail';image.src = product.thumbnail;image.alt = '';
+          image.width = image.height = 48;image.loading = 'lazy';image.decoding = 'async';image.referrerPolicy = 'no-referrer';
+          image.addEventListener('error', () => { image.hidden = true; });header.append(image);
+        }
+        const copy = document.createElement('div');copy.className = 'gpante-chat-card-copy';
+        const title = document.createElement('strong');title.className = 'gpante-chat-card-title';title.textContent = product?.title || heading.text;copy.append(title);
+        subtitle = blocks.find(block => block.type === 'text' && !/https:\/\/|^\s*(?:[-*•]|[0-9۰-۹]+[.)])\s/u.test(block.text));
+        if (subtitle) appendParagraph(copy, subtitle.text);
+        header.append(copy);section.append(header);
+      }
+      for (const block of blocks) {
+        if (block === subtitle || block.type === 'heading') continue;
+        if (block.type === 'facts') appendFacts(section, block.data); else appendParagraph(section, block.text);
+      }
+      container.append(section);
+    }
     return rich;
   }
 
   // The same rendering functions are exercised by the dependency-free Node checks.
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { safeLink, appendContent, shortcutUrl };
+    module.exports = { safeLink, safeThumbnail, appendContent, shortcutUrl };
     return;
   }
 
@@ -290,7 +351,7 @@
     if (!action && requestHadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
   }
 
-  function addMessage(role, text, scroll = true, expiresAt) {
+  function addMessage(role, text, scroll = true, expiresAt, products) {
     const item = document.createElement('div');
     item.dataset.role = role;
     if (expiresAt) item.dataset.expiresAt = expiresAt;
@@ -300,7 +361,7 @@
     const body = document.createElement('div');
     if (role === 'assistant') {
       body.className = 'gpante-chat-reply';
-      if (appendContent(body, text)) item.className += ' gpante-chat-message--rich';
+      if (appendContent(body, text, products)) item.className += ' gpante-chat-message--rich';
     }
     else body.textContent = text;
     item.append(label, body);
@@ -423,7 +484,7 @@
       const data = await api('loadPreviousSession');
       messages.replaceChildren();
       if (data.messages.length) {
-        data.messages.forEach(message => addMessage(message.role, message.content, false, message.expiresAt));
+        data.messages.forEach(message => addMessage(message.role, message.content, false, message.expiresAt, message.products));
         scrollArea.scrollTop = scrollArea.scrollHeight;
       }
       else welcome();
@@ -489,7 +550,7 @@
     try {
       const data = await api('sendMessage', text);
       item.dataset.expiresAt = data.expiresAt;
-      addMessage('assistant', data.output, true, data.expiresAt);
+      addMessage('assistant', data.output, true, data.expiresAt, data.products);
       failed = null;
       showNotice();
     } catch (error) {

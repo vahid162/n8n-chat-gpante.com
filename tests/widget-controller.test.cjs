@@ -262,7 +262,7 @@ test('reconnecting during a pending reply waits for that response without dispat
   assert.equal(widget.requests.filter(r=>r.body.action==='sendMessage').length,1);
 });
 
-test('restored assistant details render as a table and buttons while user Markdown stays plain text', async () => {
+test('restored assistant details render as list bubbles and buttons while user Markdown stays plain text', async () => {
   const widget = createWidget();
   const content = '**محصول**\n\n| ویژگی | مشخصات |\n| --- | --- |\n| قیمت | رایگان |\n| فرمت | DXF |\n\n[مشاهدهٔ محصول](https://gpante.com/product/a/)';
   await widget.open([{role:'user',content},{role:'assistant',content}]);
@@ -271,7 +271,8 @@ test('restored assistant details render as a table and buttons while user Markdo
   assert.equal(user.children[1].children.length, 0);
   assert(assistant.className.includes('gpante-chat-message--rich'));
   const descendants = element => [element, ...element.children.flatMap(descendants)];
-  assert.equal(descendants(assistant).filter(element => element.tagName === 'table').length, 1);
+  assert.equal(descendants(assistant).filter(element => element.tagName === 'table').length, 0);
+  assert.equal(descendants(assistant).filter(element => element.tagName === 'li').length, 2);
   const link = descendants(assistant).find(element => element.tagName === 'a');
   assert.equal(link.href, 'https://gpante.com/product/a/');
   assert.equal(link.className, 'gpante-chat-link');
@@ -865,4 +866,17 @@ test('failed history refresh preserves unexpired messages but still removes know
   assert([...widget.timers.values()].every(t=>t.delay<=2147483647),'a 30-day deadline must not overflow browser timeouts into an immediate loop');
   widget.click('close');await tick();
   assert.equal(widget.timers.size,0);
+});
+
+
+test('fresh and restored assistant products receive the same thumbnails while user text remains plain', async () => {
+  const widget=createWidget();
+  const content='**طرح باکس**\nتوضیح کوتاه\n\n[مشاهده](https://gpante.com/product/a/)';
+  const products=[{url:'https://gpante.com/product/a/',title:'عنوان واقعی',thumbnail:'https://gpante.com/wp-content/uploads/a-150x150.webp'}];
+  const descendants=e=>[e,...e.children.flatMap(descendants)];
+  await widget.open([{role:'user',content,products},{role:'assistant',content,products}]);
+  assert.equal(descendants(widget.elements.messages.children[0]).filter(e=>e.tagName==='img').length,0);
+  assert.equal(descendants(widget.elements.messages.children[1]).filter(e=>e.tagName==='img').length,1);
+  widget.type('دیگری');widget.submit();await widget.respond(1,{output:content,products});
+  assert.equal(descendants(widget.elements.messages.children.at(-1)).filter(e=>e.tagName==='img').length,1);
 });

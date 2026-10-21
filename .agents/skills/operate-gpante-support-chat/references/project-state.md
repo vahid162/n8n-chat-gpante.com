@@ -9,7 +9,7 @@
 | افزونهٔ نصب‌شدهٔ WordPress | **0.6.2**؛ [انتشار رسمی](https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.6.2) |
 | قرارداد افزونه | `wordpress-plugin/gpante-support-chat/`؛ schema اتصال ۲، schema مستقل ظاهر ۲، REST v1 و policy contract ۲ |
 | منابع workflow | Main نسخهٔ 1.3.0 منتشر و فعال؛ Admin و Retention نسخهٔ 1.2.0؛ `src/` و خروجی قطعی `scripts/build-workflow.cjs` |
-| مهارت canonical | همین پوشه؛ **0.8.2**؛ نسخهٔ مهارت از افزونه و workflow مستقل است |
+| مهارت canonical | همین پوشه؛ **0.9.0**؛ نسخهٔ مهارت از افزونه و workflow مستقل است |
 | راهنما | [آرشیو و ارتقا](../../../../docs/conversation-archive.md)، [گزارش تولید](../../../../docs/production-readiness.md) |
 
 نسخهٔ نمایش پاسخ 0.5.0 از Release رسمی نصب و Main 1.2.3 پس از آن منتشر شد. همهٔ فایل‌ها، تنظیمات و گراف با منبع تطبیق داده شدند؛ آزمون مرورگرِ نصب‌شده و یک پرسش واقعی، جدول و دکمهٔ مطابق کاتالوگ و بازیابی پس از reload را تأیید کردند. [شواهد و حدود](../../../../specs/009-friendly-replies/verification.md).
@@ -97,3 +97,8 @@ Release رسمی 0.6.0 پس از موفقیت CI و ادغام PR 26 نصب شد
 نشان ثابت Online/Connecting/Disconnected کنار عنوان، فعالیت پاسخ/پاک‌کردن و اعلان‌ها داخل scroll area هستند؛ نوار ثابت پایین حذف و ارتفاع سربرگ و ابعاد پنجره حفظ شده‌اند. اتصال مجدد فقط history/policy است و ارسال/پاک‌کردن نمی‌کند. نتیجهٔ ارسال نامعلوم ابتدا تاریخچه را می‌خواند و پیش از retry صریح، احتمال درخواست تازه توضیح داده می‌شود؛ از شباهت متن، تأیید ساختگی یا تضمین idempotency ساخته نمی‌شود. شکست refresh پیام‌ها و draft را نگه می‌دارد و انقضای شناخته‌شده حتی بدون policy معتبر ادامه دارد؛ مهلت ۳۰روزه به محدودیت timer مرورگر برخورد نمی‌کند. 429 و بودجهٔ ماهانه/بازبینی سرویس از قطع اتصال جدا هستند و جزئیات provider عبور نمی‌کنند.
 
 Release رسمی 0.6.2 با commit/tag، checksum و هر ۱۲ فایل نصب‌شده برابر است. کل runtime/ظاهر، کلیدها، enabled، سیاست/revision، قالب و افزونه‌های فعال حفظ شدند؛ کش فقط همین سایت پاک شد. هر ۲۵ workflow، Main 1.3.0 و SQL ثابت و Retention طبیعی موفق است. ۸۰ آزمون Node، PHP settings/appearance/bridge و ۲۴ بررسی query، WPCS، پنج تست Python بسته/انتشار و CI/SQL موفق‌اند. Chromium/Firefox روی نامزد و سپس فایل نصب‌شده، چهار اندازه، offline/reconnect، retry و reduced-motion را با صفر پیام واقعی/تماس مدل و صفر خطای runtime تأیید کردند. یک Chrome تازه، تاریخچه/سیاست واقعی را بدون mock/send خواند و Online و ورودی فعال را تأیید کرد؛ شمار تماس مدل قبل/بعد ثابت ماند. [سناریو و شواهد](../../../../specs/012-header-connection-status/verification.md).
+
+
+## حباب و تصویر 0.7.0 — نامزد آمادهٔ انتشار
+
+رابط، هر پیشنهاد/بخش مستقل را در حباب جدا و ویژگی‌ها را در فهرست خطی نمایش می‌دهد؛ جدول‌های قدیمی هنگام render تبدیل می‌شوند و متن ذخیره‌شده تغییر نمی‌کند. bridge فیلد افزایشی products را برای send و assistant history از محصول عمومی و thumbnail واقعی وردپرس می‌سازد؛ metadata مدل/backend پذیرفته نمی‌شود. image/URL/eligibility، cache/bounds، renderer و send/history آزموده شده‌اند. پنج thumbnail واقعی در WP-CLI/PHP 8.3 و نامزد Chromium/Firefox در چهار اندازه، تصویر ۴۸×۴۸ راست عنوان، حباب مستقل، Tab/reload و عکس خراب را تأیید کردند؛ chat مصنوعی/intercept و تماس مدل صفر بود. نصب‌شده در این نقطه هنوز 0.6.2 است؛ Release و نصب جدا تأیید می‌شوند. هیچ n8n/SQL/schema یا تنظیم تولید تغییر نکرده است. [سناریو و شواهد](../../../../specs/013-reply-bubbles-previews/verification.md).

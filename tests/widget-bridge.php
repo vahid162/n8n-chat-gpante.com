@@ -39,6 +39,14 @@ define('GPANTE_SUPPORT_BACKEND', 'https://n8n.gpantex.com/webhook/gpante-ai-supp
 define('GPANTE_SUPPORT_COOKIE', '__Host-gpante_support');
 function home_url($path = '') { return 'https://gpante.com/'; }
 function wp_parse_url($url) { return parse_url($url); }
+function url_to_postid($url) { return $url==='https://gpante.com/product/a/'?1:0; }
+function get_post($id) { return (object)array('post_type'=>'product','post_status'=>'publish','post_password'=>''); }
+function get_permalink($id) { return 'https://gpante.com/product/a/'; }
+function get_the_title($id) { return 'Public product'; }
+function wp_strip_all_tags($v) { return strip_tags($v); }
+function wp_html_excerpt($v,$n,$more) { return $v; }
+function wp_get_attachment_image_url($id,$size) { return 'https://gpante.com/wp-content/uploads/a.jpg'; }
+function wc_get_product($id) { return new class { public function get_status(){return 'publish';} public function get_type(){return 'simple';} public function get_catalog_visibility(){return 'visible';} public function get_image_id(){return 1;} }; }
 require __DIR__ . '/../wordpress-plugin/gpante-support-chat/includes/bridge.php';
 function check($condition, $message) { if (!$condition) throw new RuntimeException($message); }
 function request($payload, $headers = array()) {
@@ -104,6 +112,13 @@ request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));
 check(json_decode(end($outbound)[1]['body'], true)['sessionId'] !== $first_session, 'separate signed cookies stay isolated');
 $remote_result = array('status' => 200, 'body' => '{"messages":[{"role":"user","content":"سلام"},{"role":"assistant","content":"درود"}]}');
 check(count(request(array('action' => 'loadPreviousSession'))->get_data()['messages']) === 2, 'history crosses bridge with allowed roles only');
+$remote_result = array('status'=>200,'body'=>json_encode(array('messages'=>array(array('role'=>'user','content'=>'https://gpante.com/product/a/'),array('role'=>'assistant','content'=>'[Product](https://gpante.com/product/a/)')))));
+$rendered=request(array('action'=>'loadPreviousSession'))->get_data()['messages'];
+check($rendered[0]['products']===array() && count($rendered[1]['products'])===1, 'only assistant history receives trusted product previews');
+$remote_result = array('status'=>200,'body'=>json_encode(array('output'=>'[Product](https://gpante.com/product/a/)')));
+check(count(request(array('action'=>'sendMessage','chatInput'=>'test'))->get_data()['products'])===1, 'fresh replies receive the same preview contract');
+$remote_result = array('status'=>200,'body'=>json_encode(array('output'=>'Plain reply','products'=>array(array('thumbnail'=>'https://evil.example/private.jpg')))));
+check(request(array('action'=>'sendMessage','chatInput'=>'test'))->get_data()['products']===array(), 'backend-supplied preview metadata is discarded and rebuilt locally');
 $remote_result = array('status' => 200, 'body' => '{"messages":[{"role":"system","content":"internal"}]}');
 check(request(array('action' => 'loadPreviousSession'))->get_status() === 502, 'internal message roles cannot cross bridge');
 $remote_result = array('status' => 200, 'body' => '{"ok":true}');

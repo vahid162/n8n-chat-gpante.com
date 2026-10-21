@@ -98,8 +98,8 @@ function prepare(kind, rawQuery) {
   }
   if (kind === 'knowledge') {
     const source = query.source === undefined ? 'articles' : inputText(query.source, 'source');
-    if (!['articles', 'guides'].includes(source)) throw new Error('Unsupported knowledge source.');
-    if (source === 'guides' && context.categoryId !== undefined) throw new Error('Guides do not support article categories.');
+    if (!['articles', 'guides', 'faq'].includes(source)) throw new Error('Unsupported knowledge source.');
+    if (source !== 'articles' && context.categoryId !== undefined) throw new Error('Only articles support article categories.');
     context.source = source;
     qs.source = source;
     if (query.search !== undefined) qs.search = searchText(query.search);
@@ -148,6 +148,7 @@ function publicText(value, limit) {
 
 function safeLink(value, mode) {
   if (typeof value !== 'string' || value.length > 2048) return null;
+  if (mode === 'faq') return !/\s/.test(value) && /^https:\/\/gpante\.com\/faq-ai\/(?:#faq-[a-z0-9][a-z0-9-]{0,79})?$/.test(value) ? value : null;
   try {
     // Fixed-origin parsing avoids relying on URL globals absent in some Code runtimes.
     const match = /^https:\/\/gpante\.com(\/[^?#]*)$/.exec(value);
@@ -230,7 +231,28 @@ function publicProduct(item, context) {
     onSale: typeof item.on_sale === 'boolean' ? item.on_sale : null };
 }
 
+function publicFAQ(item) {
+  if (!plainObject(item) || item.page_id !== 51415 || item.status !== 'publish' || item.is_password_protected !== false
+    || typeof item.id !== 'string' || /\s/.test(item.id) || !/^(?:faq-[a-z0-9][a-z0-9-]{0,79}|elementor-[a-zA-Z0-9_-]{1,64})$/.test(item.id)
+    || !safeLink(item.link, 'faq') || item.link !== 'https://gpante.com/faq-ai/' + (item.id.startsWith('faq-') ? '#' + item.id : '')
+    || !plainObject(item.title) || typeof item.title.rendered !== 'string' || item.title.protected === true
+    || !plainObject(item.content) || typeof item.content.rendered !== 'string' || item.content.protected !== false
+    || typeof item.content.truncated !== 'boolean' || !Array.isArray(item.links) || item.links.length > 3) throw new Error('Invalid public FAQ.');
+  const title = publicText(item.title.rendered, 300);
+  const excerpt = publicText(item.content.rendered, 2400);
+  if (!title.text || !excerpt.text) throw new Error('Empty FAQ.');
+  const links = item.links.map(link => {
+    if (!plainObject(link) || typeof link.title !== 'string' || typeof link.url !== 'string' || link.url.length > 512
+      || !(link.url === 'https://t.me/gpante_designer' || safeLink(link.url, 'page') || safeLink(link.url, 'faq'))
+      || /^https:\/\/gpante\.com\/(?:my-account|checkout|cart|download|downloads|wc-api|wp-includes|wp-signup\.php|xmlrpc\.php)(?:\/|$)/i.test(link.url)) throw new Error('Invalid FAQ reference.');
+    return { title: publicText(link.title, 100).text || 'مشاهدهٔ صفحه', url: link.url };
+  });
+  return { id: item.id, pageId: 51415, kind: 'faq', title: title.text, url: item.link, excerpt: excerpt.text,
+    categoryIds: [], links, truncated: title.truncated || excerpt.truncated || item.content.truncated };
+}
+
 function publicArticle(item, context) {
+  if (context.source === 'faq') return publicFAQ(item);
   const snippet = item && (context.source === 'guides' ? item.content : item.excerpt);
   if (!plainObject(item) || !Number.isSafeInteger(item.id) || item.id < 1 || !safeLink(item.link, 'page')
     || item.status !== 'publish' || item.is_password_protected !== false

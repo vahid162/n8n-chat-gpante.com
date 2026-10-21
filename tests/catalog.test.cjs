@@ -266,6 +266,50 @@ test('knowledge requires explicit public non-password metadata', () => {
   assert.equal(shape(context, response([{ ...item, status: undefined }])).status, 'invalid_response');
 });
 
+function faq(overrides = {}) {
+  return { id: 'faq-format-cdr', page_id: 51415, status: 'publish', is_password_protected: false,
+    link: 'https://gpante.com/faq-ai/#faq-format-cdr', title: { rendered: 'فرمت CDR چیست؟' },
+    content: { rendered: 'CDR فرمت CorelDRAW است.', protected: false, truncated: false },
+    links: [{ title: 'پشتیبانی', url: 'https://gpante.com/contact-us/' }, { title: 'تلگرام طراحی', url: 'https://t.me/gpante_designer' }], ...overrides };
+}
+
+test('FAQ is a separate fixed knowledge source with no arbitrary page or article category', () => {
+  const request = prepare('knowledge', { source: 'faq', search: 'شیار', page: 2 });
+  assert.equal(request.url, 'https://gpante.com/wp-json/gpante-support/v1/knowledge');
+  assert.deepEqual(request.qs, { source: 'faq', search: 'شیار', page: 2 });
+  assert.throws(() => prepare('knowledge', { source: 'faq', categoryId: 1 }));
+  assert.throws(() => prepare('knowledge', { source: 'faq', pageId: 1 }));
+  assert.throws(() => prepare('knowledge', { source: 'faq', url: 'https://evil.example/' }));
+});
+
+test('FAQ returns paired questions, source anchors, verified support references and bounded answer status', () => {
+  const context = prepare('knowledge', { source: 'faq' }).context;
+  const result = shape(context, response([faq()]));
+  assert.equal(result.ok, true); assert.equal(result.source, 'faq');
+  assert.equal(result.results[0].url, 'https://gpante.com/faq-ai/#faq-format-cdr');
+  assert.equal(result.results[0].links[1].url, 'https://t.me/gpante_designer');
+  assert.equal(result.results[0].truncated, false);
+  const fresh = shape(context, response([faq({ id: 'elementor-new-question', link: 'https://gpante.com/faq-ai/' })]));
+  assert.equal(fresh.ok, true);
+  const long = shape(context, response([faq({ content: { rendered: 'متن'.repeat(1200), protected: false, truncated: true } })]));
+  assert.equal(long.results[0].excerpt.length, 2400); assert.equal(long.results[0].truncated, true);
+});
+
+test('FAQ rejects unpublished pages, mismatched question anchors, duplicate IDs and unsafe references', () => {
+  const context = prepare('knowledge', { source: 'faq' }).context;
+  for (const override of [{ page_id: 1 }, { status: 'private' }, { is_password_protected: true },
+    { id: 'faq-format-cdr\n' }, { link: 'https://gpante.com/faq-ai/#faq-other' }, { link: 'https://gpante.com/faq-ai/#faq-format-cdr\n' },
+    { link: 'https://gpante.com/faq-ai/?x=1#faq-format-cdr' }, { title: { rendered: '' } },
+    { content: { rendered: 'متن', protected: true, truncated: false } }]) {
+    assert.equal(shape(context, response([faq(override)])).status, 'invalid_response');
+  }
+  for (const url of ['https://t.me/gpante_designer.evil','https://t.me/gpante_designer?x=1',
+    'https://gpante.com/wp-json/users/','https://gpante.com/wp-includes/example/','https://gpante.com/my-account/']) {
+    assert.equal(shape(context, response([faq({ links: [{ title: 'نامعتبر', url }] })])).status, 'invalid_response');
+  }
+  assert.equal(shape(context, response([faq(), faq()])).status, 'invalid_response');
+});
+
 test('discovery supports explicit catalog browsing, real categories and article categories', () => {
   for (const sort of ['newest', 'best_selling']) {
     assert.equal(prepare('search', { sort }).qs.sort, sort);

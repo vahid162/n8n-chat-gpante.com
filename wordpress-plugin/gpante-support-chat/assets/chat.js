@@ -2,6 +2,7 @@
   'use strict';
 
   function safeLink(address) {
+    if (address === 'https://t.me/gpante_designer' || typeof address === 'string' && !/\s/.test(address) && /^https:\/\/gpante\.com\/faq-ai\/#faq-[a-z0-9][a-z0-9-]{0,79}$/.test(address)) return true;
     if (typeof address !== 'string' || !/^https:\/\/gpante\.com\/[^\s?#\\]*$/u.test(address)) return false;
     try {
       // Validate before URL normalization, which would hide traversal segments.

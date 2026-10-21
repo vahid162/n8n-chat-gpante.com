@@ -2,6 +2,12 @@
 
 تغییرات قابل استفادهٔ افزونهٔ WordPress در این فایل ثبت می‌شوند. نسخهٔ افزونه از workflow و مهارت مستقل است؛ [سیاست انتشار](docs/wordpress-releases.md).
 
+## [0.5.2] - 2026-10-21
+
+### Fixed
+- چیدمان یکدست لینک‌های پاسخ زیر هم و تمام‌عرض، مستقل از تعداد لینک در پاراگراف؛ حذف وزن ضخیم متن دکمه‌ها.
+- کاهش فاصلهٔ پیام‌ها، پاراگراف‌ها و ردیف‌های جدول، با حفظ قلم خوانا، اندازهٔ لمس دکمه، محتوا و ابعاد پنجره.
+
 ## [0.5.1] - 2026-10-21
 
 ### Fixed
@@ -94,3 +100,5 @@
 [0.4.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.4.1
 
 [0.5.1]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.5.1
+
+[0.5.2]: https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.5.2

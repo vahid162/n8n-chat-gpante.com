@@ -100,44 +100,44 @@
 #gpante-support .gpante-chat-message {
   width: fit-content;
   max-width: 88%;
-  padding: 10px 13px;
-  margin: 0 0 10px;
+  padding: 8px 11px;
+  margin: 0 0 8px;
   border: 0;
   background: var(--gpante-assistant);
   box-shadow: 0 1px 3px #0000000d;
 }
-#gpante-support .gpante-chat-message > small { display: block; margin-bottom: 4px; color: inherit; font-size: 10px; line-height: 1.5; }
+#gpante-support .gpante-chat-message > small { display: block; margin-bottom: 2px; color: inherit; font-size: 10px; line-height: 1.5; }
 #gpante-support .gpante-chat-message > div { white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
 #gpante-support .gpante-chat-message--user { margin-left: auto; margin-right: 0; background: var(--gpante-user); border-radius: 16px 16px 4px 16px; }
 #gpante-support .gpante-chat-message--assistant { margin-right: auto; margin-left: 0; border-radius: 16px 16px 16px 4px; }
 #gpante-support .gpante-chat-message--welcome { width: 100%; max-width: none; margin-left: 0; margin-right: 0; padding: 14px; border-radius: 16px; }
 #gpante-support .gpante-chat-message--rich { width: 100%; max-width: 100%; }
-#gpante-support .gpante-chat-reply { white-space: normal; min-width: 0; }
-#gpante-support .gpante-chat-reply p { margin: 0 0 10px; color: inherit; white-space: pre-wrap; }
+#gpante-support .gpante-chat-message > .gpante-chat-reply { white-space: normal; min-width: 0; line-height: 1.7; }
+#gpante-support .gpante-chat-reply p { margin: 0 0 6px; color: inherit; white-space: pre-line; }
 #gpante-support .gpante-chat-reply > :last-child { margin-bottom: 0; }
 #gpante-support .gpante-chat-reply strong { color: inherit; font-weight: 700; }
 #gpante-support .gpante-chat-message a.gpante-chat-link {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   min-height: 44px;
+  width: 100%;
   max-width: 100%;
   margin-block: 4px;
-  padding: 9px 14px;
+  padding: 6px 10px;
   border: 1px solid var(--gpante-primary);
   border-radius: 12px;
   background: var(--gpante-primary);
   color: var(--gpante-on-primary);
   text-decoration: none;
   text-align: center;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.6;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 #gpante-support .gpante-chat-message a.gpante-chat-link:hover { text-decoration: none; box-shadow: 0 2px 8px #00000018; }
-#gpante-support .gpante-chat-reply p > a.gpante-chat-link:only-child { display: flex; width: 100%; }
-#gpante-support .gpante-chat-table-wrap { max-width: 100%; margin: 10px 0; overflow-x: auto; border: 1px solid var(--gpante-border); border-radius: 12px; }
+#gpante-support .gpante-chat-table-wrap { max-width: 100%; margin: 6px 0; overflow-x: auto; border: 1px solid var(--gpante-border); border-radius: 12px; }
 #gpante-support .gpante-chat-table {
   width: 100%;
   table-layout: fixed;
@@ -147,11 +147,11 @@
   border-spacing: 0;
   color: var(--gpante-text);
   font-size: 13px;
-  line-height: 1.8;
+  line-height: 1.6;
 }
 #gpante-support .gpante-chat-table caption { color: inherit; }
 #gpante-support .gpante-chat-table th, #gpante-support .gpante-chat-table td {
-  padding: 9px 10px;
+  padding: 6px 8px;
   border: 0;
   border-bottom: 1px solid var(--gpante-border);
   vertical-align: top;
@@ -269,6 +269,7 @@
   background: var(--gpante-surface);
   color: var(--gpante-text);
   font-size: 12px;
+  font-weight: 400;
   line-height: 1.7;
   text-align: center;
   text-decoration: none;
@@ -356,10 +357,13 @@
   function appendInline(container, content) {
     const pattern = /\[([^\]\n]{1,300})\]\((https:\/\/[^\s)]+)\)|https:\/\/[^\s<>()\[\]]+/gu;
     let end = 0;
+    let previousLink = false;
     for (const match of content.matchAll(pattern)) {
-      appendText(container, content.slice(end, match.index));
       const address = match[2] || match[0].replace(/[.,،؛]+$/u, '');
-      if (safeLink(address)) {
+      const allowed = safeLink(address);
+      const between = content.slice(end, match.index);
+      if (!previousLink || !allowed || between.trim()) appendText(container, between);
+      if (allowed) {
         const link = document.createElement('a');
         link.href = address;
         link.className = 'gpante-chat-link';
@@ -372,6 +376,7 @@
       } else {
         container.append(document.createTextNode(match[0]));
       }
+      previousLink = allowed;
       end = match.index + match[0].length;
     }
     appendText(container, content.slice(end));

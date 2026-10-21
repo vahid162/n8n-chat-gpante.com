@@ -39,10 +39,13 @@
   function appendInline(container, content) {
     const pattern = /\[([^\]\n]{1,300})\]\((https:\/\/[^\s)]+)\)|https:\/\/[^\s<>()\[\]]+/gu;
     let end = 0;
+    let previousLink = false;
     for (const match of content.matchAll(pattern)) {
-      appendText(container, content.slice(end, match.index));
       const address = match[2] || match[0].replace(/[.,،؛]+$/u, '');
-      if (safeLink(address)) {
+      const allowed = safeLink(address);
+      const between = content.slice(end, match.index);
+      if (!previousLink || !allowed || between.trim()) appendText(container, between);
+      if (allowed) {
         const link = document.createElement('a');
         link.href = address;
         link.className = 'gpante-chat-link';
@@ -55,6 +58,7 @@
       } else {
         container.append(document.createTextNode(match[0]));
       }
+      previousLink = allowed;
       end = match.index + match[0].length;
     }
     appendText(container, content.slice(end));

@@ -47,6 +47,23 @@ test('assistant content stays text except independently validated button links',
   delete global.document;
 });
 
+test('consecutive navigation buttons omit blank separator lines without losing prose or unsafe-link text', () => {
+  global.document = {createTextNode:value=>node('#text',value),createElement:tag=>node(tag)};
+  try {
+    const target = node('div');
+    appendContent(target, '[محصول](https://gpante.com/product/a/) \n [مقاله](https://gpante.com/article/)\nhttps://gpante.com/guide/');
+    const children = target.children[0].children;
+    assert.equal(children.filter(n=>n.type==='a').length,3);
+    assert.equal(children.some(n=>n.type==='#text'&&n.textContent.length>0&&!n.textContent.trim()),false);
+    for (const value of ['https://evil.example/ https://other.example/', '[نامعتبر](https://gpante.com/wp-content/paid.zip) متن باقی‌مانده']) {
+      const plain=node('div');appendContent(plain,value);assert.equal(text(plain),value);
+    }
+    const prose=node('div');
+    appendContent(prose,'[محصول](https://gpante.com/product/a/)\nتوضیح مفید\n[مقاله](https://gpante.com/article/)');
+    assert(text(prose).includes('\nتوضیح مفید\n'));
+  } finally {delete global.document;}
+});
+
 test('known details become an accessible table without executing HTML, while links stay allowlisted', () => {
   global.document = { createTextNode: value => node('#text', value), createElement: tag => node(tag) };
   try {

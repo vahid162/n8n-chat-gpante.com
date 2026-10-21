@@ -78,9 +78,11 @@
 	background: var(--gpante-primary);
 	color: var(--gpante-on-primary);
 }
-#gpante-support .gpante-chat-header strong { display: block; font-size: 17px; color: inherit; }
-#gpante-support .gpante-chat-header span { display: block; font-size: 12px; }
-#gpante-support .gpante-chat-header button { min-width: 44px; padding: 0; font-size: 27px; background: transparent; }
+#gpante-support .gpante-chat-heading { flex: 1; min-width: 0; }
+#gpante-support .gpante-chat-title-row { display: flex; align-items: center; gap: 8px; }
+#gpante-support [data-title] { display: block; flex: 1; min-width: 0; font-size: 17px; line-height: 1.8; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gpante-support [data-subtitle] { display: block; font-size: 12px; line-height: 1.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#gpante-support .gpante-chat-header button { flex: 0 0 44px; min-width: 44px; padding: 0; font-size: 27px; background: transparent; }
 #gpante-support .gpante-chat-toolbar { padding: 4px 12px; }
 #gpante-support .gpante-chat-toolbar button { background: transparent; color: var(--gpante-text); font-size: 11px; padding: 6px 10px; border-radius: 20px; }
 #gpante-support .gpante-chat-confirm { padding: 10px 16px; background: var(--gpante-surface); font-size: 12px; }
@@ -168,25 +170,22 @@
 #gpante-support .gpante-chat-table tbody th { font-weight: 600; }
 #gpante-support .gpante-chat-table tbody tr:last-child > * { border-bottom: 0; }
 #gpante-support .gpante-chat-table-wrap[tabindex] .gpante-chat-table { min-width: 460px; }
-#gpante-support .gpante-chat-status { display: flex; align-items: flex-start; gap: 9px; min-height: 50px; flex-shrink: 0; padding: 9px 14px; border-top: 1px solid var(--gpante-border); background: var(--gpante-surface); color: var(--gpante-text); font-size: 12px; line-height: 1.7; }
-#gpante-support .gpante-chat-status-copy { min-width: 0; overflow-wrap: anywhere; }
-#gpante-support .gpante-chat-status-copy strong { display: block; color: inherit; font-size: 12px; font-weight: 600; }
-#gpante-support .gpante-chat-status-copy > span { display: block; color: inherit; font-size: 12px; }
-#gpante-support .gpante-chat-status-icon { position: relative; display: block; flex: 0 0 18px; width: 18px; height: 18px; margin-top: 2px; border: 2px solid currentColor; border-radius: 50%; }
-#gpante-support .gpante-chat-status[data-state="connecting"] .gpante-chat-status-icon,
-#gpante-support .gpante-chat-status[data-state="refreshing"] .gpante-chat-status-icon,
-#gpante-support .gpante-chat-status[data-state="waiting"] .gpante-chat-status-icon,
-#gpante-support .gpante-chat-status[data-state="clearing"] .gpante-chat-status-icon { border-inline-end-color: transparent; border-bottom-color: transparent; animation: gpante-chat-status-spin .8s linear infinite; }
+#gpante-support .gpante-chat-status { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 110px; gap: 5px; padding: 2px 6px; border-radius: 20px; background: #fff; color: #263023; font-size: 12px; font-weight: 400; line-height: 1.6; white-space: nowrap; }
+#gpante-support .gpante-chat-status-icon { position: relative; display: block; flex: 0 0 14px; width: 14px; height: 14px; border: 2px solid #946600; border-radius: 50%; background: #f9d873; }
+#gpante-support .gpante-chat-status[data-state="connecting"] .gpante-chat-status-icon { border-inline-end-color: transparent; animation: gpante-chat-status-spin 1s linear infinite; }
 #gpante-support .gpante-chat-status[data-state="ready"] .gpante-chat-status-icon { background: #176f42; border-color: #176f42; }
-#gpante-support .gpante-chat-status[data-state="ready"] .gpante-chat-status-icon::after { content: ''; position: absolute; width: 5px; height: 9px; top: 0; left: 5px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-#gpante-support .gpante-chat-status[data-state="error"] .gpante-chat-status-icon::after,
-#gpante-support .gpante-chat-status[data-state="notice"] .gpante-chat-status-icon::after,
-#gpante-support .gpante-chat-status[data-state="offline"] .gpante-chat-status-icon::after { content: ''; position: absolute; width: 2px; height: 2px; top: 10px; left: 6px; background: currentColor; }
-#gpante-support .gpante-chat-status[data-state="error"] .gpante-chat-status-icon::before,
-#gpante-support .gpante-chat-status[data-state="notice"] .gpante-chat-status-icon::before,
-#gpante-support .gpante-chat-status[data-state="offline"] .gpante-chat-status-icon::before { content: ''; position: absolute; width: 2px; height: 6px; top: 2px; left: 6px; background: currentColor; }
+#gpante-support .gpante-chat-status[data-state="ready"] .gpante-chat-status-icon::after { content: ''; position: absolute; width: 4px; height: 7px; top: 0; left: 3px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+#gpante-support .gpante-chat-status[data-state="offline"] .gpante-chat-status-icon { background: #c43030; border-color: #c43030; }
+#gpante-support .gpante-chat-notice { margin-block: 8px; padding: 10px 12px; border: 1px solid var(--gpante-border); border-radius: 12px; color: var(--gpante-text); background: var(--gpante-surface); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+#gpante-support .gpante-chat-notice p { margin: 0; color: inherit; font-size: inherit; }
+#gpante-support .gpante-chat-notice button { margin-block-start: 8px; font-size: 12px; font-weight: 400; }
+#gpante-support .gpante-chat-activity { display: flex; align-items: center; gap: 8px; padding: 8px 2px; color: var(--gpante-text); font-size: 12px; line-height: 1.8; }
+#gpante-support .gpante-chat-dots { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+#gpante-support .gpante-chat-dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: gpante-chat-pulse 1.2s ease-in-out infinite; }
+#gpante-support .gpante-chat-dots i:nth-child(2) { animation-delay: .15s; }
+#gpante-support .gpante-chat-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes gpante-chat-pulse { 50% { opacity: .25; } }
 @keyframes gpante-chat-status-spin { to { transform: rotate(360deg); } }
-#gpante-support .gpante-chat-retry { align-self: flex-start; margin: 0 14px 8px; min-height: 36px; padding: 5px 12px; }
 #gpante-support .gpante-chat-form { flex-shrink: 0; margin: 0; padding: 10px 12px 12px; border-top: 1px solid var(--gpante-border); background: var(--gpante-surface); }
 #gpante-support textarea {
 	display: block;
@@ -232,7 +231,7 @@
 }
 
 #gpante-support .gpante-chat-header button:focus-visible { outline-color: var(--gpante-on-primary); }
-#gpante-support .gpante-chat-header strong, #gpante-support .gpante-chat-launcher span { overflow-wrap: anywhere; }
+#gpante-support .gpante-chat-launcher span { overflow-wrap: anywhere; }
 
 #gpante-support .gpante-chat-sr-only {
   position: absolute;
@@ -295,14 +294,22 @@
 #gpante-support .gpante-chat-shortcuts a:hover { text-decoration: underline; border-color: var(--gpante-text); }
 @media (prefers-reduced-motion: reduce) {
   #gpante-support .gpante-chat-composer { transition: none; }
-  #gpante-support .gpante-chat-status-icon { animation: none !important; }
+  #gpante-support .gpante-chat-status-icon, #gpante-support .gpante-chat-dots i { animation: none !important; }
 }
 </style>
 
 <div id="gpante-support" dir="rtl" lang="fa" style="--gpante-primary:#365e28;--gpante-on-primary:#ffffff;--gpante-surface:#ffffff;--gpante-text:#263023;--gpante-messages:#f7f9f4;--gpante-user:#e9f0e2;--gpante-assistant:#ffffff;--gpante-accent:#fbbc34;" data-appearance="{&quot;version&quot;:1,&quot;texts&quot;:{&quot;title&quot;:&quot;\u062f\u0633\u062a\u06cc\u0627\u0631 \u067e\u0627\u0646\u062a\u0647&quot;,&quot;subtitle&quot;:&quot;\u0631\u0627\u0647\u0646\u0645\u0627\u06cc \u0637\u0631\u062d \u0648 \u0641\u0627\u06cc\u0644\u060c \u062e\u0631\u06cc\u062f \u0648 \u062f\u0627\u0646\u0644\u0648\u062f&quot;,&quot;launcher&quot;:&quot;\u0627\u0632 \u067e\u0627\u0646\u062a\u0647 \u0628\u067e\u0631\u0633\u06cc\u062f&quot;,&quot;welcome&quot;:&quot;\u0633\u0644\u0627\u0645! \u062f\u0646\u0628\u0627\u0644 \u0686\u0647 \u0637\u0631\u062d \u06cc\u0627 \u0641\u0627\u06cc\u0644\u06cc \u0647\u0633\u062a\u06cc\u062f\u061f \u0645\u0648\u0636\u0648\u0639\u060c \u0645\u062a\u0631\u06cc\u0627\u0644\u060c \u0636\u062e\u0627\u0645\u062a \u0648 \u0641\u0631\u0645\u062a \u062f\u0644\u062e\u0648\u0627\u0647\u062a\u0627\u0646 \u0631\u0627 \u0628\u0646\u0648\u06cc\u0633\u06cc\u062f \u062a\u0627 \u062f\u0642\u06cc\u0642\u200c\u062a\u0631 \u0631\u0627\u0647\u0646\u0645\u0627\u06cc\u06cc\u200c\u062a\u0627\u0646 \u06a9\u0646\u0645.&quot;,&quot;input_label&quot;:&quot;\u067e\u0631\u0633\u0634 \u0634\u0645\u0627&quot;,&quot;placeholder&quot;:&quot;\u0645\u062b\u0644\u0627\u064b \u0628\u0627\u06a9\u0633 MDF \u0628\u0627 \u0636\u062e\u0627\u0645\u062a \u06f2\u066b\u06f7 \u0648 \u0641\u0627\u06cc\u0644 DXF \u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645\u2026&quot;,&quot;send&quot;:&quot;\u0627\u0631\u0633\u0627\u0644 \u067e\u06cc\u0627\u0645&quot;,&quot;clear&quot;:&quot;\u067e\u0627\u06a9\u200c\u06a9\u0631\u062f\u0646 \u0648 \u06af\u0641\u062a\u200c\u0648\u06af\u0648\u06cc \u062a\u0627\u0632\u0647&quot;},&quot;colors&quot;:{&quot;primary&quot;:&quot;#365e28&quot;,&quot;on_primary&quot;:&quot;#ffffff&quot;,&quot;surface&quot;:&quot;#ffffff&quot;,&quot;text&quot;:&quot;#263023&quot;,&quot;messages&quot;:&quot;#f7f9f4&quot;,&quot;user&quot;:&quot;#e9f0e2&quot;,&quot;assistant&quot;:&quot;#ffffff&quot;,&quot;accent&quot;:&quot;#fbbc34&quot;},&quot;links&quot;:[{&quot;label&quot;:&quot;&quot;,&quot;url&quot;:&quot;&quot;},{&quot;label&quot;:&quot;&quot;,&quot;url&quot;:&quot;&quot;},{&quot;label&quot;:&quot;&quot;,&quot;url&quot;:&quot;&quot;},{&quot;label&quot;:&quot;&quot;,&quot;url&quot;:&quot;&quot;}]}" data-appearance-endpoint="/wp-json/gpante-support/v1/appearance" data-endpoint="/wp-json/gpante-support/v1/chat">
 	<section id="gpante-support-panel" class="gpante-chat-panel" role="dialog" aria-labelledby="gpante-support-title" tabindex="-1" hidden>
 		<div class="gpante-chat-header">
-			<div><strong id="gpante-support-title" data-title>دستیار پانته</strong><span data-subtitle>راهنمای طرح و فایل، خرید و دانلود</span></div>
+			<div class="gpante-chat-heading">
+				<div class="gpante-chat-title-row">
+					<strong id="gpante-support-title" data-title>دستیار پانته</strong>
+					<span class="gpante-chat-status" data-status data-state="connecting" role="status" aria-live="polite" aria-atomic="true">
+						<span class="gpante-chat-status-icon" aria-hidden="true"></span><span data-status-label lang="en" dir="ltr">Connecting</span>
+					</span>
+				</div>
+				<span data-subtitle>راهنمای طرح و فایل، خرید و دانلود</span>
+			</div>
 			<button type="button" data-close aria-label="بستن گفت‌وگو">×</button>
 		</div>
 		<div class="gpante-chat-toolbar"><button type="button" data-new hidden>پاک‌کردن و گفت‌وگوی تازه</button></div>
@@ -312,14 +319,15 @@
 		</div>
 		<div class="gpante-chat-messages" data-scroll tabindex="0" role="region" aria-label="گفتگو و پیوندهای راهنما">
 			<div data-messages role="log" aria-label="پیام‌های گفت‌وگو" aria-live="polite" aria-relevant="additions"></div>
+			<div class="gpante-chat-activity" data-activity role="status" aria-live="polite" hidden><span class="gpante-chat-dots" aria-hidden="true"><i></i><i></i><i></i></span><span data-activity-text></span></div>
+			<div class="gpante-chat-notice" data-notice hidden>
+				<p data-status-text role="status" aria-live="polite" aria-atomic="true"></p>
+				<button type="button" data-reconnect hidden>اتصال مجدد</button>
+				<button type="button" data-retry hidden>تلاش دوباره</button>
+			</div>
 			<nav class="gpante-chat-shortcuts" data-shortcuts aria-label="پیوندهای راهنما" hidden>
 																																											</nav>
 		</div>
-		<div class="gpante-chat-status" data-status role="status" aria-live="polite" aria-atomic="true">
-			<span class="gpante-chat-status-icon" aria-hidden="true"></span>
-			<div class="gpante-chat-status-copy"><strong data-status-label></strong><span data-status-text></span></div>
-		</div>
-		<button class="gpante-chat-retry" type="button" data-retry hidden>تلاش دوباره</button>
 		<form class="gpante-chat-form" data-form>
 			<label class="gpante-chat-sr-only" for="gpante-support-input" data-input-label>پرسش شما</label>
 			<div class="gpante-chat-composer">
@@ -512,7 +520,11 @@
   const shortcuts = find('[data-shortcuts]');
   const status = find('[data-status]');
   const statusLabel = find('[data-status-label]');
-  const statusText = find('[data-status-text]') || status;
+  const statusText = find('[data-status-text]');
+  const notice = find('[data-notice]');
+  const activity = find('[data-activity]');
+  const activityText = find('[data-activity-text]');
+  const reconnect = find('[data-reconnect]');
   const input = find('[data-input]');
   const form = find('[data-form]');
   const send = find('[data-send]');
@@ -587,25 +599,37 @@
     send.disabled = input.disabled || !input.value.trim();
     if (fresh) fresh.disabled = Boolean(busy || pendingSend);
     if (clear) clear.disabled = Boolean(busy || pendingSend);
-    retry.disabled = Boolean(busy || pendingSend);
+    retry.disabled = reconnect.disabled = Boolean(busy || pendingSend);
   }
 
-  function setStatus(text, error = false, state = error ? 'error' : 'ready') {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      state = 'offline';
-      text = busy === 'send' ? 'اینترنت قطع است؛ دریافت نتیجهٔ پیام هنوز تأیید نشده است.' : 'اتصال اینترنت را بررسی کنید؛ متن نوشته‌شده در کادر حفظ می‌شود.';
+  function setConnection(state) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) state = 'offline';
+    const labels = {connecting:'Connecting',ready:'Online',offline:'Disconnected'};
+    if (status.dataset.state !== state || statusLabel.textContent !== labels[state]) {
+      status.dataset.state = state;
+      statusLabel.textContent = labels[state];
+      status.title = {connecting:'در حال بررسی ارتباط با سرویس چت',ready:'آخرین ارتباط با سرویس چت موفق بود',offline:'ارتباط با سرویس چت تأیید نشده است'}[state];
     }
-    const labels = {connecting:'در حال اتصال به دستیار',refreshing:'در حال به‌روزرسانی گفتگو',ready:'ارتباط با سرویس برقرار است',
-      waiting:'در حال دریافت پاسخ دستیار',clearing:'در حال پاک‌کردن گفتگو',error:'نیاز به تلاش دوباره',offline:'اتصال اینترنت قطع است',notice:'پیام آمادهٔ ارسال نیست'};
-    status.dataset.state = state;
-    if (statusLabel) statusLabel.textContent = labels[state];
-    statusText.textContent = text;
-    root.dataset.error = error || state === 'offline' ? 'true' : 'false';
+  }
+
+  function showNotice(text = '', error = false) {
+    if (!text && typeof navigator !== 'undefined' && navigator.onLine === false) { offlineNotice(); return; }
+    if (statusText.textContent !== text) statusText.textContent = text;
+    notice.hidden = !text;
+    root.dataset.error = error ? 'true' : 'false';
+    if (!text) retry.hidden = reconnect.hidden = true;
+  }
+
+  function setActivity(text = '') {
+    if (activityText.textContent !== text) activityText.textContent = text;
+    activity.hidden = !text;
+    if (text) scrollArea.scrollTop = scrollArea.scrollHeight;
   }
 
   function setBusy(action) {
     if (action) requestHadFocus = panel.contains(document.activeElement);
     busy = action;
+    if (!action) setActivity();
     messages.setAttribute('aria-busy', String(Boolean(action)));
     updateInput();
     // Chrome moves focus to body when its active control is disabled or hidden.
@@ -650,22 +674,27 @@
 
   function scheduleHistoryCheck() {
     clearTimeout(historyTimer);
-    if (panel.hidden || !policy) return;
-    let delay = 60000;
+    if (panel.hidden) return;
+    let delay = policy ? 60000 : Infinity;
     for (const item of [...messages.children]) {
       const deadline = Date.parse(item.dataset.expiresAt || '');
       if (!Number.isFinite(deadline)) continue;
       if (deadline <= Date.now()) item.remove();
       else delay = Math.min(delay, deadline - Date.now());
     }
-    // Exact known deadlines are local; central policy changes are rechecked each minute while open.
+    if (!Number.isFinite(delay)) return;
+    // Known expiry still applies when a failed refresh invalidates the server policy.
     historyTimer = setTimeout(() => {
       for (const item of [...messages.children]) {
         if (Date.parse(item.dataset.expiresAt || '') <= Date.now()) item.remove();
       }
-      if (!panel.hidden && !busy) loadHistory(true);
+      if (!panel.hidden && !busy && policy) loadHistory(true);
       else scheduleHistoryCheck();
-    }, Math.max(1, delay));
+    }, Math.max(1, Math.min(delay, 2147483647)));
+  }
+
+  function apiError(message, code, uncertain = false) {
+    return Object.assign(new Error(message), {code, uncertain});
   }
 
   async function api(action, text) {
@@ -681,28 +710,48 @@
       });
       const data = await response.json();
       if (!response.ok || !data || data.error) {
-        throw new Error(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.');
+        const reasons = ['rate_limit','session_busy','capacity','request_limit','monthly_budget','pricing_review'];
+        const code = reasons.includes(data?.error?.code) ? data.error.code
+          : response.status === 429 ? 'request_limit' : response.status >= 400 && response.status < 500 ? 'request_rejected' : 'backend_unavailable';
+        throw apiError(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.',
+          code, action === 'sendMessage' && code === 'backend_unavailable');
       }
+      if (!validPolicy(data.policy)) throw apiError('سیاست گفتگو دریافت نشد. لطفاً صفحه را تازه کنید.', 'invalid_response', action === 'sendMessage');
       applyPolicy(data.policy);
-      if (action === 'sendMessage' && (typeof data.output !== 'string' || !data.output.trim() || data.output.length > 8000 || !Number.isFinite(Date.parse(data.expiresAt)))) throw new Error('پاسخ معتبری دریافت نشد. لطفاً دوباره تلاش کنید.');
+      if (action === 'sendMessage' && (typeof data.output !== 'string' || !data.output.trim() || data.output.length > 8000 || !Number.isFinite(Date.parse(data.expiresAt)))) throw apiError('پاسخ معتبری دریافت نشد.', 'invalid_response', true);
       if (action === 'loadPreviousSession' && (!Array.isArray(data.messages) || data.messages.length > 100 || data.messages.some(message =>
-        !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000 || !Number.isFinite(Date.parse(message.expiresAt))))) throw new Error('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.');
-      if (action === 'resetSession' && data.ok !== true) throw new Error('پاک‌کردن تاریخچه انجام نشد. لطفاً دوباره تلاش کنید.');
+        !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000 || !Number.isFinite(Date.parse(message.expiresAt))))) throw apiError('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.', 'invalid_response');
+      if (action === 'resetSession' && data.ok !== true) throw apiError('پاک‌کردن تاریخچه انجام نشد. لطفاً دوباره تلاش کنید.', 'operation_failed');
+      setConnection('ready');
       return data;
     } catch (error) {
-      if (error.name === 'AbortError') throw new Error('دریافت پاسخ طول کشید. می‌توانید کمی بعد دوباره تلاش کنید.');
-      if (error instanceof TypeError || error instanceof SyntaxError) throw new Error('ارتباط با دستیار برقرار نشد. اتصال اینترنت را بررسی و دوباره تلاش کنید.');
+      if (error.name === 'AbortError') throw apiError('زمان دریافت پاسخ به پایان رسید.', 'timeout', action === 'sendMessage');
+      if (['TypeError','SyntaxError'].includes(error.name)) throw apiError('پاسخی معتبر از سرویس چت دریافت نشد.', 'network', action === 'sendMessage');
       throw error;
     } finally {
       clearTimeout(timer);
     }
   }
 
+  function renderFailure() {
+    if (!failed) return;
+    let text = failed.error.uncertain && failed.checked ? 'نتیجهٔ ارسال قبلی تأیید نشد.' : failed.error.message;
+    if (failed.error.uncertain) text += failed.checked
+      ? ' تاریخچه به‌روز شد؛ اگر پاسخ در پیام‌ها نیست، می‌توانید دوباره بفرستید. ارسال دوباره ممکن است درخواست تازه‌ای ایجاد کند.'
+      : ' دریافت پاسخ تأیید نشد؛ ابتدا اتصال و تاریخچه را بررسی کنید. ممکن است پاسخ روی سرور ثبت شده باشد.';
+    if (input.value.trim()) text += ' متن نوشته‌شده در کادر محفوظ است؛ نیازی به نوشتن دوبارهٔ آن نیست.';
+    showNotice(text, true);
+    reconnect.hidden = status.dataset.state === 'ready' && Boolean(policy) && (!failed.error.uncertain || failed.checked) && failed.action !== 'loadPreviousSession';
+    retry.hidden = !reconnect.hidden || failed.action === 'loadPreviousSession'
+      || ['monthly_budget','pricing_review'].includes(failed.error.code) || (failed.action === 'resetSession' && !policy?.allowClear);
+    retry.textContent = failed.action === 'resetSession' ? 'تلاش دوباره برای پاک‌کردن' : 'تلاش دوباره';
+  }
+
   function failure(error, action, text) {
-    failed = { action, text, message: error.message };
-    setStatus(error.message + (input.value.trim() ? ' متن نوشته‌شده در کادر محفوظ است؛ نیازی به نوشتن دوبارهٔ آن نیست.' : ''), true);
-    retry.textContent = action === 'resetSession' ? 'تلاش دوباره برای پاک‌کردن' : 'تلاش دوباره';
-    retry.hidden = false;
+    failed = {action, text, error, checked:false};
+    if (['network','timeout','backend_unavailable','invalid_response'].includes(error.code)
+      || (action === 'loadPreviousSession' && status.dataset.state !== 'ready')) setConnection('offline');
+    renderFailure();
   }
 
   function loadHistory(quiet = false) {
@@ -713,11 +762,9 @@
 
   async function readHistory(quiet) {
     const previousFailure = failed;
-    clearTimeout(historyTimer);
-    if (!quiet) messages.replaceChildren();
-    retry.hidden = true;
     setBusy('history');
-    setStatus('گفتگوهای پیشین خوانده می‌شوند؛ می‌توانید پرسشتان را بنویسید.', false, quiet ? 'refreshing' : 'connecting');
+    scheduleHistoryCheck();
+    if (!quiet || status.dataset.state !== 'ready') setConnection('connecting');
     try {
       const data = await api('loadPreviousSession');
       messages.replaceChildren();
@@ -728,17 +775,21 @@
       else welcome();
       if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession'
         && (previousFailure.action !== 'resetSession' || policy.allowClear)) {
-        failure(new Error(previousFailure.message), previousFailure.action, previousFailure.text);
+        previousFailure.checked = true;
+        renderFailure();
       } else {
         failed = null;
-        setStatus('پرسشتان را بنویسید.');
+        showNotice();
       }
       return true;
     } catch (error) {
-      messages.replaceChildren();
+      // A failed refresh must not erase already displayed messages or the unresolved action.
       policy = null;
       if (fresh) fresh.hidden = true;
-      failure(error, 'loadPreviousSession');
+      if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession') {
+        setConnection('offline');
+        renderFailure();
+      } else failure(error, 'loadPreviousSession');
       return false;
     } finally {
       setBusy(null);
@@ -751,36 +802,42 @@
     const text = input.value.trim();
     if (pendingSend || (busy && busy !== 'history') || !text) return;
     if (text.length > 4000) {
-      setStatus('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true, 'notice');
+      showNotice('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true);
       return;
     }
-    if (busy === 'history' || !policy) {
+    if (failed?.error.uncertain && !failed.checked) {
+      loadHistory(true);
+      return;
+    }
+    if (busy === 'history' || !policy || status.dataset.state !== 'ready') {
       const hadFocus = panel.contains(document.activeElement);
       pendingSend = true;
       updateInput();
       const ready = loadHistory();
-      setStatus('پیامتان آمادهٔ ارسال است؛ پس از تأیید ارتباط، یک‌بار ارسال می‌شود.', false, 'connecting');
+      setActivity('پیامتان آمادهٔ ارسال است؛ پس از تأیید ارتباط، یک‌بار ارسال می‌شود.');
       const loaded = await ready;
       pendingSend = false;
       updateInput();
       if (hadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
       if (!loaded) {
         failed = { ...failed, action: 'sendMessage', text };
+        renderFailure();
         return;
       }
     }
-    retry.hidden = true;
+    failed = null;
+    showNotice();
     if (confirmation) confirmation.hidden = true;
     const item = addMessage('user', text);
     input.value = '';
     setBusy('send');
-    setStatus('پرسشتان در حال بررسی است؛ دریافت پاسخ ممکن است کمی زمان ببرد.', false, 'waiting');
+    setActivity('در حال آماده‌کردن پاسخ…');
     try {
       const data = await api('sendMessage', text);
       item.dataset.expiresAt = data.expiresAt;
       addMessage('assistant', data.output, true, data.expiresAt);
       failed = null;
-      setStatus('می‌توانید پرسش بعدی را بنویسید.');
+      showNotice();
     } catch (error) {
       item.remove();
       input.value = text;
@@ -796,15 +853,15 @@
     if (busy || !policy?.allowClear) return;
     setBusy('reset');
     if (confirmation) confirmation.hidden = true;
-    retry.hidden = true;
-    setStatus('در حال پاک‌کردن تاریخچه…', false, 'clearing');
+    showNotice();
+    setActivity('در حال پاک‌کردن گفتگو…');
     try {
       await api('resetSession');
       messages.replaceChildren();
       welcome();
       input.value = '';
       failed = null;
-      setStatus('تاریخچهٔ قابل مشاهدهٔ شما پاک شد. آرشیو مدیریتی تا پایان مهلت ۳۰روزه باقی می‌ماند.');
+      showNotice('تاریخچهٔ قابل مشاهدهٔ شما پاک شد. آرشیو مدیریتی تا پایان مهلت ۳۰روزه باقی می‌ماند.');
     } catch (error) {
       failure(error, 'resetSession');
     } finally {
@@ -844,7 +901,7 @@
     panel.hidden = false;
     launcher.setAttribute('aria-expanded', 'true');
     panel.focus({ preventScroll: true });
-    if (!busy) loadHistory();
+    if (!busy) loadHistory(true);
     if (!input.disabled) input.focus({ preventScroll: true });
   }
 
@@ -877,9 +934,10 @@
   });
   input.addEventListener('input', () => {
     updateInput();
-    if (failed?.action === 'sendMessage') {
+    if (failed?.action === 'sendMessage' && !failed.error.uncertain) {
       failed = null;
-      retry.hidden = true;
+      showNotice();
+      if (status.dataset.state === 'offline') offlineNotice();
     }
   });
   if (fresh && confirmation && clear) fresh.addEventListener('click', () => { if (!policy?.allowClear) return; confirmation.hidden = false; clear.focus(); });
@@ -889,20 +947,31 @@
   retry.addEventListener('click', () => {
     if (!failed || busy) return;
     if (failed.action === 'sendMessage') {
-      input.value = failed.text;
+      if (!input.value.trim()) input.value = failed.text;
       submitMessage();
     } else if (failed.action === 'resetSession') clearHistory();
     else loadHistory();
   });
   if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (!panel.hidden && !busy) loadHistory(true); });
+  reconnect.addEventListener('click', () => { if (!busy && !pendingSend) loadHistory(true); });
+  function offlineNotice() {
+    setConnection('offline');
+    showNotice(busy === 'send' ? 'ارتباط قطع شد؛ دریافت نتیجهٔ پیام هنوز تأیید نشده است. ابتدا منتظر نتیجهٔ درخواست بمانید.'
+      : 'ارتباط برقرار نیست. اتصال اینترنت را بررسی کنید؛ متن نوشته‌شده در کادر حفظ می‌شود.', true);
+    retry.hidden = true;
+    reconnect.hidden = false;
+  }
   if (typeof window !== 'undefined') {
-    window.addEventListener('offline', () => setStatus('', true, 'offline'));
+    window.addEventListener('offline', offlineNotice);
     window.addEventListener('online', () => {
       if (panel.hidden) return;
       if (!busy) loadHistory(true);
-      else setStatus('منتظر تأیید نتیجهٔ درخواست هستیم.', false, busy === 'send' ? 'waiting' : 'connecting');
+      else setConnection('connecting');
     });
   }
+  setConnection('connecting');
+  setActivity();
+  showNotice();
   updateInput();
   // Restore an open history entry on reload/forward rather than leaving a dead Back step.
   if (browserHistory?.state?.gpanteSupportChat === historyToken) openPanel(false);

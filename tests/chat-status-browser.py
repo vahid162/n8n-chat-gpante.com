@@ -35,6 +35,13 @@ with sync_playwright() as playwright:
             page.goto(args.url, wait_until='domcontentloaded', timeout=45000)
             root = page.locator('#gpante-support')
             root.wait_for()
+            baseline = {}
+            for width, height in [(1440,1000),(390,844),(320,568),(844,390)]:
+                page.set_viewport_size(dict(width=width,height=height))
+                baseline[width] = root.evaluate('''r=>{const p=r.querySelector('#gpante-support-panel'),n=r.querySelector('[data-new]'),hidden=n.hidden;p.hidden=false;n.hidden=false;
+                  const h=r.querySelector('.gpante-chat-header').getBoundingClientRect().height,
+                    m=r.querySelector('[data-scroll]').getBoundingClientRect().height;p.hidden=true;n.hidden=hidden;return {header:h,messages:m};}''')
+            page.set_viewport_size(dict(width=1440,height=1000))
             if args.candidate:
                 markup = subprocess.check_output(['php', str(repo/'scripts/render-widget.php')], text=True)
                 root.evaluate('''(old, html) => {
@@ -43,6 +50,7 @@ with sync_playwright() as playwright:
                   for(const key of ['endpoint','appearance','appearanceEndpoint'])fresh.dataset[key]=old.dataset[key];
                   fresh.style.cssText=old.style.cssText;old.replaceWith(fresh);
                 }''', markup)
+                page.locator('link[href*="/gpante-support-chat/assets/chat.css"]').evaluate_all('(links)=>links.forEach(link=>link.remove())')
                 page.add_style_tag(content=(repo/'wordpress-plugin/gpante-support-chat/assets/chat.css').read_text())
                 page.evaluate((repo/'wordpress-plugin/gpante-support-chat/assets/chat.js').read_text())
             assert root.get_attribute('data-endpoint') == '/wp-json/gpante-support/v1/chat', 'Unmocked endpoint'
@@ -69,7 +77,9 @@ with sync_playwright() as playwright:
             respond('loadPreviousSession', dict(messages=[]))
             state('ready')
             assert root.locator('[data-input]').input_value() == 'پیش‌نویس هنگام اتصال'
-            assert 'برقرار' in root.locator('[data-status-label]').inner_text()
+            assert root.locator('[data-status-label]').inner_text() == 'Online'
+            assert root.locator('.gpante-chat-header [data-status]').count() == 1
+            assert root.locator('[data-notice]').is_hidden()
             assert root.locator('.gpante-chat-status-icon').evaluate("e=>getComputedStyle(e).animationName") == 'none'
             for width, height, expected in [(1440,1000,[390,650]), (390,844,[374,650]), (320,568,[304,480]), (844,390,[390,366])]:
                 page.set_viewport_size(dict(width=width, height=height))
@@ -77,38 +87,78 @@ with sync_playwright() as playwright:
                 geometry = root.evaluate('''r=>{
                   const panel=r.querySelector('#gpante-support-panel'),status=r.querySelector('[data-status]'),b=panel.getBoundingClientRect();
                   return {panel:[b.width,b.height],overflow:panel.scrollWidth>panel.clientWidth+1,
-                    statusOverflow:status.scrollWidth>status.clientWidth+1,font:getComputedStyle(r.querySelector('[data-status-text]')).fontSize};
+                    statusOverflow:status.scrollWidth>status.clientWidth+1,font:getComputedStyle(r.querySelector('[data-status-label]')).fontSize,
+                    header:r.querySelector('.gpante-chat-header').getBoundingClientRect().height,messages:r.querySelector('[data-scroll]').getBoundingClientRect().height,
+                    closeWidth:r.querySelector('[data-close]').getBoundingClientRect().width,
+                    titleTruncation:getComputedStyle(r.querySelector('[data-title]')).textOverflow};
                 }''')
                 assert all(abs(a-b)<1 for a,b in zip(geometry['panel'], expected)), geometry
                 assert not geometry['overflow'] and not geometry['statusOverflow'] and float(geometry['font'][:-2])>=12, geometry
+                assert geometry['closeWidth'] >= 44 and geometry['titleTruncation'] == 'ellipsis', geometry
+                assert geometry['header'] <= baseline[width]['header'] + 1, (geometry,baseline[width])
+                if args.candidate and height > 520:
+                    assert geometry['messages'] >= baseline[width]['messages'] + 40, (geometry,baseline[width])
                 page.screenshot(path=str(args.evidence_dir/f'{engine}-ready-{width}.png'))
                 results.append(dict(engine=engine, version=browser.version, viewport=[width,height], **geometry))
 
+            page.set_viewport_size(dict(width=390,height=844))
             root.locator('[data-input]').fill('پرسش آزمایشی')
             root.locator('[data-input]').press('Enter')
-            state('waiting')
-            assert root.locator('.gpante-chat-status-icon').evaluate("e=>getComputedStyle(e).animationName") != 'none'
-            page.emulate_media(reduced_motion='reduce')
-            assert root.locator('.gpante-chat-status-icon').evaluate("e=>getComputedStyle(e).animationName") == 'none'
-            page.emulate_media(reduced_motion='no-preference')
-            respond('sendMessage', dict(error='unavailable', output='ارتباط آزمایشی برقرار نشد.'), 503)
-            state('error')
-            assert root.locator('[data-input]').input_value() == 'پرسش آزمایشی'
-            assert root.locator('[data-retry]').is_visible()
-            root.locator('[data-retry]').click()
-            state('waiting')
-            respond('sendMessage', dict(output='پاسخ کاملاً مصنوعی'))
             state('ready')
+            root.locator('[data-activity]').wait_for(state='visible')
+            assert root.locator('.gpante-chat-dots i').first.evaluate("e=>getComputedStyle(e).animationName") != 'none'
+            page.emulate_media(reduced_motion='reduce')
+            assert root.locator('.gpante-chat-dots i').first.evaluate("e=>getComputedStyle(e).animationName") == 'none'
+            page.emulate_media(reduced_motion='no-preference')
+            respond('sendMessage', dict(error=dict(code='backend_unavailable'), output='دریافت پاسخ تأیید نشد.'), 502)
+            state('offline')
+            assert root.locator('[data-input]').input_value() == 'پرسش آزمایشی'
+            assert root.locator('[data-retry]').is_hidden()
+            root.locator('[data-reconnect]').click()
+            state('connecting')
+            assert root.locator('[data-reconnect]').is_disabled()
+            respond('loadPreviousSession', dict(error=dict(code='backend_unavailable'),output='خطای آزمایشی اتصال'),502)
+            state('offline')
+            assert root.locator('[data-messages] .gpante-chat-message').count() == 1, 'Failed refresh erased welcome'
+            root.locator('[data-reconnect]').click()
+            respond('loadPreviousSession', dict(messages=[dict(role='user',content='پرسش آزمایشی',expiresAt='2099-01-01T00:00:00Z'),
+                dict(role='assistant',content='پاسخ ثبت‌شدهٔ مصنوعی',expiresAt='2099-01-01T00:00:00Z')]))
+            state('ready')
+            assert actions.count('sendMessage') == 1, 'Reconnect resent an uncertain turn'
+            assert 'درخواست تازه' in root.locator('[data-status-text]').inner_text()
+            assert root.locator('[data-messages]').inner_text().endswith('پاسخ ثبت‌شدهٔ مصنوعی')
+            root.locator('[data-retry]').click()
+            respond('sendMessage',dict(output='پاسخ کاملاً مصنوعی'))
+            root.locator('[data-activity]').wait_for(state='hidden')
+            assert root.locator('[data-notice]').is_hidden()
+            root.locator('[data-input]').fill('پرسش هنگام محدودیت')
+            root.locator('[data-input]').press('Enter')
+            respond('sendMessage',dict(error=dict(code='rate_limit'),output='۱ دقیقه صبر کنید، سپس روی «تلاش دوباره» بزنید.'),429)
+            root.locator('[data-retry]').wait_for(state='visible')
+            state('ready')
+            assert '۱ دقیقه' in root.locator('[data-status-text]').inner_text()
+            assert root.locator('[data-reconnect]').is_hidden()
+            root.locator('[data-retry]').click()
+            respond('sendMessage',dict(output='پاسخ پس از تلاش صریح'))
+            root.locator('[data-activity]').wait_for(state='hidden')
             root.locator('[data-input]').fill('متن محفوظ هنگام قطع اینترنت')
             context.set_offline(True)
             state('offline')
             assert root.locator('[data-input]').is_enabled()
+            assert root.locator('[data-reconnect]').is_visible()
             context.set_offline(False)
-            state('refreshing')
+            state('connecting')
             respond('loadPreviousSession', dict(messages=[]))
             state('ready')
             assert root.locator('[data-input]').input_value() == 'متن محفوظ هنگام قطع اینترنت'
-            assert actions.count('sendMessage') == 2 and actions.count('loadPreviousSession') == 2, actions
+            assert actions.count('sendMessage') == 4 and actions.count('loadPreviousSession') == 4, actions
+            # A long administrator title must not displace the badge or close control.
+            page.set_viewport_size(dict(width=320,height=568))
+            root.locator('[data-title]').evaluate("e=>e.textContent='عنوان طولانی دستیار هوشمند برای بررسی فضای سربرگ در موبایل'")
+            assert root.locator('[data-title]').evaluate('e=>e.scrollWidth>e.clientWidth')
+            assert root.locator('[data-status]').is_visible() and root.locator('[data-close]').is_visible()
+            assert root.locator('.gpante-chat-header').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+            page.screenshot(path=str(args.evidence_dir/f'{engine}-compact-header.png'))
             assert not held and not errors, errors
         finally:
             context.close()

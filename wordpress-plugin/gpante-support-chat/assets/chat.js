@@ -174,7 +174,11 @@
   const shortcuts = find('[data-shortcuts]');
   const status = find('[data-status]');
   const statusLabel = find('[data-status-label]');
-  const statusText = find('[data-status-text]') || status;
+  const statusText = find('[data-status-text]');
+  const notice = find('[data-notice]');
+  const activity = find('[data-activity]');
+  const activityText = find('[data-activity-text]');
+  const reconnect = find('[data-reconnect]');
   const input = find('[data-input]');
   const form = find('[data-form]');
   const send = find('[data-send]');
@@ -249,25 +253,37 @@
     send.disabled = input.disabled || !input.value.trim();
     if (fresh) fresh.disabled = Boolean(busy || pendingSend);
     if (clear) clear.disabled = Boolean(busy || pendingSend);
-    retry.disabled = Boolean(busy || pendingSend);
+    retry.disabled = reconnect.disabled = Boolean(busy || pendingSend);
   }
 
-  function setStatus(text, error = false, state = error ? 'error' : 'ready') {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      state = 'offline';
-      text = busy === 'send' ? 'اینترنت قطع است؛ دریافت نتیجهٔ پیام هنوز تأیید نشده است.' : 'اتصال اینترنت را بررسی کنید؛ متن نوشته‌شده در کادر حفظ می‌شود.';
+  function setConnection(state) {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) state = 'offline';
+    const labels = {connecting:'Connecting',ready:'Online',offline:'Disconnected'};
+    if (status.dataset.state !== state || statusLabel.textContent !== labels[state]) {
+      status.dataset.state = state;
+      statusLabel.textContent = labels[state];
+      status.title = {connecting:'در حال بررسی ارتباط با سرویس چت',ready:'آخرین ارتباط با سرویس چت موفق بود',offline:'ارتباط با سرویس چت تأیید نشده است'}[state];
     }
-    const labels = {connecting:'در حال اتصال به دستیار',refreshing:'در حال به‌روزرسانی گفتگو',ready:'ارتباط با سرویس برقرار است',
-      waiting:'در حال دریافت پاسخ دستیار',clearing:'در حال پاک‌کردن گفتگو',error:'نیاز به تلاش دوباره',offline:'اتصال اینترنت قطع است',notice:'پیام آمادهٔ ارسال نیست'};
-    status.dataset.state = state;
-    if (statusLabel) statusLabel.textContent = labels[state];
-    statusText.textContent = text;
-    root.dataset.error = error || state === 'offline' ? 'true' : 'false';
+  }
+
+  function showNotice(text = '', error = false) {
+    if (!text && typeof navigator !== 'undefined' && navigator.onLine === false) { offlineNotice(); return; }
+    if (statusText.textContent !== text) statusText.textContent = text;
+    notice.hidden = !text;
+    root.dataset.error = error ? 'true' : 'false';
+    if (!text) retry.hidden = reconnect.hidden = true;
+  }
+
+  function setActivity(text = '') {
+    if (activityText.textContent !== text) activityText.textContent = text;
+    activity.hidden = !text;
+    if (text) scrollArea.scrollTop = scrollArea.scrollHeight;
   }
 
   function setBusy(action) {
     if (action) requestHadFocus = panel.contains(document.activeElement);
     busy = action;
+    if (!action) setActivity();
     messages.setAttribute('aria-busy', String(Boolean(action)));
     updateInput();
     // Chrome moves focus to body when its active control is disabled or hidden.
@@ -312,22 +328,27 @@
 
   function scheduleHistoryCheck() {
     clearTimeout(historyTimer);
-    if (panel.hidden || !policy) return;
-    let delay = 60000;
+    if (panel.hidden) return;
+    let delay = policy ? 60000 : Infinity;
     for (const item of [...messages.children]) {
       const deadline = Date.parse(item.dataset.expiresAt || '');
       if (!Number.isFinite(deadline)) continue;
       if (deadline <= Date.now()) item.remove();
       else delay = Math.min(delay, deadline - Date.now());
     }
-    // Exact known deadlines are local; central policy changes are rechecked each minute while open.
+    if (!Number.isFinite(delay)) return;
+    // Known expiry still applies when a failed refresh invalidates the server policy.
     historyTimer = setTimeout(() => {
       for (const item of [...messages.children]) {
         if (Date.parse(item.dataset.expiresAt || '') <= Date.now()) item.remove();
       }
-      if (!panel.hidden && !busy) loadHistory(true);
+      if (!panel.hidden && !busy && policy) loadHistory(true);
       else scheduleHistoryCheck();
-    }, Math.max(1, delay));
+    }, Math.max(1, Math.min(delay, 2147483647)));
+  }
+
+  function apiError(message, code, uncertain = false) {
+    return Object.assign(new Error(message), {code, uncertain});
   }
 
   async function api(action, text) {
@@ -343,28 +364,48 @@
       });
       const data = await response.json();
       if (!response.ok || !data || data.error) {
-        throw new Error(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.');
+        const reasons = ['rate_limit','session_busy','capacity','request_limit','monthly_budget','pricing_review'];
+        const code = reasons.includes(data?.error?.code) ? data.error.code
+          : response.status === 429 ? 'request_limit' : response.status >= 400 && response.status < 500 ? 'request_rejected' : 'backend_unavailable';
+        throw apiError(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.',
+          code, action === 'sendMessage' && code === 'backend_unavailable');
       }
+      if (!validPolicy(data.policy)) throw apiError('سیاست گفتگو دریافت نشد. لطفاً صفحه را تازه کنید.', 'invalid_response', action === 'sendMessage');
       applyPolicy(data.policy);
-      if (action === 'sendMessage' && (typeof data.output !== 'string' || !data.output.trim() || data.output.length > 8000 || !Number.isFinite(Date.parse(data.expiresAt)))) throw new Error('پاسخ معتبری دریافت نشد. لطفاً دوباره تلاش کنید.');
+      if (action === 'sendMessage' && (typeof data.output !== 'string' || !data.output.trim() || data.output.length > 8000 || !Number.isFinite(Date.parse(data.expiresAt)))) throw apiError('پاسخ معتبری دریافت نشد.', 'invalid_response', true);
       if (action === 'loadPreviousSession' && (!Array.isArray(data.messages) || data.messages.length > 100 || data.messages.some(message =>
-        !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000 || !Number.isFinite(Date.parse(message.expiresAt))))) throw new Error('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.');
-      if (action === 'resetSession' && data.ok !== true) throw new Error('پاک‌کردن تاریخچه انجام نشد. لطفاً دوباره تلاش کنید.');
+        !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000 || !Number.isFinite(Date.parse(message.expiresAt))))) throw apiError('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.', 'invalid_response');
+      if (action === 'resetSession' && data.ok !== true) throw apiError('پاک‌کردن تاریخچه انجام نشد. لطفاً دوباره تلاش کنید.', 'operation_failed');
+      setConnection('ready');
       return data;
     } catch (error) {
-      if (error.name === 'AbortError') throw new Error('دریافت پاسخ طول کشید. می‌توانید کمی بعد دوباره تلاش کنید.');
-      if (error instanceof TypeError || error instanceof SyntaxError) throw new Error('ارتباط با دستیار برقرار نشد. اتصال اینترنت را بررسی و دوباره تلاش کنید.');
+      if (error.name === 'AbortError') throw apiError('زمان دریافت پاسخ به پایان رسید.', 'timeout', action === 'sendMessage');
+      if (['TypeError','SyntaxError'].includes(error.name)) throw apiError('پاسخی معتبر از سرویس چت دریافت نشد.', 'network', action === 'sendMessage');
       throw error;
     } finally {
       clearTimeout(timer);
     }
   }
 
+  function renderFailure() {
+    if (!failed) return;
+    let text = failed.error.uncertain && failed.checked ? 'نتیجهٔ ارسال قبلی تأیید نشد.' : failed.error.message;
+    if (failed.error.uncertain) text += failed.checked
+      ? ' تاریخچه به‌روز شد؛ اگر پاسخ در پیام‌ها نیست، می‌توانید دوباره بفرستید. ارسال دوباره ممکن است درخواست تازه‌ای ایجاد کند.'
+      : ' دریافت پاسخ تأیید نشد؛ ابتدا اتصال و تاریخچه را بررسی کنید. ممکن است پاسخ روی سرور ثبت شده باشد.';
+    if (input.value.trim()) text += ' متن نوشته‌شده در کادر محفوظ است؛ نیازی به نوشتن دوبارهٔ آن نیست.';
+    showNotice(text, true);
+    reconnect.hidden = status.dataset.state === 'ready' && Boolean(policy) && (!failed.error.uncertain || failed.checked) && failed.action !== 'loadPreviousSession';
+    retry.hidden = !reconnect.hidden || failed.action === 'loadPreviousSession'
+      || ['monthly_budget','pricing_review'].includes(failed.error.code) || (failed.action === 'resetSession' && !policy?.allowClear);
+    retry.textContent = failed.action === 'resetSession' ? 'تلاش دوباره برای پاک‌کردن' : 'تلاش دوباره';
+  }
+
   function failure(error, action, text) {
-    failed = { action, text, message: error.message };
-    setStatus(error.message + (input.value.trim() ? ' متن نوشته‌شده در کادر محفوظ است؛ نیازی به نوشتن دوبارهٔ آن نیست.' : ''), true);
-    retry.textContent = action === 'resetSession' ? 'تلاش دوباره برای پاک‌کردن' : 'تلاش دوباره';
-    retry.hidden = false;
+    failed = {action, text, error, checked:false};
+    if (['network','timeout','backend_unavailable','invalid_response'].includes(error.code)
+      || (action === 'loadPreviousSession' && status.dataset.state !== 'ready')) setConnection('offline');
+    renderFailure();
   }
 
   function loadHistory(quiet = false) {
@@ -375,11 +416,9 @@
 
   async function readHistory(quiet) {
     const previousFailure = failed;
-    clearTimeout(historyTimer);
-    if (!quiet) messages.replaceChildren();
-    retry.hidden = true;
     setBusy('history');
-    setStatus('گفتگوهای پیشین خوانده می‌شوند؛ می‌توانید پرسشتان را بنویسید.', false, quiet ? 'refreshing' : 'connecting');
+    scheduleHistoryCheck();
+    if (!quiet || status.dataset.state !== 'ready') setConnection('connecting');
     try {
       const data = await api('loadPreviousSession');
       messages.replaceChildren();
@@ -390,17 +429,21 @@
       else welcome();
       if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession'
         && (previousFailure.action !== 'resetSession' || policy.allowClear)) {
-        failure(new Error(previousFailure.message), previousFailure.action, previousFailure.text);
+        previousFailure.checked = true;
+        renderFailure();
       } else {
         failed = null;
-        setStatus('پرسشتان را بنویسید.');
+        showNotice();
       }
       return true;
     } catch (error) {
-      messages.replaceChildren();
+      // A failed refresh must not erase already displayed messages or the unresolved action.
       policy = null;
       if (fresh) fresh.hidden = true;
-      failure(error, 'loadPreviousSession');
+      if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession') {
+        setConnection('offline');
+        renderFailure();
+      } else failure(error, 'loadPreviousSession');
       return false;
     } finally {
       setBusy(null);
@@ -413,36 +456,42 @@
     const text = input.value.trim();
     if (pendingSend || (busy && busy !== 'history') || !text) return;
     if (text.length > 4000) {
-      setStatus('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true, 'notice');
+      showNotice('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true);
       return;
     }
-    if (busy === 'history' || !policy) {
+    if (failed?.error.uncertain && !failed.checked) {
+      loadHistory(true);
+      return;
+    }
+    if (busy === 'history' || !policy || status.dataset.state !== 'ready') {
       const hadFocus = panel.contains(document.activeElement);
       pendingSend = true;
       updateInput();
       const ready = loadHistory();
-      setStatus('پیامتان آمادهٔ ارسال است؛ پس از تأیید ارتباط، یک‌بار ارسال می‌شود.', false, 'connecting');
+      setActivity('پیامتان آمادهٔ ارسال است؛ پس از تأیید ارتباط، یک‌بار ارسال می‌شود.');
       const loaded = await ready;
       pendingSend = false;
       updateInput();
       if (hadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
       if (!loaded) {
         failed = { ...failed, action: 'sendMessage', text };
+        renderFailure();
         return;
       }
     }
-    retry.hidden = true;
+    failed = null;
+    showNotice();
     if (confirmation) confirmation.hidden = true;
     const item = addMessage('user', text);
     input.value = '';
     setBusy('send');
-    setStatus('پرسشتان در حال بررسی است؛ دریافت پاسخ ممکن است کمی زمان ببرد.', false, 'waiting');
+    setActivity('در حال آماده‌کردن پاسخ…');
     try {
       const data = await api('sendMessage', text);
       item.dataset.expiresAt = data.expiresAt;
       addMessage('assistant', data.output, true, data.expiresAt);
       failed = null;
-      setStatus('می‌توانید پرسش بعدی را بنویسید.');
+      showNotice();
     } catch (error) {
       item.remove();
       input.value = text;
@@ -458,15 +507,15 @@
     if (busy || !policy?.allowClear) return;
     setBusy('reset');
     if (confirmation) confirmation.hidden = true;
-    retry.hidden = true;
-    setStatus('در حال پاک‌کردن تاریخچه…', false, 'clearing');
+    showNotice();
+    setActivity('در حال پاک‌کردن گفتگو…');
     try {
       await api('resetSession');
       messages.replaceChildren();
       welcome();
       input.value = '';
       failed = null;
-      setStatus('تاریخچهٔ قابل مشاهدهٔ شما پاک شد. آرشیو مدیریتی تا پایان مهلت ۳۰روزه باقی می‌ماند.');
+      showNotice('تاریخچهٔ قابل مشاهدهٔ شما پاک شد. آرشیو مدیریتی تا پایان مهلت ۳۰روزه باقی می‌ماند.');
     } catch (error) {
       failure(error, 'resetSession');
     } finally {
@@ -506,7 +555,7 @@
     panel.hidden = false;
     launcher.setAttribute('aria-expanded', 'true');
     panel.focus({ preventScroll: true });
-    if (!busy) loadHistory();
+    if (!busy) loadHistory(true);
     if (!input.disabled) input.focus({ preventScroll: true });
   }
 
@@ -539,9 +588,10 @@
   });
   input.addEventListener('input', () => {
     updateInput();
-    if (failed?.action === 'sendMessage') {
+    if (failed?.action === 'sendMessage' && !failed.error.uncertain) {
       failed = null;
-      retry.hidden = true;
+      showNotice();
+      if (status.dataset.state === 'offline') offlineNotice();
     }
   });
   if (fresh && confirmation && clear) fresh.addEventListener('click', () => { if (!policy?.allowClear) return; confirmation.hidden = false; clear.focus(); });
@@ -551,20 +601,31 @@
   retry.addEventListener('click', () => {
     if (!failed || busy) return;
     if (failed.action === 'sendMessage') {
-      input.value = failed.text;
+      if (!input.value.trim()) input.value = failed.text;
       submitMessage();
     } else if (failed.action === 'resetSession') clearHistory();
     else loadHistory();
   });
   if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (!panel.hidden && !busy) loadHistory(true); });
+  reconnect.addEventListener('click', () => { if (!busy && !pendingSend) loadHistory(true); });
+  function offlineNotice() {
+    setConnection('offline');
+    showNotice(busy === 'send' ? 'ارتباط قطع شد؛ دریافت نتیجهٔ پیام هنوز تأیید نشده است. ابتدا منتظر نتیجهٔ درخواست بمانید.'
+      : 'ارتباط برقرار نیست. اتصال اینترنت را بررسی کنید؛ متن نوشته‌شده در کادر حفظ می‌شود.', true);
+    retry.hidden = true;
+    reconnect.hidden = false;
+  }
   if (typeof window !== 'undefined') {
-    window.addEventListener('offline', () => setStatus('', true, 'offline'));
+    window.addEventListener('offline', offlineNotice);
     window.addEventListener('online', () => {
       if (panel.hidden) return;
       if (!busy) loadHistory(true);
-      else setStatus('منتظر تأیید نتیجهٔ درخواست هستیم.', false, busy === 'send' ? 'waiting' : 'connecting');
+      else setConnection('connecting');
     });
   }
+  setConnection('connecting');
+  setActivity();
+  showNotice();
   updateInput();
   // Restore an open history entry on reload/forward rather than leaving a dead Back step.
   if (browserHistory?.state?.gpanteSupportChat === historyToken) openPanel(false);

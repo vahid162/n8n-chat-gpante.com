@@ -131,6 +131,12 @@ foreach (array('', '-1', '1.5', '1000000', 'tomorrow', "60\r\nprivate", array('6
     check(!isset($response->get_headers()['Retry-After']) && str_contains($response->get_data()['output'], 'زمان دقیق'), 'missing or invalid delay must not invent a precise recovery time');
     check($response->get_data()['error']['code'] === 'request_limit' && !str_contains(json_encode($response->get_data()), 'private'), 'malformed reason fails to the safe public fallback');
 }
+foreach (array('monthly_budget', 'pricing_review') as $reason) {
+    $remote_result = array('status' => 503, 'body' => json_encode(array('error' => array('code' => $reason, 'private' => 'private backend detail'), 'output' => 'private backend detail')));
+    $response = request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));
+    check($response->get_data()['error'] === array('code' => $reason) && !str_contains(json_encode($response->get_data()), 'private'), 'fixed budget or service refusal crosses without provider text');
+    check(str_contains($response->get_data()['output'], 'پیوندهای راهنمای فروشگاه'), 'unavailable answers have a useful alternative action');
+}
 foreach (array(new WP_Error(), array('status' => 500, 'body' => 'private secret'), array('status' => 200, 'body' => '<html>private</html>')) as $broken) {
     $remote_result = $broken;
     $response = request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));

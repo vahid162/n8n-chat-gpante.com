@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.7.8"
+  version: "0.8.0"
 ---
 
 # Operate GPante Support Chat
@@ -34,6 +34,8 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - Ground specifications, links, images and prices in actual source data. Re-read mutable price/sale/availability data before a recommendation; honor currency and `currency_minor_unit`. Zero is a valid price. Missing facts stay unknown.
 - Distinguish no matches, missing attributes, incomplete retrieval and API failure. Ask a relevant follow-up or report uncertainty; a failed read is not an empty catalog.
 - For product discovery, unspecified format/thickness/material are optional, not a questionnaire before searching. After no matches, use the existing bounded calls for a synonym or close product family; preserve explicit constraints. Recommend only fresh retrieved alternatives with a stated similarity and important difference. Do not fill a list with unrelated components, promise the same absent product after changing irrelevant features, or list rejected results as recommendations. One relevant option is sufficient. Preserve context for “another model”/“cheaper”, allow explicit topic/component changes, and ask only a question that resolves a real ambiguity. See [the discovery spec](../../../specs/006-contextual-product-discovery/spec.md) and its bounded live verification.
+- For categories, newest and best sellers, use the native public provider and the four bounded tools. Category_Search separates products/articles and returns real IDs/parents/links from eligible content; category filters include descendants and must be verified in normalized output. Newest uses publication, not modification. Best sellers use positive recorded all-time WooCommerce unit counts, including free orders; never claim recent sales/revenue, expose raw counts/orders or rank a partial relevance page. Preserve sorting in out-of-range total queries. See [catalog discovery](../../../specs/010-catalog-discovery/spec.md).
+- For articles and software topics such as “کورل”, use Knowledge_Search before unrelated product discovery. Match Persian/English Corel names, prioritize normalized title relevance before recency, and keep article intent words out of required topic matches. Product-search failure does not prove article absence; a snippet does not prove full article content. Keep controlled aliases source-specific, explicit versions/topics intact, fixed destinations, three tools/four model calls, and no automatic extra article call for every product request.
 - Keep model choice, UI and bounded tools separable. Reuse the existing n8n and PostgreSQL where they fit. Add indexing, embeddings, queues or services only for demonstrated requirements; full catalog coverage alone does not prescribe a vector database.
 - Customer-account support is a future capability requiring trusted WordPress authentication and ownership checks. A session ID, user-supplied customer/order ID or model assertion is not authorization. Define each order-changing capability separately before adding it.
 
@@ -124,7 +126,7 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 
 ## Maintain the conversation archive
 
-- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main 1.2.3 has 69 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
+- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main 1.3.0 retains 69 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
 - Validate a model tool batch as a whole, then execute its queue sequentially within three tools/four model calls per question. Each iteration consumes one call; preserve paired-item lookup through HTTP, every call ID, and tools=none after exhaustion. Persist only fixed rejection codes in the existing turn error_code; never enable raw execution storage or log provider text/arguments for diagnostics. Historical generic errors cannot be backfilled from missing payloads. See `specs/008-model-tool-batches/`.
 - Apply 003 only once, with Main drained. Keep the original timestamp for legacy rows and unknown metadata unknown. Do not restore the old destructive reset function during rollback. Central policy is authoritative; failed/unconfirmed writes are not success, and stale revisions are rejected.
 - Accepted input is stored before model dispatch; final success/error closes the request once. Distinguish logical resend idempotency (still absent) from duplicate final persistence (rejected). No transcript is stored in WordPress; the administrator key and SQL role are independent from the public chat connection.

@@ -51,12 +51,14 @@ function admitted(input, result) {
 }
 
 const TOOLS = [
-  { name: 'Product_Search', description: 'Search the full eligible public catalog. AND all supplied constraints. Use sort price_asc for cheapest matches; pagination is not complete catalog output.',
-    properties: { search: { type: 'string' }, format: { type: 'string' }, thickness: { type: 'string' }, material: { type: 'string' }, page: { type: 'integer', minimum: 1 }, sort: { type: 'string', enum: ['relevance', 'price_asc'] } } },
+  { name: 'Product_Search', description: 'Search all eligible public products with AND constraints. Sort newest by publication, best_selling by recorded all-time unit sales (positive only), or price_asc. Explicit newest/best_selling can browse without search. categoryId must come from Category_Search or verified tool facts. Pages are not the full catalog.',
+    properties: { search: { type: 'string' }, categoryId: { type: 'integer', minimum: 1 }, format: { type: 'string' }, thickness: { type: 'string' }, material: { type: 'string' }, page: { type: 'integer', minimum: 1 }, sort: { type: 'string', enum: ['relevance', 'price_asc', 'newest', 'best_selling'] } } },
   { name: 'Product_Details', description: 'Read current eligible public product facts and prices by productId. No private files or customers.',
     properties: { productId: { type: 'integer', minimum: 1 } }, required: ['productId'] },
-  { name: 'Knowledge_Search', description: 'Read public articles or the approved public rules/contact guides.',
-    properties: { source: { type: 'string', enum: ['articles', 'guides'] }, search: { type: 'string' }, page: { type: 'integer', minimum: 1 } } }
+  { name: 'Knowledge_Search', description: 'Search actual public articles by meaningful topic keywords, with title relevance before recency. Use this for software topics such as Corel/کورل, tutorials and articles, even when no product exists. source guides reads approved rules/contact only. categoryId applies only to articles. Snippets are not full articles.',
+    properties: { source: { type: 'string', enum: ['articles', 'guides'] }, search: { type: 'string' }, categoryId: { type: 'integer', minimum: 1 }, page: { type: 'integer', minimum: 1 } } },
+  { name: 'Category_Search', description: 'Discover real public product or article categories with eligible content, including ancestors. Returns IDs and navigation URLs, five per page. source products or articles; parentId 0 lists roots, another ID lists immediate children; omit parentId to search all levels.',
+    properties: { source: { type: 'string', enum: ['products', 'articles'] }, search: { type: 'string' }, parentId: { type: 'integer', minimum: 0 }, page: { type: 'integer', minimum: 1 } } }
 ].map(t => ({ type: 'function', function: { name: t.name, description: t.description,
   parameters: { type: 'object', properties: t.properties, required: t.required || [], additionalProperties: false } } }));
 

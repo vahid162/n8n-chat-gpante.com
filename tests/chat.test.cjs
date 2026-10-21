@@ -44,6 +44,17 @@ test('final reply hides internal errors and reasoning, strips HTML and unsafe li
   assert.equal(finish({ output: 'a'.repeat(9000) }).length, 8000);
 });
 
+test('FAQ answer anchors and only the verified external design destination survive reply filtering', () => {
+  for (const url of ['https://gpante.com/faq-ai/#faq-format-cdr','https://t.me/gpante_designer']) {
+    const reply = `[راهنما](${url})`;
+    assert.equal(finish({ output: reply }), reply);
+  }
+  for (const url of ['https://gpante.com/product/test/#faq-test','https://gpante.com/faq-ai/#other',
+    'https://gpante.com/faq-ai/#faq-test%0a','https://t.me/gpante_designer.evil','https://t.me/gpante_designer?token=private','https://t.me/other_support']) {
+    assert(!finish({ output: `[راهنما](${url})` }).includes(url), url);
+  }
+});
+
 test('Markdown spacing, nested labels, images and reference links cannot bypass the destination policy', () => {
   for (const output of [
     '[راهنما]( //external.example/path )',

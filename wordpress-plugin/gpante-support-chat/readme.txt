@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.7.1
+Stable tag: 0.8.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,6 +68,11 @@ GET /gpante-support/v1/appearance فقط تنظیمات عمومی ظاهر را
 اندازهٔ پنجره حفظ شده است. Back مرورگر ابتدا چت را می‌بندد و Back بعدی به صفحهٔ قبلی می‌رود. ×، Escape و کلیک بیرون هم آن را می‌بندند؛ reload/Forward وضعیت باز را بازیابی می‌کند.
 
 == Changelog ==
+
+= 0.8.0 =
+* Read paired questions and answers from the approved public Elementor FAQ, with topic search and direct source citations.
+* Preserve verified design-support references and the corresponding safe navigation buttons.
+* Upgrade the plugin before Main 1.4.0; settings and schema remain compatible. PHP DOM extension is required for FAQ extraction.
 
 = 0.7.1 =
 اصلاح ارتباط نتایج محصول: واژهٔ کاملِ عنوان پیش از تطبیق داخل کلمه و تاریخ انتشار قرار می‌گیرد؛ جست‌وجوی «اسب» محصول مرتبط را زیر نتایج «مناسب» پنهان نمی‌کند. ترتیب‌های صریح، فیلترها، تنظیمات و قرارداد API حفظ می‌شوند.

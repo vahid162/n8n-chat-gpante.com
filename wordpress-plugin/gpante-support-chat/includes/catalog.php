@@ -7,6 +7,8 @@
 
 defined( 'ABSPATH' ) || exit;
 
+require_once __DIR__ . '/faq.php';
+
 /**
  * Normalize public search text and Persian variants.
  *
@@ -631,9 +633,12 @@ function gpante_support_catalog_knowledge( $request ) {
 	$source = $params['source'] ?? 'articles';
 	$page   = isset( $params['page'] ) ? gpante_support_catalog_integer( $params['page'] ) : 1;
 	$search = isset( $params['search'] ) ? gpante_support_catalog_search_text( $params['search'] ) : '';
-	if ( ! in_array( $source, array( 'articles', 'guides' ), true ) || false === $page || false === $search
-		|| ( 'guides' === $source && isset( $params['categoryId'] ) ) ) {
+	if ( ! in_array( $source, array( 'articles', 'guides', 'faq' ), true ) || false === $page || false === $search
+		|| ( 'articles' !== $source && isset( $params['categoryId'] ) ) ) {
 		return gpante_support_catalog_error();
+	}
+	if ( 'faq' === $source ) {
+		return gpante_support_catalog_faq( $search, $page );
 	}
 	$args = array(
 		'post_type'           => 'guides' === $source ? 'page' : 'post',

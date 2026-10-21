@@ -23,6 +23,21 @@ test('only explicit public HTTPS site links survive raw and encoded path attacks
   ]) assert.equal(safeLink(value), false, value);
 });
 
+test('FAQ citation and verified design support render as safe regular navigation buttons', () => {
+  const urls = ['https://gpante.com/faq-ai/#faq-format-cdr','https://t.me/gpante_designer'];
+  for (const url of urls) assert.equal(safeLink(url), true);
+  for (const url of ['https://gpante.com/faq-ai/#faq-cdr\n','https://gpante.com/faq-ai/#faq-cdr%0a',
+    'https://t.me/gpante_designer?x=1','https://t.me/other_support','https://gpante.com/product/a/#faq-cdr']) assert.equal(safeLink(url), false, url);
+  global.document = { createTextNode: value => node('#text', value), createElement: tag => node(tag) };
+  try {
+    const target = node('div');
+    appendContent(target, `[پاسخ FAQ](${urls[0]})\n\n[تلگرام طراحی](${urls[1]})`);
+    const links = all(target).filter(value => value.type === 'a');
+    assert.deepEqual(links.map(value => value.href), urls);
+    assert(links.every(value => value.className === 'gpante-chat-link' && value.rel === 'noopener noreferrer' && value.target === '_blank'));
+  } finally { delete global.document; }
+});
+
 function node(type, text = '') { return { type, textContent: text, children: [],
     append(...items) { this.children.push(...items); },
     setAttribute(name, value) { this[name] = value; },

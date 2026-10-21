@@ -41,7 +41,10 @@ $public_appearance = array(
 				<?php endforeach; ?>
 			</nav>
 		</div>
-		<div class="gpante-chat-status" data-status role="status" aria-live="polite" aria-atomic="true"></div>
+		<div class="gpante-chat-status" data-status role="status" aria-live="polite" aria-atomic="true">
+			<span class="gpante-chat-status-icon" aria-hidden="true"></span>
+			<div class="gpante-chat-status-copy"><strong data-status-label></strong><span data-status-text></span></div>
+		</div>
 		<button class="gpante-chat-retry" type="button" data-retry hidden><?php esc_html_e( 'تلاش دوباره', 'gpante-support-chat' ); ?></button>
 		<form class="gpante-chat-form" data-form>
 			<label class="gpante-chat-sr-only" for="gpante-support-input" data-input-label><?php echo esc_html( $appearance['texts']['input_label'] ); ?></label>

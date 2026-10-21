@@ -45,7 +45,7 @@
 | دیتابیس داخلی n8n | فقط امور خود n8n؛ schema چت در آن ایجاد نشده |
 | Admin در n8n | مدیریت خصوصی آرشیو/سیاست، با کلید مستقل و بدون تماس مدل |
 | Retention در n8n | پاک‌سازی ساعتی؛ اجرای طبیعی زمان‌بندی نیز مشاهده شد |
-| افزونهٔ وردپرس | [GPante Support Chat 0.6.2](wordpress-plugin/gpante-support-chat/readme.txt)، تنظیم امن و رابط عمومی؛ روی سایت واقعی بررسی شده |
+| افزونهٔ وردپرس | [GPante Support Chat 0.7.0](wordpress-plugin/gpante-support-chat/readme.txt)، تنظیم امن و رابط عمومی؛ روی سایت واقعی بررسی شده |
 | مهارت نگهداری | [operate-gpante-support-chat](.agents/skills/operate-gpante-support-chat/SKILL.md)، نسخهٔ ۰٫۸٫۱؛ منبع canonical در همین مخزن |
 
 سامانهٔ جداگانهٔ `woo2` برای انتشار محصول است. چت عمومی به ابزارهای مدیریت، تلگرام، Nextcloud، بارگذاری فایل یا state آن سامانه متصل نیست.

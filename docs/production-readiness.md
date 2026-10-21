@@ -129,3 +129,10 @@ Release رسمی 0.6.1 با تطبیق commit/tag، checksum و ۱۲ فایل ن
 [Release رسمی](https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.6.2) پس از CI/SQL موفق، دانلود و با منبع/۱۲ فایل نصب‌شده تطبیق داده شد. پشتیبان محدود بیرون webroot است؛ تمام اتصال/ظاهر، کلیدها، enabled، سیاست، قالب و افزونه‌های فعال حفظ شدند. کش فقط همین سایت پاک شد. هیچ SQL، n8n یا سرویس مشترکی تغییر/restart نکرد.
 
 نشان کنار عنوان است؛ انتظار و اعلان‌ها داخل گفتگو و اتصال مجدد مستقل از ارسال/پاک‌کردن است. پنجره/سربرگ اندازهٔ قبلی و کاربر هنگام اتصال امکان تایپ دارد. فایل نصب‌شده در Chromium/Firefox و چهار اندازه، و خواندن واقعی تاریخچه/سیاست در Chrome با نشان Online تأیید شدند. تماس مدل این ارتقا صفر، دفتر هزینه/سیاست ثابت، ۲۵ workflow بدون تغییر و آخرین Retention طبیعی موفق بود. [شواهد و حدود](../specs/012-header-connection-status/verification.md).
+
+
+## حباب‌ها و thumbnail — 0.7.0، ۲۱ اکتبر ۲۰۲۶
+
+[Release رسمی](https://github.com/vahid162/n8n-chat-gpante.com/releases/tag/wordpress-v0.7.0) با checksum و ۱۲ فایل source/نصب‌شده برابر است. تنظیمات اتصال/ظاهر، کلیدها، enabled، سیاست، قالب و افزونه‌های فعال حفظ شدند؛ cache فقط همین سایت پاک شد و پشتیبان محدود خارج webroot است.
+
+هر پیشنهاد/بخش مستقل حباب جدا و مشخصات فهرست خطی دارد؛ thumbnail محصول عمومی سمت راست عنوان/توضیح است. metadata در WordPress از منبع عمومی بومی بازسازی می‌شود؛ API اختیاری و سازگار است و متن آرشیو/مدل/بودجه/n8n/schema تغییر نکرده‌اند. ۸۵ تست Node، PHP/WPCS/بسته و CI/SQL، native تصویر/bridge و Chromium/Firefox در چهار اندازه روی نامزد و فایل نصب‌شده موفق‌اند. عکس‌ها واقعی، chat آزمایش intercept، تماس مدل صفر و هر ۲۵ workflow ثابت‌اند. Chrome تازه اتصال واقعی را نیز تأیید کرد و آخرین Retention طبیعی موفق بود. [شواهد و حدود](../specs/013-reply-bubbles-previews/verification.md).

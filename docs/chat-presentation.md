@@ -1,4 +1,8 @@
-# پاسخ جمع‌وجور و لینک‌های یکدست
+# نمایش پاسخ‌ها
+
+در نامزد 0.7.0، پیشنهادها/پاراگراف‌های مستقل حباب جدا و مشخصات فهرست خطی دارند. thumbnail کوچک از محصول عمومیِ همان لینک در وردپرس می‌آید؛ متن ذخیره‌شده/مدل/بودجه ثابت است. [سناریو و شواهد جاری](../specs/013-reply-bubbles-previews/verification.md).
+
+## سابقهٔ پاسخ جمع‌وجور 0.5.2
 
 منبع افزونه 0.5.2؛ نسخهٔ رسمی 0.5.2 روی سایت نصب و بررسی شد. اصلاح در CSS، حذف جداکنندهٔ خالی میان لینک‌های مجاز و نسخهٔ بسته است؛ مدل، دادهٔ گفتگو، n8n و قراردادها تغییر نمی‌کنند.
 
@@ -11,10 +15,10 @@
 آزمون اختیاری `tests/chat-presentation-browser.py` با Playwright، در context جدا و با پاسخ مصنوعی فقط در مرورگر اجرا می‌شود؛ متن آزمایشی به n8n یا مدل نمی‌رود. نیاز به Playwright و موتورهای نصب‌شده دارد؛ وابستگی runtime افزونه نیست.
 
 ```sh
-python tests/chat-presentation-browser.py --url https://gpante.com/ --evidence-dir /tmp/chat-layout --engines chromium firefox
+python tests/chat-presentation-browser.py --url https://gpante.com/ --previews /tmp/public-product-previews.json --evidence-dir /tmp/chat-layout --engines chromium firefox
 ```
 
-گزینهٔ `--css` CSS و formatter کاندیدا را فقط در مرورگر تزریق می‌کند؛ `--observe` برای ثبت baseline بدون الزام اصلاح است. مرورگرها و contextها در پایان بسته می‌شوند. آزمون، چند لینک هم‌پاراگراف، لینک همراه توضیح/عنوان بلند، جدول، عدم اجرای HTML/لینک ممنوع، ترتیب Tab، ArrowLeft جدول عریض و بازیابی پس از reload را بررسی می‌کند.
+ابزار جاری، `--previews` را به‌صورت آرایهٔ عمومی `[{"url":"https://gpante.com/product/.../","title":"...","thumbnail":"https://gpante.com/wp-content/uploads/...jpg"}]` یا شیء دارای previews می‌خواند؛ این فایل باید دو thumbnail واقعی و معتبر از خروجی WordPress داشته باشد و هیچ کلید/گفتگوی خصوصی نداشته باشد. `--css` CSS و formatter نامزد را فقط در همان مرورگر اعمال می‌کند. همهٔ chat requestها intercept و عکس‌ها از منابع عمومی خوانده می‌شوند. حباب جدا، جدول قدیمی→فهرست، URL/HTML امن، عکس راست عنوان، Tab، عکس خراب و reload بررسی می‌شوند. ابزار با تغییر رابط تکامل یافته؛ نتایج جدول/ArrowLeft زیر، سابقهٔ نسخهٔ 0.5.2 هستند.
 
 ## نتیجه و حدود
 

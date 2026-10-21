@@ -71,7 +71,7 @@ try:
     run('fill','#gpante-support [data-input]','سلام');run('press','Enter');ready()
     for width,height in [(1440,1000),(390,844),(844,390)]:
         run('set','viewport',str(width),str(height));data=layout();window_checks(data,width,height)
-        sides=js("(()=>{const r=s=>document.querySelector(s).getBoundingClientRect().toJSON();return {area:r('[data-messages]'),user:r('.gpante-chat-message--user'),assistant:r('.gpante-chat-message--assistant:not(.gpante-chat-message--welcome)')}})()")
+        sides=js("(()=>{const r=s=>document.querySelector(s).getBoundingClientRect().toJSON();return {area:r('[data-messages]'),user:r('.gpante-chat-message--user'),assistant:r('.gpante-chat-message--assistant:not(.gpante-chat-message--welcome) .gpante-chat-segment')}})()")
         assert abs(sides['user']['right']-sides['area']['right'])<1,sides
         assert abs(sides['assistant']['left']-sides['area']['left'])<1,sides
         run('scrollintoview','#gpante-support [data-input]');run('screenshot',str(evidence/f'layout-messages-{width}x{height}.png'))

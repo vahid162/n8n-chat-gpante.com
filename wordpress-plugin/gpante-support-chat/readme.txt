@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.6.2
+Stable tag: 0.7.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,6 +68,12 @@ GET /gpante-support/v1/appearance فقط تنظیمات عمومی ظاهر را
 اندازهٔ پنجره حفظ شده است. Back مرورگر ابتدا چت را می‌بندد و Back بعدی به صفحهٔ قبلی می‌رود. ×، Escape و کلیک بیرون هم آن را می‌بندند؛ reload/Forward وضعیت باز را بازیابی می‌کند.
 
 == Changelog ==
+
+= 0.7.0 =
+* Each recommendation and reply section has its own spaced bubble; legacy specification tables render as compact lists.
+* Small product thumbnails appear to the right of the title and description, sourced from the current public WordPress product.
+* Optional preview metadata is rebuilt on the server for new replies and history; text, retention and connection controls remain compatible.
+
 
 = 0.6.2 =
 * Compact Online/Connecting/Disconnected badge beside the assistant title; conversation notices and reply activity use the scrollable message area.

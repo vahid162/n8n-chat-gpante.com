@@ -132,7 +132,7 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 
 ## Maintain the conversation archive
 
-- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main 1.3.0 retains 69 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
+- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main 1.4.1 retains 69 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
 - Validate a model tool batch as a whole, then execute its queue sequentially within three tools/four model calls per question. Each iteration consumes one call; preserve paired-item lookup through HTTP, every call ID, and tools=none after exhaustion. Persist only fixed rejection codes in the existing turn error_code; never enable raw execution storage or log provider text/arguments for diagnostics. Historical generic errors cannot be backfilled from missing payloads. See `specs/008-model-tool-batches/`.
 - Apply 003 only once, with Main drained. Keep the original timestamp for legacy rows and unknown metadata unknown. Do not restore the old destructive reset function during rollback. Central policy is authoritative; failed/unconfirmed writes are not success, and stale revisions are rejected.
 - Accepted input is stored before model dispatch; final success/error closes the request once. Distinguish logical resend idempotency (still absent) from duplicate final persistence (rejected). No transcript is stored in WordPress; the administrator key and SQL role are independent from the public chat connection.

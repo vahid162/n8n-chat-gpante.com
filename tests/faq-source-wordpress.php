@@ -79,6 +79,29 @@ try {
     $read = faq_read(['search' => 'جایگذاری', 'page' => 2]);
     faq_check(!is_wp_error($read) && array_column($read->get_data(), 'id') === ['faq-rank-c','faq-rank-d'], 'remaining relevance-ranked FAQ matches keep complete second-page coverage');
     delete_transient('gpante_support_faq_cache');
+    $html = faq_document(faq_item('faq-phone', 'اگر ایمیل ندارم می‌توانم خرید کنم؟', 'شماره تلفن الزامی است.')
+        . faq_item('faq-mobile', 'چطور فایل را با موبایل باز کنم؟', 'نرم‌افزار سازگار لازم است.')
+        . faq_item('faq-slot', 'اگر زبانه داخل شیار جا نشود چه کنم؟', 'ضخامت و مقیاس را بررسی کنید.')
+        . faq_item('faq-open', 'اگر فایل باز نشد چه کنم؟', 'فرمت و نرم‌افزار سازگار را بررسی کنید.'));
+    foreach (['شماره همراه', 'شماره موبایل', 'شماره تلفن'] as $term) {
+        $read = faq_read(['search' => $term]);
+        faq_check(!is_wp_error($read) && array_column($read->get_data(), 'id') === ['faq-phone'], 'controlled phone phrase finds checkout information: ' . $term);
+    }
+    $read = faq_read(['search' => 'موبایل']);
+    faq_check(!is_wp_error($read) && array_column($read->get_data(), 'id') === ['faq-mobile','faq-phone'], 'literal mobile title precedes an aliased phone-field answer');
+    $read = faq_read(['search' => 'فایل موبایل']);
+    faq_check(!is_wp_error($read) && array_column($read->get_data(), 'id') === ['faq-mobile'], 'device context does not become checkout guidance');
+    foreach (['جا نمیره', 'جا نمی‌ره', 'جا نمی رود'] as $term) {
+        $read = faq_read(['search' => $term]);
+        faq_check(!is_wp_error($read) && array_column($read->get_data(), 'id') === ['faq-slot'], 'negative colloquial fit retains the official answer: ' . $term);
+    }
+    $read = faq_read(['search' => 'فایل باز نمیشه']);
+    faq_check(!is_wp_error($read) && array_column($read->get_data(), 'id') === ['faq-open'], 'negative colloquial file opening finds its official answer');
+    foreach (['موبایل ۲۰۲۴', 'جا نمیره پلکسی'] as $term) {
+        $read = faq_read(['search' => $term]);
+        faq_check(!is_wp_error($read) && $read->get_data() === [], 'explicit version or material remains required: ' . $term);
+    }
+    delete_transient('gpante_support_faq_cache');
     $html = faq_document($items . faq_item('faq-cdr', 'تکراری', 'پاسخ تکراری'));
     faq_check(is_wp_error(faq_read([])), 'duplicate question identifiers fail closed rather than mixing answers');
     $html = faq_document('<details data-faq-item id="faq-incomplete"><summary>سؤال بی‌پاسخ</summary></details>');

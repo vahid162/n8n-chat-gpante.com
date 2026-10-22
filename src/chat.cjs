@@ -50,6 +50,110 @@ function admitted(input, result) {
     messages: [...history, { role: 'user', content: input.chatInput }] };
 }
 
+function replyText(value) {
+  return String(value || '').toLowerCase().replace(/[يى]/g, 'ی').replace(/ك/g, 'ک')
+    .replace(/[۰-۹٠-٩]/g, c => String('۰۱۲۳۴۵۶۷۸۹'.includes(c) ? '۰۱۲۳۴۵۶۷۸۹'.indexOf(c) : '٠١٢٣٤٥٦٧٨٩'.indexOf(c)))
+    .replace(/[\u200b-\u200f]/g, ' ').replace(/٫/g, '.').replace(/\s+/g, ' ').trim();
+}
+
+// Only high-confidence intents are gated; ambiguous questions still use the normal tool loop.
+function requiredSource(state, text = state.chatInput, followup = true) {
+  const q = replyText(text);
+  if (/طراحی اختصاصی|سفارش طرح|طراحی سفارشی/.test(q)) return 'faq';
+  if (/متن.*(?:قوانین|مقررات|بازپرداخت)|(?:قوانین|مقررات).*بازپرداخت/.test(q)) return 'guides';
+  if (/دسته(?: بندی)? ها|دسته بندی|دسته (?:محصول|مقاله|مقالات)/.test(q)
+    && !/پرفروش|جدیدترین|تازه ترین|همین دسته|این دسته/.test(q)) return /مقاله|مقالات|آموزش|دوره/.test(q) ? 'article_categories' : 'product_categories';
+  if (/مقاله|مقالات|دوره/.test(q) || /کورل|corel|coreldraw|فتوگراو/.test(q) && /آموزش/.test(q)
+    || /^(?:کورل|corel|coreldraw|فتوگراو)$/.test(q)) return 'articles';
+  if (/ثبت نام|حساب کاربری|خرید مهمان|بدون حساب|(?:ایمیل|ای میل|email).*(?:ندار|خرید|اجبار|لازم|الزام)|(?:بدون|خرید|اجبار).*(?:ایمیل|ای میل|email)|آموزش.*(?:خرید|پرداخت)|(?:خرید|پرداخت).*آموزش/.test(q)) return 'faq';
+  if (/https:\/\/gpante\.com\/product\//.test(q)
+    || /پرفروش|جدیدترین|تازه ترین/.test(q)
+    || /قیمت/.test(q) && /طرح|محصول|باکس|جعبه|استند|ماکت|فایل/.test(q)
+    || /طرح|محصول|باکس|جعبه|استند|ماکت/.test(q) && /دارید|داری|می خواهم|میخوام|می خوام|معرفی|پیدا|نشان/.test(q)) return 'products';
+  if (/ایمیل|ای میل|email|ثبت نام|حساب کاربری|خرید مهمان|بدون حساب/.test(q)
+    || /(?:تلفن|شماره همراه|موبایل).*(?:خرید|اجباری|الزام)|خرید.*(?:تلفن|شماره همراه|موبایل)/.test(q)
+    || /شیار|زبانه/.test(q)
+    || /فایل|فرمت|dxf|cdr|svg|pdf|خرید|پرداخت|دانلود/.test(q) && /چیست|چیه|یعنی|چرا|چطور|چگونه|مشکل|خطا|باز نم|جا نم/.test(q)) return 'faq';
+  if (/آموزش/.test(q)) return 'articles';
+  if (followup && /ارزان.?تر|مدل دیگر|ادامه|همین دسته|همین ها/.test(q)) {
+    let skippedCurrent = false;
+    for (const message of (state.messages || []).slice(-12).reverse()) {
+      if (message.role !== 'user') continue;
+      if (!skippedCurrent && message.content === text) { skippedCurrent = true; continue; }
+      const source = requiredSource(state, message.content, false);
+      if (source || !/ارزان.?تر|مدل دیگر|ادامه|همین دسته|همین ها/.test(replyText(message.content))) return source;
+    }
+  }
+  return null;
+}
+
+function decimalValue(value, zeros = 0) {
+  const raw = replyText(value).replace(/[,٬،\s]/g, '');
+  if (!/^\d+(?:\.\d+)?$/.test(raw)) return null;
+  const [whole, fraction = ''] = raw.split('.');
+  const digits = (whole + fraction + '0'.repeat(zeros)).padStart(fraction.length + 1, '0');
+  const split = digits.length - fraction.length;
+  const decimals = fraction.length ? digits.slice(split).replace(/0+$/, '') : '';
+  return digits.slice(0, split).replace(/^0+(?=\d)/, '') + (decimals ? '.' + decimals : '');
+}
+
+function attributeMatches(taxonomy, term, value) {
+  if (taxonomy !== 'pa_thickness') return term.includes(value);
+  return (term.match(/\d+(?:\.\d+)?/g) || []).some(number => decimalValue(number) === decimalValue(value));
+}
+
+function groundingError(state, output) {
+  const evidence = state.evidence || [];
+  const required = requiredSource(state);
+  const relevant = evidence.filter(e => required === 'products' ? ['Product_Search', 'Product_Details'].includes(e.name)
+    : required === 'product_categories' || required === 'article_categories' ? e.name === 'Category_Search' && e.source === (required === 'product_categories' ? 'products' : 'articles')
+    : e.name === 'Knowledge_Search' && e.source === required);
+  if (required && !relevant.some(e => e.status !== 'invalid_query')) return 'source_required';
+  const abstains = /پیدا نشد|پیدا نکردم|یافت نشد|نیافتم|ذکر نشده|در دسترس نیست|دسترسی ندارم|نتوانستم|مشخص نیست|اطلاعات.*کافی نیست|گزینه.*مرتبط.*نیست/.test(output);
+  const results = evidence.filter(e => e.ok).flatMap(e => e.results || []);
+  const allowed = new Set(results.flatMap(r => [r.url, ...(r.links || []).map(l => l.url)]));
+  const links = [...output.matchAll(/https:\/\/[^\s<>()[\]]+/g)];
+  // Static support navigation is permitted without retrieval, never product/FAQ facts.
+  const navigation = new Set(['https://gpante.com/contact-us/', 'https://gpante.com/my-account/']);
+  if (links.some(m => !allowed.has(m[0]) && !navigation.has(m[0]))) return 'unverified_reference';
+  if (required && relevant.some(e => e.ok && e.results?.length)
+    && !links.some(m => relevant.some(e => e.ok && e.results?.some(r => r.url === m[0])))
+    && !abstains) return 'reference_required';
+  const prices = text => [...replyText(text).replace(/\*/g, '').matchAll(/(\d[\d,٬،.]*)\s*(هزار|میلیون)?\s*(تومان|تومن|ریال|دلار|usd|irr|irt)(?=$|[\s،.,؛!؟|)])/g)];
+  const products = results.filter(r => r.price !== undefined && Array.isArray(r.attributes));
+  if (prices(output).length && !products.length) return 'unverified_price';
+  const reads = required ? relevant : evidence;
+  if (!reads.some(e => e.ok) && reads.some(e => e.ok === false && e.status !== 'invalid_query')
+    && !/در دسترس نیست|دسترسی ندارم|نتوانستم|امکان.*(?:خواندن|دریافت|بررسی).*نیست/.test(output)) return 'source_read_failed';
+  if (required && !relevant.some(e => e.ok && e.results?.length) && !abstains
+    && !(required === 'faq' && !/خرید|ایمیل|تلفن|همراه|حساب|ثبت.?نام|پرداخت/.test(replyText(state.chatInput)) && /راهنمای عمومی|اطلاعات عمومی|به.?طور عمومی/.test(output))) return 'source_unavailable';
+  let start = 0;
+  for (const link of links.filter(m => /^https:\/\/gpante\.com\/product\//.test(m[0]))) {
+    const item = [...products].reverse().find(r => r.url === link[0]);
+    if (!item) return 'unverified_reference';
+    const section = output.slice(start, link.index);
+    start = link.index + link[0].length;
+    for (const p of prices(section)) {
+      const unit = /تومان|تومن|irt/.test(p[3]) ? 'IRT' : /ریال|irr/.test(p[3]) ? 'IRR' : 'USD';
+      const currency = /^(IRT|TMN|TOMAN)$/.test(item.price?.currency) ? 'IRT' : item.price?.currency;
+      if (!item.price || currency !== unit || decimalValue(p[1], p[2] === 'هزار' ? 3 : p[2] === 'میلیون' ? 6 : 0) !== decimalValue(item.price.amount)) return 'price_mismatch';
+    }
+    if (/رایگان(?!\s+نیست)/.test(section) && (!item.price || decimalValue(item.price.amount) !== '0')) return 'price_mismatch';
+    for (const row of section.split('\n')) {
+      const cells = row.split('|').map(c => replyText(c.replace(/\*/g, ''))).filter(Boolean);
+      if (cells.length !== 2 || /ذکر نشده|نامشخص/.test(cells[1])) continue;
+      const taxonomy = { فرمت: 'pa_file-format', ضخامت: 'pa_thickness', متریال: 'pa_materials-required', جنس: 'pa_materials-required' }[cells[0]];
+      if (!taxonomy) continue;
+      const terms = item.attributes.filter(a => a.taxonomy === taxonomy).flatMap(a => a.terms.flatMap(t => [replyText(t.name), replyText(t.slug)]));
+      const values = taxonomy === 'pa_file-format' ? cells[1].match(/\b(?:dxf|cdr|svg|pdf|ai|eps)\b/g)
+        : taxonomy === 'pa_thickness' ? cells[1].match(/\d+(?:\.\d+)?/g) : cells[1].match(/mdf|ام دی اف|پلکسی|چوب|مقوا/g);
+      if (!terms.length || (values || [cells[1]]).some(v => !terms.some(t => attributeMatches(taxonomy, t, v)))) return 'attribute_mismatch';
+    }
+  }
+  if (prices(output.slice(start)).length) return 'unverified_price';
+  return null;
+}
+
 const TOOLS = [
   { name: 'Product_Search', description: 'Search all eligible public products with AND constraints. Sort newest by publication, best_selling by recorded all-time unit sales (positive only), or price_asc. Explicit newest/best_selling can browse without search. categoryId must come from Category_Search or verified tool facts. Pages are not the full catalog.',
     properties: { search: { type: 'string' }, categoryId: { type: 'integer', minimum: 1 }, format: { type: 'string' }, thickness: { type: 'string' }, material: { type: 'string' }, page: { type: 'integer', minimum: 1 }, sort: { type: 'string', enum: ['relevance', 'price_asc', 'newest', 'best_selling'] } } },
@@ -69,6 +173,10 @@ function modelRequest(state, system) {
     max_tokens: 1536, temperature: 0.2,
     messages: [{ role: 'system', content: system }, ...state.messages], tools: TOOLS,
     tool_choice: state.callIndex === 3 || state.toolCount >= 3 ? 'none' : 'auto' };
+  const required = requiredSource(state);
+  const source = required === 'product_categories' ? 'Category_Search source=products' : required === 'article_categories' ? 'Category_Search source=articles'
+    : required === 'products' ? 'Product_Search یا Product_Details' : 'Knowledge_Search source=' + required;
+  if (required) body.messages.push({ role: 'system', content: 'کنترل منبع این پرسش: ' + source + '. پیش از ادعای اختصاصی، منبع مناسب را در همین نوبت بخوان؛ نتیجهٔ خالی یا خطای خواندن را صادقانه اعلام کن. مرجع دقیقِ بازیابی‌شده را همراه پاسخ بده.' });
   if (JSON.stringify(body).length > 96000) return { ...state, ...failure('context_limit') };
   return { ...state, callIndex: state.callIndex + 1, body };
 }
@@ -98,6 +206,11 @@ function modelResult(state, response) {
   const message = choice.message;
   if (choice.finish_reason === 'stop' && typeof message.content === 'string' && message.content.trim() && !message.tool_calls?.length) {
     const output = finish({ output: message.content });
+    const error = groundingError(state, output);
+    if (error) {
+      if (state.callIndex >= 4 || error === 'source_required' && state.toolCount >= 3) return rejected('grounding_' + error);
+      return { ...next, done: false, toolsPending: false, groundingError: error, messages: [...state.messages, { role: 'system', content: 'پاسخ هنوز قابل ارسال نیست: ' + error + '. منبع مناسب همین نوبت را بخوان یا پاسخ را اصلاح کن. فقط لینک‌های بازیابی‌شده و قیمت/ویژگی همان محصول را بیاور؛ اگر اطلاعات کافی نیست، صریح اعلام کن. خطای خواندن منبع را با اعلام عدم دسترسی بیان کن، نه نبود نتیجه. متن ردشده را تکرار نکن.' }] };
+    }
     return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt } };
   }
   const calls = message.tool_calls;
@@ -115,7 +228,7 @@ function modelResult(state, response) {
   if (calls.some(c => c.type !== 'function')) return rejected('model_tool_invalid_type');
   if (calls.some(c => !TOOLS.some(t => t.function.name === c.function?.name))) return rejected('model_tool_unknown_name');
   if (calls.some(c => typeof c.function.arguments !== 'string' || c.function.arguments.length > 6000)) return rejected('model_tool_invalid_arguments');
-  return { ...next, toolCount: state.toolCount + calls.length, pendingTool: calls[0], pendingTools: calls.slice(1),
+  return { ...next, toolCount: state.toolCount + calls.length, toolsPending: true, pendingTool: calls[0], pendingTools: calls.slice(1),
     messages: [...state.messages, { role: 'assistant', content: typeof message.content === 'string' ? message.content.slice(0, 8000) : null, tool_calls: calls }] };
 }
 
@@ -130,7 +243,11 @@ function toolResult(state, facts) {
   const remaining = state.pendingTools || [];
   if (remaining.length) { next.pendingTool = remaining[0]; next.pendingTools = remaining.slice(1); }
   next.toolsPending = remaining.length > 0;
-  return { ...next, messages: [...state.messages, { role: 'tool', tool_call_id: state.pendingTool.id, content: JSON.stringify(facts) }] };
+  let source;
+  try { source = JSON.parse(state.pendingTool.function.arguments).source || 'articles'; } catch { source = null; }
+  const evidence = [...(state.evidence || []), { name: state.pendingTool.function.name, source: facts.source || source,
+    ok: facts.ok === true, status: facts.status, results: facts.ok ? facts.results || [] : [] }];
+  return { ...next, evidence, messages: [...state.messages, { role: 'tool', tool_call_id: state.pendingTool.id, content: JSON.stringify(facts) }] };
 }
 
 function budget(input, result) {
@@ -172,4 +289,4 @@ function finish(result) {
     .trim().slice(0, 8000) || 'لطفاً پرسش خود را روشن‌تر بنویسید.';
 }
 
-module.exports = { validate, budget, finish, failure, validateTrusted, admitted, modelRequest, reserved, modelResult, settled, toolResult };
+module.exports = { validate, budget, finish, failure, validateTrusted, admitted, modelRequest, reserved, modelResult, settled, toolResult, requiredSource, groundingError };

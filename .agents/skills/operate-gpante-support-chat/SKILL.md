@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.10.1"
+  version: "0.11.0"
 ---
 
 # Operate GPante Support Chat
@@ -26,6 +26,8 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 5. If the workflow or access has not been established, say so. Do not invent IDs, deployments, credentials or passing checks. A documentation-only task does not require executing the product.
 
 ## Preserve the product contract
+
+- Main 1.5.0 adds bounded current-turn source/reference and product price/table-attribute checks in `src/chat.cjs`. Keep correction calls inside the existing four-call budget and settle usage before any correction. Do not claim semantic entailment or universal intent classification. Run the synthetic corpus and retrieval checks described in `docs/answer-quality-evaluation.md`; never treat corpus validation or retrieval hit rate as measured generated-answer accuracy. FAQ aliases remain source-specific and must preserve explicit version/material terms.
 
 - Build a production product covering all products eligible for public discovery, plus approved public guides. Do not introduce a fixed product-count ceiling or a handpicked demo catalog. Small test datasets are valid verification tools, not a restriction on production coverage.
 - Keep coverage distinct from response size: retrieve complete candidate coverage through correct pagination/filtering or a verified maintained index, then return a bounded number of relevant matches. Never label a truncated page as the complete catalog.
@@ -132,7 +134,7 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 
 ## Maintain the conversation archive
 
-- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main 1.4.1 retains 69 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
+- Read `docs/conversation-archive.md` and `specs/002-conversation-archive/` for contract 2, migration 003, acceptance checks and rollout. Main 1.5.0 retains 69 nodes; Admin is an independent 5-node workflow named exactly `gpante.com — AI Support — Admin`.
 - Validate a model tool batch as a whole, then execute its queue sequentially within three tools/four model calls per question. Each iteration consumes one call; preserve paired-item lookup through HTTP, every call ID, and tools=none after exhaustion. Persist only fixed rejection codes in the existing turn error_code; never enable raw execution storage or log provider text/arguments for diagnostics. Historical generic errors cannot be backfilled from missing payloads. See `specs/008-model-tool-batches/`.
 - Apply 003 only once, with Main drained. Keep the original timestamp for legacy rows and unknown metadata unknown. Do not restore the old destructive reset function during rollback. Central policy is authoritative; failed/unconfirmed writes are not success, and stale revisions are rejected.
 - Accepted input is stored before model dispatch; final success/error closes the request once. Distinguish logical resend idempotency (still absent) from duplicate final persistence (rejected). No transcript is stored in WordPress; the administrator key and SQL role are independent from the public chat connection.

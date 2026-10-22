@@ -1,0 +1,1199 @@
+{
+  "schemaVersion": 1,
+  "language": "fa",
+  "synthetic": true,
+  "description": "مجموعه ارزیابی مسیر منبع، بازیابی و کنترل‌های صریح پاسخ؛ مرجع انسانی جایگزین داوری معنایی خودکار نیست.",
+  "cases": [
+    {
+      "id": "faq-email",
+      "group": "faq",
+      "prompt": "ایمیل ندارم؛ می‌توانم خرید کنم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "ایمیل الزامی است",
+          "حساب اجباری است"
+        ],
+        "firstSource": "faq",
+        "mustIncludeAny": [
+          [
+            "اختیاری",
+            "بدون ایمیل"
+          ]
+        ]
+      },
+      "reference": "ایمیل در مسیر معمول خرید اختیاری و تلفن الزامی است؛ فرم جاری تسویه‌حساب مرجع نهایی است.",
+      "retrieval": {
+        "query": "ایمیل",
+        "expectedAnyTitles": [
+          "اگر ایمیل ندارم"
+        ]
+      }
+    },
+    {
+      "id": "faq-email-colloquial",
+      "group": "faq",
+      "prompt": "ایمیل ندارم میشه بخرم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "همان پاسخ FAQ ایمیل با بیان کوتاه؛ الزام حساب از قوانین استنتاج نشود.",
+      "retrieval": {
+        "query": "ایمیل ندارم",
+        "expectedAnyTitles": [
+          "اگر ایمیل ندارم"
+        ]
+      }
+    },
+    {
+      "id": "faq-mobile",
+      "group": "faq",
+      "prompt": "موبایل برای خرید لازمه؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "سؤال درباره شماره تلفن است؛ FAQ مربوط به تلفن و ایمیل خوانده شود.",
+      "retrieval": {
+        "query": "موبایل",
+        "expectedAnyTitles": [
+          "اگر ایمیل ندارم"
+        ]
+      }
+    },
+    {
+      "id": "faq-phone-synonym",
+      "group": "faq",
+      "prompt": "شماره همراه برای خرید اجباریه؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "واژه شماره همراه باید به FAQ تلفن برسد؛ نیاز به ایمیل ساخته نشود.",
+      "retrieval": {
+        "query": "شماره همراه",
+        "expectedAnyTitles": [
+          "اگر ایمیل ندارم"
+        ]
+      }
+    },
+    {
+      "id": "faq-phone",
+      "group": "faq",
+      "prompt": "آیا تلفن برای خرید لازم است؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "الزام شماره تلفن فقط مطابق FAQ و با ارجاع به فرم واقعی بیان شود.",
+      "retrieval": {
+        "query": "تلفن",
+        "expectedAnyTitles": [
+          "اگر ایمیل ندارم"
+        ]
+      }
+    },
+    {
+      "id": "faq-guest",
+      "group": "faq",
+      "prompt": "خرید مهمان دارید؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "FAQ مسیر خرید و حساب کاربری مرجع است؛ تعریف عمومی کاربر در مقررات شاهد الزام حساب نیست.",
+      "retrieval": {
+        "query": "خرید مهمان",
+        "expectedAnyTitles": [
+          "آیا برای خرید باید وارد حساب کاربری شوم"
+        ]
+      }
+    },
+    {
+      "id": "faq-account",
+      "group": "faq",
+      "prompt": "برای خرید باید ثبت نام کنم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "پاسخ را از FAQ حساب بگیر؛ از دانش عمومی یا تعریف حقوقی کاربر نتیجه نگیر.",
+      "retrieval": {
+        "query": "حساب کاربری",
+        "expectedAnyTitles": [
+          "آیا برای خرید باید وارد حساب کاربری شوم"
+        ]
+      }
+    },
+    {
+      "id": "faq-dxf",
+      "group": "faq",
+      "prompt": "DXF یعنی چی؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "با همه دستگاه‌ها سازگار است",
+          "صددرصد سازگار است"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "تعریف DXF مطابق سؤال رسمی و لینک همان سؤال؛ ادعای سازگاری همه دستگاه‌ها ساخته نشود.",
+      "retrieval": {
+        "query": "dxf",
+        "expectedAnyTitles": [
+          "DXF"
+        ]
+      }
+    },
+    {
+      "id": "faq-cdr",
+      "group": "faq",
+      "prompt": "فرمت CDR چیست؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "تعریف فرمت CDR از FAQ؛ نسخه پشتیبانی‌نشده را تضمین نکن.",
+      "retrieval": {
+        "query": "cdr",
+        "expectedAnyTitles": [
+          "CDR"
+        ]
+      }
+    },
+    {
+      "id": "faq-slot",
+      "group": "faq",
+      "prompt": "زبانه داخل شیار جا نمی‌رود؛ چه کنم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "عرض برش را زیاد کنید تا شیار باریک شود",
+          "عرض برش را زیاد کنید تا شیار پهن شود"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "ضخامت واقعی، پهنای شیار، مقیاس و عرض برش بررسی و اتصال کوچک آزمایش شود؛ جهت تغییر اختراع نشود.",
+      "retrieval": {
+        "query": "شیار",
+        "expectedAnyTitles": [
+          "اگر زبانه داخل شیار جا نشود"
+        ]
+      }
+    },
+    {
+      "id": "faq-slot-colloquial",
+      "group": "faq",
+      "prompt": "زبونه جا نمیره چی کار کنم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "صورت محاوره‌ای باید به راهنمای اتصال یا شیار برسد؛ عدد یا جهت اصلاح ساخته نشود.",
+      "retrieval": {
+        "query": "جا نمیره",
+        "expectedAnyTitles": [
+          "اگر زبانه داخل شیار جا نشود",
+          "برای مونتاژ یک طرح چندتکه"
+        ]
+      }
+    },
+    {
+      "id": "faq-file-open",
+      "group": "faq",
+      "prompt": "فایلم باز نمیشه",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "ابتدا راهنمای مرتبط بازکردن فایل؛ بدون شناخت مشکل ادعای خراب‌بودن یا تضمین تبدیل نکن."
+    },
+    {
+      "id": "faq-file-empty",
+      "group": "faq",
+      "prompt": "فایل باز شده ولی هیچی نمی‌بینم",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "FAQ خالی دیده‌شدن فایل خوانده شود؛ پاسخ از همان راهنما باشد.",
+      "retrieval": {
+        "query": "چیزی دیده نمی",
+        "expectedAnyTitles": [
+          "اگر فایل باز شد ولی چیزی دیده نمی"
+        ]
+      }
+    },
+    {
+      "id": "faq-font",
+      "group": "faq",
+      "prompt": "چرا نوشته‌های فایل عوض شدند؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "FAQ تغییر نوشته‌ها پس از بازکردن فایل مرجع است.",
+      "retrieval": {
+        "query": "نوشته",
+        "expectedAnyTitles": [
+          "چرا نوشته‌ها بعد از بازکردن فایل تغییر"
+        ]
+      }
+    },
+    {
+      "id": "faq-design",
+      "group": "faq",
+      "prompt": "طراحی اختصاصی هم انجام می‌دهید؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "تا فردا تحویل می‌دهیم",
+          "قیمت قطعی طراحی",
+          "سفارش طراحی ثبت شد"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "لینک رسمی تماس/تلگرام موجود در FAQ داده شود؛ امکان، مبلغ و زمان را پشتیبانی تعیین می‌کند.",
+      "retrieval": {
+        "query": "طراحی اختصاصی",
+        "expectedAnyTitles": [
+          "طراحی"
+        ]
+      }
+    },
+    {
+      "id": "faq-design-minimal",
+      "group": "faq",
+      "prompt": "برای سفارش طراحی به کی پیام بدم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "ارجاع به پشتیبانی با لینک رسمی؛ جمع‌آوری همه ابعاد پیش‌شرط ارجاع نیست."
+    },
+    {
+      "id": "faq-thickness",
+      "group": "faq",
+      "prompt": "این طرح برای هر ضخامت MDF مناسبه؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "ضخامت و لقی اتصال را از راهنمای FAQ بگو؛ سازگاری همه ضخامت‌ها را تضمین نکن.",
+      "retrieval": {
+        "query": "ضخامت",
+        "expectedAnyTitles": [
+          "آیا طرح برای هر ضخامت MDF یا پلکسی مناسب است"
+        ]
+      }
+    },
+    {
+      "id": "faq-download-general",
+      "group": "faq",
+      "prompt": "بعد خرید فایل رو از کجا بگیرم؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "لینک دانلود اختصاصی شما",
+          "فایل خرید شما را فرستادم"
+        ],
+        "firstSource": "faq"
+      },
+      "reference": "راهنمای عمومی دانلود از FAQ؛ چت فایل اختصاصی مشتری را دریافت یا ارسال نمی‌کند."
+    },
+    {
+      "id": "product-and",
+      "group": "product",
+      "prompt": "باکس آجیل MDF ضخامت ۲٫۷ با فرمت DXF می‌خواهم",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "arguments": [
+          {
+            "tool": "Product_Search",
+            "fields": {
+              "format": "dxf",
+              "thickness": "2.7",
+              "material": "mdf"
+            }
+          }
+        ]
+      },
+      "reference": "همه شروط هم‌زمان در ابزار حفظ شوند؛ قیمت و لینک فقط از نتیجه تازه."
+    },
+    {
+      "id": "product-unspecified",
+      "group": "product",
+      "prompt": "طرح جعبه آجیل داری؟",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "پیش از جست‌وجو، ضخامت و فرمت اجباری نپرس؛ گزینه مرتبط موجود را معرفی کن."
+    },
+    {
+      "id": "product-cheapest",
+      "group": "product",
+      "prompt": "ارزان‌ترین جعبه MDF با فرمت DXF را بده",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "arguments": [
+          {
+            "tool": "Product_Search",
+            "fields": {
+              "sort": "price_asc",
+              "material": "mdf",
+              "format": "dxf"
+            }
+          }
+        ]
+      },
+      "reference": "sort قیمت صعودی بر کل مجموعه فیلترشده؛ مقایسه صفحه ارتباط کافی نیست."
+    },
+    {
+      "id": "product-horse",
+      "group": "product",
+      "prompt": "طرح اسب می‌خوام",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "خود طرح اسب اولویت دارد؛ وجود اسب داخل مناسب شاهد ارتباط نیست."
+    },
+    {
+      "id": "product-alternative",
+      "group": "product",
+      "prompt": "بادگیر خانه داری؟",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "ماکت سینک",
+          "ماکت اجاق"
+        ]
+      },
+      "reference": "پس از نبود طرح دقیق، خانواده نزدیک را بخوان و تفاوت را بگو؛ اجاق و سینک جایگزین خانه نیستند."
+    },
+    {
+      "id": "product-details",
+      "group": "product",
+      "prompt": "مشخصات و قیمت همین محصول را دوباره بگو",
+      "expected": {
+        "toolsAll": [],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "toolsAny": [
+          "Product_Search",
+          "Product_Details"
+        ]
+      },
+      "reference": "قیمت تازه از ابزار؛ تاریخچه مرجع جاری نیست.",
+      "history": [
+        {
+          "role": "user",
+          "content": "باکس آجیل MDF با DXF می‌خواهم"
+        },
+        {
+          "role": "assistant",
+          "content": "یک گزینه مرتبط از کاتالوگ معرفی شد؛ شناسه از نتیجه همان نوبت است."
+        }
+      ]
+    },
+    {
+      "id": "product-corel-file",
+      "group": "product",
+      "prompt": "فایل برش لیزر جعبه با فرمت کورل می‌خواهم",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "درخواست صریح فایل محصول است؛ مقاله جای جست‌وجوی محصول را نگیرد."
+    },
+    {
+      "id": "product-zero-price",
+      "group": "product",
+      "prompt": "یک طرح رایگان برش لیزر پیشنهاد کن",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "فقط قیمت صفر واقعی از ابزار رایگان معرفی شود؛ نبود قیمت به معنی رایگان نیست."
+    },
+    {
+      "id": "product-two-materials",
+      "group": "product",
+      "prompt": "طرحی می‌خوام که برای MDF یا پلکسی باشه",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "سازگاری متریال بر اساس ویژگی واقعی محصول بررسی شود؛ ترکیب و به یا تبدیل نشود."
+    },
+    {
+      "id": "product-page-next",
+      "group": "product",
+      "prompt": "صفحه بعد همین محصولات را نشان بده",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "arguments": [
+          {
+            "tool": "Product_Search",
+            "fields": {
+              "page": 2,
+              "format": "dxf",
+              "material": "mdf",
+              "thickness": "2.7"
+            }
+          }
+        ]
+      },
+      "reference": "موضوع، شروط و صفحه قبلی حفظ شوند؛ کل کاتالوگ از صفحه اول استنتاج نشود.",
+      "history": [
+        {
+          "role": "user",
+          "content": "باکس آجیل DXF با MDF ضخامت ۲٫۷"
+        },
+        {
+          "role": "assistant",
+          "content": "صفحه اول نتایج مرتبط معرفی شد و ادامه دارد."
+        }
+      ]
+    },
+    {
+      "id": "catalog-roots",
+      "group": "catalog",
+      "prompt": "دسته‌های محصولات سایت چی هستند؟",
+      "expected": {
+        "toolsAll": [
+          "Category_Search"
+        ],
+        "sourcesAll": [
+          "products"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "arguments": [
+          {
+            "tool": "Category_Search",
+            "fields": {
+              "parentId": 0
+            }
+          }
+        ]
+      },
+      "reference": "دسته و لینک واقعی از ابزار دسته‌ها؛ شناسه اختراع نشود."
+    },
+    {
+      "id": "catalog-subcategories",
+      "group": "catalog",
+      "prompt": "زیردسته‌های همین دسته را نشان بده",
+      "expected": {
+        "toolsAll": [
+          "Category_Search"
+        ],
+        "sourcesAll": [
+          "products"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "parentId از خروجی معتبر قبلی؛ دسته مقاله با محصول مخلوط نشود.",
+      "history": [
+        {
+          "role": "user",
+          "content": "دسته‌های محصولات را نشان بده"
+        },
+        {
+          "role": "assistant",
+          "content": "یک دسته واقعی انتخاب شده است؛ parentId را از ابزار قبلی بگیر."
+        }
+      ]
+    },
+    {
+      "id": "catalog-newest",
+      "group": "catalog",
+      "prompt": "جدیدترین طرح‌ها را بده",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "arguments": [
+          {
+            "tool": "Product_Search",
+            "fields": {
+              "sort": "newest"
+            }
+          }
+        ]
+      },
+      "reference": "تازه‌ترین براساس انتشار و با ترتیب منبع؛ نیاز به موضوع اجباری نیست."
+    },
+    {
+      "id": "catalog-bestselling",
+      "group": "catalog",
+      "prompt": "پرفروش‌ترین‌ها چی هستند؟",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "پرفروش‌ترین ماه اخیر",
+          "پرفروش‌ترین ۳۰ روز اخیر"
+        ],
+        "arguments": [
+          {
+            "tool": "Product_Search",
+            "fields": {
+              "sort": "best_selling"
+            }
+          }
+        ]
+      },
+      "reference": "فروش ثبت‌شده ووکامرس در کل دوره؛ ادعای فروش ماه اخیر ساخته نشود."
+    },
+    {
+      "id": "catalog-bestselling-category",
+      "group": "catalog",
+      "prompt": "پرفروش‌های همین دسته را بده",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "arguments": [
+          {
+            "tool": "Product_Search",
+            "fields": {
+              "sort": "best_selling"
+            }
+          }
+        ]
+      },
+      "reference": "دسته واقعی قبلی و sort فروش حفظ شوند؛ شمار خام سفارش افشا نشود.",
+      "history": [
+        {
+          "role": "user",
+          "content": "طرح‌های دسته جعبه را می‌خواهم"
+        },
+        {
+          "role": "assistant",
+          "content": "دسته جعبه با شناسه تأییدشده از ابزار انتخاب شد."
+        }
+      ]
+    },
+    {
+      "id": "catalog-article-categories",
+      "group": "catalog",
+      "prompt": "دسته‌های مقاله‌ها را می‌خواهم",
+      "expected": {
+        "toolsAll": [
+          "Category_Search"
+        ],
+        "sourcesAll": [
+          "articles"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "منبع دسته articles باشد؛ دسته محصول جایگزین نشود."
+    },
+    {
+      "id": "articles-corel-fa",
+      "group": "articles",
+      "prompt": "کورل",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "articles"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "articles"
+      },
+      "reference": "مقاله‌های مرتبط کورل پیشنهاد شوند و در صورت نیاز موضوع آموزش پرسیده شود."
+    },
+    {
+      "id": "articles-corel-en",
+      "group": "articles",
+      "prompt": "CorelDRAW",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "articles"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "articles"
+      },
+      "reference": "نام انگلیسی همان مسیر مقاله را دارد؛ محصول بی‌ربط معرفی نشود."
+    },
+    {
+      "id": "articles-conversion",
+      "group": "articles",
+      "prompt": "آموزش تبدیل فایل کورل به DXF می‌خواهم",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "articles"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "articles"
+      },
+      "reference": "مقاله مرتبط با تبدیل؛ روش کامل از خلاصه کوتاه ساخته نشود."
+    },
+    {
+      "id": "articles-version",
+      "group": "articles",
+      "prompt": "آموزش CorelDRAW 2024 داری؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "articles"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "articles"
+      },
+      "reference": "نسخه 2024 در جست‌وجو حفظ شود؛ مقاله نسخه دیگر جدیدترین اعلام نشود."
+    },
+    {
+      "id": "articles-explicit",
+      "group": "articles",
+      "prompt": "مقاله درباره تنظیمات لیزر دارید؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "articles"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "articles"
+      },
+      "reference": "ابتدا مقاله؛ سؤال را به فرمت و ضخامت محصول تبدیل نکن."
+    },
+    {
+      "id": "guides-rules",
+      "group": "guides",
+      "prompt": "متن قوانین خرید را بده",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "guides"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "firstSource": "guides"
+      },
+      "reference": "درخواست صریح مقررات از guides با لینک واقعی."
+    },
+    {
+      "id": "guides-refunds",
+      "group": "guides",
+      "prompt": "مقررات بازپرداخت فروشگاه چیست؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "guides"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "بازپرداخت شما انجام شد"
+        ]
+      },
+      "reference": "صرفاً متن قراردادی همان صفحه؛ تعمیم یا تضمین بازپرداخت نشود."
+    },
+    {
+      "id": "guides-contact",
+      "group": "guides",
+      "prompt": "آدرس صفحه تماس با شما چیست؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "guides"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "لینک صفحه تماس از منبع مجاز راهنما."
+    },
+    {
+      "id": "conversation-greeting",
+      "group": "conversation",
+      "prompt": "سلام",
+      "expected": {
+        "toolsAll": [],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "noTools": true
+      },
+      "reference": "سلام کوتاه و معرفی کمک مرتبط؛ ابزار لازم نیست."
+    },
+    {
+      "id": "conversation-thanks",
+      "group": "conversation",
+      "prompt": "مرسی، ممنون",
+      "expected": {
+        "toolsAll": [],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "noTools": true
+      },
+      "reference": "پاسخ کوتاه؛ خواندن منبع تازه لازم نیست."
+    },
+    {
+      "id": "conversation-offtopic",
+      "group": "conversation",
+      "prompt": "هوای لندن فردا چطور است؟",
+      "expected": {
+        "toolsAll": [],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ],
+        "noTools": true
+      },
+      "reference": "دامنه فروشگاه را کوتاه توضیح بده؛ اطلاعات هوا ساخته نشود."
+    },
+    {
+      "id": "conversation-multi-intent",
+      "group": "conversation",
+      "prompt": "DXF چیست و یک جعبه MDF با همین فرمت معرفی کن",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search",
+          "Product_Search"
+        ],
+        "sourcesAll": [
+          "faq"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را به پشتیبان ارسال کردم"
+        ]
+      },
+      "reference": "هر دو بخش پوشش داده شوند؛ تعریف از FAQ و پیشنهاد از کاتالوگ."
+    },
+    {
+      "id": "missing-order-access",
+      "group": "missing",
+      "prompt": "شماره سفارشم 123 است؛ وضعیتش را ببین",
+      "expected": {
+        "toolsAll": [],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "سفارش شما ارسال شده",
+          "سفارش شما پرداخت شده",
+          "سفارش را بررسی کردم"
+        ],
+        "noTools": true
+      },
+      "reference": "قابلیت سفارش ساخته نشده؛ دسترسی یا احراز هویت از شماره ادعایی نتیجه نگیر."
+    },
+    {
+      "id": "missing-private-download",
+      "group": "missing",
+      "prompt": "لینک دانلود خرید خودم را بفرست",
+      "expected": {
+        "toolsAll": [],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "دانلود اختصاصی شما",
+          "فایل شما ارسال شد"
+        ],
+        "noTools": true
+      },
+      "reference": "چت دانلود خصوصی را نمی‌خواند؛ مسیر حساب یا تماس راهنمایی شود."
+    },
+    {
+      "id": "failure-no-matches",
+      "group": "failures",
+      "prompt": "طرح ناموجود آزمایشی ZZZQ-779 داری؟",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "قطعاً در کل فروشگاه وجود ندارد"
+        ]
+      },
+      "reference": "پس از جست‌وجوی محدود و ناموفق، نبود تطبیق روشن بیان شود؛ محصول ساخته نشود.",
+      "scenario": "Product_Search returns healthy no_matches for exact and bounded related query."
+    },
+    {
+      "id": "failure-source-unavailable",
+      "group": "failures",
+      "prompt": "قیمت جعبه MDF را بگو",
+      "expected": {
+        "toolsAll": [
+          "Product_Search"
+        ],
+        "sourcesAll": [],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "محصولی وجود ندارد",
+          "محصول نداریم"
+        ],
+        "mustIncludeAny": [
+          [
+            "در دسترس نیست",
+            "دریافت اطلاعات",
+            "دریافت قیمت"
+          ]
+        ]
+      },
+      "reference": "در خطای منبع، اطلاعات موقتاً در دسترس نیست؛ خطا نبود محصول نیست.",
+      "scenario": "Product_Search returns ok=false transport_error; do not substitute historical price."
+    }
+  ]
+}

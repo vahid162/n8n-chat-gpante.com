@@ -122,11 +122,43 @@ function gpante_support_faq_parse( $html ) {
 			),
 			'links'                 => array_values( $links ),
 			// Full text, rather than the response snippet, determines candidate coverage.
-			'_question'             => gpante_support_catalog_normalize( $question ),
-			'_text'                 => gpante_support_catalog_normalize( $question . ' ' . $answer ),
+			'_question'             => gpante_support_faq_search_normalize( $question ),
+			'_text'                 => gpante_support_faq_search_normalize( $question . ' ' . $answer ),
 		);
 	}
 	return array_values( $items );
+}
+
+/**
+ * Normalize only known FAQ phrases; keep every other term and explicit condition.
+ *
+ * @param string $value Public query or FAQ text.
+ * @return string
+ */
+function gpante_support_faq_search_normalize( $value ) {
+	$value = gpante_support_catalog_normalize( $value );
+	$forms = array(
+		'شماره (?:تلفن همراه|همراه|موبایل)'                => 'شماره تلفن',
+		'جا (?:نمی ?ره|نمیره|نمی ?رود|نمی ?روند|نشود|نشد)' => 'جا نشدن',
+		'باز (?:نمی ?شه|نمیشه|نمی ?شود|نشود|نشد)'          => 'باز نشدن',
+		'باز(?:کردن| کنم| کردن)'                           => 'باز کردن',
+		'ای میل'                                           => 'ایمیل',
+	);
+	foreach ( $forms as $form => $replacement ) {
+		$value = preg_replace( '~(?<![\p{L}\p{N}])(?:' . $form . ')(?![\p{L}\p{N}])~u', $replacement, $value );
+	}
+	return $value;
+}
+
+/**
+ * Prefer whole phrases/words without excluding existing literal substring matches.
+ *
+ * @param string $text Normalized public text.
+ * @param string $term Literal normalized term or phrase.
+ * @return bool
+ */
+function gpante_support_faq_whole_match( $text, $term ) {
+	return '' !== $term && 1 === preg_match( '~(?<![\p{L}\p{N}_])' . preg_quote( $term, '~' ) . '(?![\p{L}\p{N}_])~u', $text );
 }
 
 /**
@@ -179,27 +211,44 @@ function gpante_support_catalog_faq( $search, $page ) {
 			300
 		);
 	}
-	$groups  = gpante_support_catalog_search_groups( $search, true );
+	$search = gpante_support_faq_search_normalize( $search );
+	$groups = gpante_support_catalog_search_groups( $search, true );
+	foreach ( $groups as &$aliases ) {
+		// A mobile query may concern a phone field; literal device titles still rank first.
+		if ( array( 'موبایل' ) === $aliases ) {
+			$aliases[] = 'تلفن';
+		} elseif ( in_array( $aliases[0], array( 'ایمیل', 'email' ), true ) ) {
+			$aliases = array( 'ایمیل', 'email' );
+		}
+	}
+	unset( $aliases );
 	$matches = array();
 	foreach ( $items as $item ) {
-		$score = 0;
+		$question   = $item['_question'];
+		$text       = $item['_text'];
+		$title_hits = 0;
+		$whole_hits = 0;
 		foreach ( $groups as $aliases ) {
-			$found = false;
+			$found     = false;
+			$title_hit = false;
+			$whole_hit = false;
 			foreach ( $aliases as $alias ) {
-				if ( str_contains( $item['_text'], $alias ) ) {
+				if ( str_contains( $text, $alias ) ) {
 					$found = true;
 				}
-				if ( str_contains( $item['_question'], $alias ) ) {
-					++$score;
-					break;
+				if ( str_contains( $question, $alias ) ) {
+					$title_hit = true;
+					$whole_hit = $whole_hit || gpante_support_faq_whole_match( $question, $alias );
 				}
 			}
 			if ( ! $found ) {
 				continue 2;
 			}
+			$title_hits += (int) $title_hit;
+			$whole_hits += (int) $whole_hit;
 		}
 		unset( $item['_question'], $item['_text'] );
-		$item['_score'] = $score;
+		$item['_score'] = array( (int) gpante_support_faq_whole_match( $question, $search ), $title_hits, $whole_hits );
 		$matches[]      = $item;
 	}
 	usort(

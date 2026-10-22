@@ -48,14 +48,14 @@
 | دیتابیس داخلی n8n | فقط امور خود n8n؛ schema چت در آن ایجاد نشده |
 | Admin در n8n | مدیریت خصوصی آرشیو/سیاست، با کلید مستقل و بدون تماس مدل |
 | Retention در n8n | پاک‌سازی ساعتی؛ اجرای طبیعی زمان‌بندی نیز مشاهده شد |
-| افزونهٔ وردپرس | [GPante Support Chat 0.8.0](wordpress-plugin/gpante-support-chat/readme.txt)، تنظیم امن و رابط عمومی؛ روی سایت واقعی بررسی شده |
-| مهارت نگهداری | [operate-gpante-support-chat](.agents/skills/operate-gpante-support-chat/SKILL.md)، نسخهٔ ۰٫۱۰٫۱؛ منبع canonical در همین مخزن |
+| افزونهٔ وردپرس | [GPante Support Chat 0.8.1](wordpress-plugin/gpante-support-chat/readme.txt)، تنظیم امن و رابط عمومی؛ روی سایت واقعی بررسی شده |
+| مهارت نگهداری | [operate-gpante-support-chat](.agents/skills/operate-gpante-support-chat/SKILL.md)، نسخهٔ ۰٫۱۱٫۰؛ منبع canonical در همین مخزن |
 
 سامانهٔ جداگانهٔ `woo2` برای انتشار محصول است. چت عمومی به ابزارهای مدیریت، تلگرام، Nextcloud، بارگذاری فایل یا state آن سامانه متصل نیست.
 
 رابط خودکار در افزونه است؛ خروجی اختیاری HTML/CSS/JavaScript وودمارت نیز از همان template و assetها تولید می‌شود. نمایش موردنظر برای همهٔ بازدیدکنندگان است؛ کد رابط به‌تنهایی جای واسط سروری و فعال‌کردن Main را نمی‌گیرد.
 
-## معماری نسخهٔ ۱٫۴
+## معماری نسخهٔ ۱٫۵
 
 ```mermaid
 flowchart TD
@@ -67,8 +67,12 @@ flowchart TD
     F --> G["DeepSeek موجود"]
     G --> H["ثبت usage و تسویهٔ هزینه"]
     H --> I["ابزار خواندنی یا پاسخ نهایی"]
-    I --> J["کاتالوگ و راهنمای عمومی سایت"]
-    I --> F
+    I --> J["کاتالوگ، FAQ، مقاله یا مقررات عمومی"]
+    J --> F
+    I --> L["کنترل منبع، لینک و دادهٔ محصول"]
+    L -->|"نیاز به اصلاح و ظرفیت باقی‌مانده"| F
+    L --> M["پاسخ معتبر یا اعلام ناتوانی"]
+    M --> C
     E <--> K["project_db / gpante_chat"]
     F <--> K
     H <--> K

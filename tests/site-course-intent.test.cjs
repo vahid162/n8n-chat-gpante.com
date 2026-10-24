@@ -16,9 +16,20 @@ test('complete and step-by-step describe a course to introduce without requiring
   }
 });
 
+test('course requests and availability questions do not require a page read', () => {
+  for (const question of ['دوره آموزش کامل کورل میخوام', 'آموزش کامل کورل می‌خوام',
+    'دوره آموزش کامل کورل می خواهم', 'دوره آموزش کامل کورل می‌خواهم',
+    'آموزش کامل کورل دارید؟', 'دوره آموزش کامل کورل دارین؟',
+    'دوره آموزش کامل کورل لازم دارم', 'به آموزش کامل کورل نیاز دارم']) {
+    assert.equal(groundingError(state(question), recommendation), null, question);
+  }
+});
+
 test('actual explanations and full text still require a cited page/post content read', () => {
   for (const question of ['مراحل آموزش کورل را توضیح بده', 'متن کامل آموزش کورل را بده', 'آموزش کامل کورل را توضیح بده',
-    'دوره معرفی کن و مراحل آموزش کورل را توضیح بده', 'دوره معرفی کن و آموزش گام به گام کورل را شرح بده', 'آموزش کامل کورل']) {
+    'دوره معرفی کن و مراحل آموزش کورل را توضیح بده', 'دوره معرفی کن و آموزش گام به گام کورل را شرح بده',
+    'دوره آموزش کامل کورل میخوام و مراحل را توضیح بده', 'آموزش کامل کورل دارید؟ متن کامل را بده',
+    'آموزش کامل کورل می‌خواهم، یادم بده', 'آموزش کامل کورل']) {
     const output = 'مرحله اول طراحی\n[آموزش](' + page.url + ')';
     assert.equal(groundingError(state(question), output), 'content_read_required', question);
     const read = { name: 'Knowledge_Read', source: 'site', ok: true, results: [{ ...page, content: 'مرحله اول طراحی' }] };

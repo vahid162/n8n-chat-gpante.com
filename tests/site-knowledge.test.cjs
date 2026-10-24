@@ -109,6 +109,7 @@ test('model exposes read plus typed site search and every workflow tool round ma
   assert(tools.find(t => t.name === 'Knowledge_Search').parameters.properties.source.enum.includes('site'));
   assert.deepEqual(tools.find(t => t.name === 'Knowledge_Read').parameters.required, ['contentId']);
   const workflow = build(); assert.equal(workflow.nodes.length, 69);
-  assert.match(workflow.description, /۱٫۶٫۰/);
+  assert.match(workflow.description, /۱٫۶٫۱/);
+  assert(workflow.description.length <= 255, 'workflow metadata fits the connector contract');
   for (let i = 1; i <= 3; i++) assert.match(workflow.nodes.find(n => n.name === 'Prepare Tool ' + i).parameters.jsCode, /Knowledge_Read:'read'/);
 });

@@ -17,8 +17,8 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_FAQ = "https://gpante.com/wp-json/gpante-support/v1/knowledge"
-TOOLS = {"Product_Search", "Product_Details", "Knowledge_Search", "Category_Search"}
-SOURCES = {"faq", "articles", "guides", "products"}
+TOOLS = {"Product_Search", "Product_Details", "Knowledge_Search", "Knowledge_Read", "Category_Search"}
+SOURCES = {"faq", "articles", "guides", "products", "site"}
 LINKS = re.compile(r"https?://[^\s<>()[\]]+")
 PRICE = re.compile(r"([0-9۰-۹٠-٩][0-9۰-۹٠-٩,٬٫.\s]*?)\s*(تومان|ریال|دلار|یورو|IRT|IRR|USD|EUR)\b", re.I)
 CURRENCIES = {"تومان": "IRT", "ریال": "IRR", "دلار": "USD", "یورو": "EUR"}
@@ -112,6 +112,13 @@ def validate_corpus(corpus):
             raise ValueError("Invalid retrieval expectation")
 
 
+def call_source(call):
+    if call.get("name") == "Knowledge_Read":
+        return "site"
+    arguments = call.get("arguments")
+    return arguments.get("source") if isinstance(arguments, dict) else None
+
+
 def evaluate_case(case, sample):
     expected = case["expected"]
     failures = []
@@ -129,12 +136,12 @@ def evaluate_case(case, sample):
         failures.append("missing_alternative_tool")
     if expected.get("noTools") and calls or names.intersection(expected.get("forbiddenTools", [])):
         failures.append("unexpected_tool")
-    sources = {call.get("arguments", {}).get("source") for call in calls if isinstance(call.get("arguments"), dict)}
+    sources = {call_source(call) for call in calls}
     for source in expected.get("sourcesAll", []):
         if source not in sources:
             failures.append("missing_source:" + source)
     if expected.get("firstSource"):
-        first = next((c.get("arguments", {}).get("source") for c in calls if c.get("name") == "Knowledge_Search" and isinstance(c.get("arguments"), dict)), None)
+        first = next((call_source(c) for c in calls if c.get("name") in {"Knowledge_Search", "Knowledge_Read"}), None)
         if first != expected["firstSource"]:
             failures.append("wrong_first_source")
     for contract in expected.get("arguments", []):
@@ -154,11 +161,11 @@ def evaluate_case(case, sample):
         result = call.get("result")
         if not isinstance(result, dict):
             continue
-        if result.get("source") is not None and isinstance(call.get("arguments"), dict) and result["source"] != call["arguments"].get("source"):
+        if result.get("source") is not None and result["source"] != call_source(call):
             failures.append("source_mismatch")
         if result.get("ok") is True and isinstance(result.get("results"), list) and result["results"]:
             evidence.extend(result["results"])
-            if isinstance(call.get("arguments"), dict) and result.get("source") == call["arguments"].get("source"):
+            if result.get("source") == call_source(call):
                 evidence_sources.add(result.get("source"))
     if expected.get("needsEvidence") and not evidence:
         failures.append("missing_evidence")

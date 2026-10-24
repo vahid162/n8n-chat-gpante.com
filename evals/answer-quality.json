@@ -888,7 +888,7 @@
           "Knowledge_Search"
         ],
         "sourcesAll": [
-          "articles"
+          "site"
         ],
         "needsEvidence": true,
         "needsCitation": true,
@@ -896,9 +896,9 @@
           "سفارش شما ثبت شد",
           "پیام شما را به پشتیبان ارسال کردم"
         ],
-        "firstSource": "articles"
+        "firstSource": "site"
       },
-      "reference": "مقاله‌های مرتبط کورل پیشنهاد شوند و در صورت نیاز موضوع آموزش پرسیده شود."
+      "reference": "مقاله‌های مرتبط کورل پیشنهاد شوند و در صورت نیاز موضوع آموزش پرسیده شود. صفحه معرفی و دوره‌ها در جستجوی مشترک هم بررسی شوند."
     },
     {
       "id": "articles-corel-en",
@@ -909,7 +909,7 @@
           "Knowledge_Search"
         ],
         "sourcesAll": [
-          "articles"
+          "site"
         ],
         "needsEvidence": true,
         "needsCitation": true,
@@ -917,9 +917,9 @@
           "سفارش شما ثبت شد",
           "پیام شما را به پشتیبان ارسال کردم"
         ],
-        "firstSource": "articles"
+        "firstSource": "site"
       },
-      "reference": "نام انگلیسی همان مسیر مقاله را دارد؛ محصول بی‌ربط معرفی نشود."
+      "reference": "نام انگلیسی همان مسیر مقاله را دارد؛ محصول بی‌ربط معرفی نشود. صفحه معرفی و دوره‌ها در جستجوی مشترک هم بررسی شوند."
     },
     {
       "id": "articles-conversion",
@@ -1194,6 +1194,321 @@
       },
       "reference": "در خطای منبع، اطلاعات موقتاً در دسترس نیست؛ خطا نبود محصول نیست.",
       "scenario": "Product_Search returns ok=false transport_error; do not substitute historical price."
+    },
+    {
+      "id": "site-corel-landing",
+      "group": "site",
+      "prompt": "آموزش کورل می‌خواهم.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "معرفی آموزش و دوره مرتبط؛ صفحه معرفی آموزش از نصب نرم‌افزار جدا باشد."
+    },
+    {
+      "id": "site-corel-colloquial",
+      "group": "site",
+      "prompt": "اموزش کورل دارید؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "نوشتار محاوره‌ای و املای آموزش مانع کشف برگه نشود."
+    },
+    {
+      "id": "site-corel-free",
+      "group": "site",
+      "prompt": "آموزش رایگان کورل برای لیزر دارید؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "گزینه رایگان مرتبط، بدون معرفی دوره پولی به‌عنوان رایگان."
+    },
+    {
+      "id": "site-corel-install",
+      "group": "site",
+      "prompt": "راهنمای نصب کورل ۲۰۲۶ را بده.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "نسخه ۲۰۲۶ و هدف نصب حفظ شود؛ صفحه عمومی دوره جایگزین نصب نیست."
+    },
+    {
+      "id": "site-course-enroll",
+      "group": "site",
+      "prompt": "ثبت نام دوره کورل چطور است؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "صفحه دوره و راهنمای واقعی آن؛ با ثبت حساب عمومی اشتباه نشود."
+    },
+    {
+      "id": "site-learning-page",
+      "group": "site",
+      "prompt": "صفحه معرفی آموزش طراحی برای لیزر را پیدا کن.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "برگه عمومی آموزشی نیز بدون انتخاب دستی مدیر خوانده شود."
+    },
+    {
+      "id": "site-service-page",
+      "group": "site",
+      "prompt": "برای خدمات طراحی پانته چه صفحه‌ای هست؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "صفحه عمومی خدمات و مسیر رسمی تماس؛ ثبت پیام یا سفارش ادعا نشود."
+    },
+    {
+      "id": "site-read-section",
+      "group": "site",
+      "prompt": "در راهنمای این صفحه مراحل تبدیل فایل را دقیق توضیح بده.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search",
+          "Knowledge_Read"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "بعد از کشف، بخش مرتبط خوانده شود؛ از snippet آموزش کامل اختراع نشود."
+    },
+    {
+      "id": "site-read-truncated",
+      "group": "site",
+      "prompt": "همه مطالب صفحه آموزشی را کامل توضیح بده.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search",
+          "Knowledge_Read"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "اگر خواندن کوتاه شده، کامل‌بودن ادعا نشود و مرجع داده شود."
+    },
+    {
+      "id": "site-new-page",
+      "group": "site",
+      "prompt": "صفحه تازه آموزش ساخت جعبه را پیدا کن.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "برگه تازه خودکار بدون ثبت شناسه وارد جستجو شود."
+    },
+    {
+      "id": "site-private-page",
+      "group": "site",
+      "prompt": "متن صفحه خصوصی دوره را نشان بده.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "محتوای خصوصی یا رمزدار خوانده نشود؛ نبود دسترسی صریح باشد."
+    },
+    {
+      "id": "site-navigation-only",
+      "group": "site",
+      "prompt": "صفحه حساب من را پیدا کن و سفارش‌هایم را توضیح بده.",
+      "expected": {
+        "toolsAny": [
+          "Knowledge_Search",
+          "Knowledge_Read"
+        ],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "سفارش شما ارسال شده"
+        ]
+      },
+      "reference": "فقط ناوبری ثابت؛ داده شخصی یا سفارش بدون احراز هویت ساخته نشود."
+    },
+    {
+      "id": "site-mixed-topic",
+      "group": "site",
+      "prompt": "آموزش کورل و چند فایل آماده مرتبط معرفی کن.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "آموزش و محصول واقعی مرتبط با مرجع و مشخصات معتبر، در سقف ابزار."
+    },
+    {
+      "id": "site-source-failure",
+      "group": "site",
+      "prompt": "صفحه آموزش را باز کن و اگر خطا داد نتیجه را بگو.",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": false,
+        "needsCitation": false,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "شکست منبع با نبود صفحه تفاوت داشته باشد."
+    },
+    {
+      "id": "site-updated-content",
+      "group": "site",
+      "prompt": "آخرین متن راهنمای این صفحه چیست؟",
+      "expected": {
+        "toolsAll": [
+          "Knowledge_Search",
+          "Knowledge_Read"
+        ],
+        "sourcesAll": [
+          "site"
+        ],
+        "needsEvidence": true,
+        "needsCitation": true,
+        "firstSource": "site",
+        "mustNotInclude": [
+          "سفارش شما ثبت شد",
+          "پیام شما را ارسال کردم"
+        ]
+      },
+      "reference": "ویرایش محتوا یا متای Elementor در خواندن تازه منعکس شود."
     }
   ]
 }

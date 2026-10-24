@@ -46,6 +46,7 @@ jobs:
           php tests/product-previews.php
           php tests/catalog-query.php
           php tests/faq-search.php
+          php tests/site-knowledge.php
           find wordpress-plugin/gpante-support-chat -name '*.php' -print0 | xargs -0 -n 1 php -l
           python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Validate version and build the package

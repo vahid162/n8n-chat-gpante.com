@@ -36,7 +36,7 @@ function build() {
     pg('Finish Request', 'SELECT gpante_chat.finish_v3($1::text,$2::text,$3::text,$4::text) AS result', '={{ [$json.requestId,$json.success ? $json.output : null,$json.success ? "success" : "error",$json.response?.error?.code || null] }}'),
     code('Apply Persistence', chat + "\nconst state=$('Finalize Request').first().json; return [{json: state.success && $input.first().json.result?.saved !== true ? failure('persistence_unavailable') : state}];"),
     node('Return Chat Reply', 'n8n-nodes-base.respondToWebhook', 1.5, { respondWith: 'json', responseBody: '={{ $json.response }}', options: { responseCode: '={{ $json.status || 503 }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store, private' }, { name: 'Retry-After', value: '={{ String($json.retryAfter || 0) }}' }] } } }, [0, 0]),
-    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۵٫۰ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nFAQ رسمی Elementor با اولویت پرسش عملی خرید و بازنویسی وفادار به منبع، ارجاع طراحی به پشتیبانی و راهنمای عمومی مرتبط؛ دسته، فروش کل دوره و مقاله‌های قبلی محفوظ‌اند. سقف‌ها و آرشیو قبلی حفظ شده‌اند.', height: 330, width: 540 }, [0, 400])
+    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۶٫۰ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nجست‌وجوی خودکار برگه، مقاله و محصول عمومی با خواندن محدود محتوا؛ FAQ رسمی Elementor با اولویت پرسش عملی خرید و بازنویسی وفادار به منبع، ارجاع طراحی به پشتیبانی و راهنمای عمومی مرتبط؛ دسته، فروش کل دوره و مقاله‌های قبلی محفوظ‌اند. سقف‌ها و آرشیو قبلی حفظ شده‌اند.', height: 330, width: 540 }, [0, 400])
   ];
   const connections = {};
   const link = (from, to, branch = 0) => {
@@ -71,7 +71,7 @@ function build() {
     link(n('Apply Settlement'), n('Reply Is Ready')); link(n('Reply Is Ready'), 'Finalize Request');
     if (i === 4) { link(n('Reply Is Ready'), 'Finalize Request', 1); continue; }
     nodes.push(
-      code(n('Prepare Tool'), catalog + `\nconst state=$input.first().json; try { const kind={Product_Search:'search',Product_Details:'details',Knowledge_Search:'knowledge',Category_Search:'categories'}[state.pendingTool.function.name]; return [{json:{...state,toolValid:true,toolRequest:prepare(kind,state.pendingTool.function.arguments)}}]; } catch { return [{json:{...state,toolValid:false}}]; }`),
+      code(n('Prepare Tool'), catalog + `\nconst state=$input.first().json; try { const kind={Product_Search:'search',Product_Details:'details',Knowledge_Search:'knowledge',Knowledge_Read:'read',Category_Search:'categories'}[state.pendingTool.function.name]; return [{json:{...state,toolValid:true,toolRequest:prepare(kind,state.pendingTool.function.arguments)}}]; } catch { return [{json:{...state,toolValid:false}}]; }`),
       gate(n('Tool Is Valid'), 'toolValid', [0, 0]),
       http(n('Read Public Source'), { method: 'GET', url: '={{ $json.toolRequest.url }}', sendQuery: true, specifyQuery: 'json', jsonQuery: '={{ JSON.stringify($json.toolRequest.qs) }}' }, 10000),
       code(n('Record Tool Facts'), catalog + '\n' + chat + `\nconst state={...$('${n('Prepare Tool')}').itemMatching(0).json}; const facts=shape(state.toolRequest.context,$input.first().json); delete state.toolRequest; return [{json:toolResult(state,facts)}];`),
@@ -91,7 +91,7 @@ function build() {
     n.position = [position[0] + 220, position[1] + 140];
   });
   return { name: 'gpante.com — AI Support — Main', active: false,
-    description: 'نسخهٔ ۱٫۵٫۰: کنترل منبع پاسخ، مرجع همان نوبت و تطبیق قیمت/ویژگی محصول؛ FAQ و ارجاع طراحی محفوظ؛ دسته‌ها، محصولات و مقاله‌های قبلی محفوظ‌اند. اجرای ترتیبی سه ابزار/چهار تماس، سقف ۲ دلار/ماه UTC و آرشیو ۳۰روزه محفوظ‌اند.',
+    description: 'نسخهٔ ۱٫۶٫۰: جست‌وجوی مشترک همهٔ برگه‌ها، مقاله‌ها و محصولات عمومی، خواندن محدود محتوای صفحه/مقاله، کنترل منبع و قیمت/ویژگی همان نوبت؛ FAQ و ارجاع طراحی محفوظ؛ دسته‌ها، محصولات و مقاله‌های قبلی محفوظ‌اند. اجرای ترتیبی سه ابزار/چهار تماس، سقف ۲ دلار/ماه UTC و آرشیو ۳۰روزه محفوظ‌اند.',
     nodes, connections, settings: { executionOrder: 'v1', timezone: 'Asia/Tehran', executionTimeout: 150,
       saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, callerPolicy: 'workflowsFromSameOwner' } };
 }

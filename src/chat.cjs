@@ -146,7 +146,8 @@ function groundingError(state, output) {
     && !(required === 'faq' && !/خرید|ایمیل|تلفن|همراه|حساب|ثبت.?نام|پرداخت/.test(replyText(state.chatInput)) && /راهنمای عمومی|اطلاعات عمومی|به.?طور عمومی/.test(output))) return 'source_unavailable';
   const question = replyText(state.chatInput);
   // “Complete/step-by-step course” can describe a resource to recommend, not steps to explain.
-  const introduction = /دوره|آموزش|منبع|مقاله/.test(question) && /معرفی|پیشنهاد|پیدا|نشان/.test(question)
+  const introduction = /دوره|آموزش|منبع|مقاله/.test(question)
+    && /معرفی|پیشنهاد|پیدا|نشان|می ?خوا(?:هم|م)|(?:لازم|نیاز) دارم|دار(?:ید|ین)(?=$|[\s،؟?.!])/.test(question)
     && !/توضیح|شرح|تشریح|یاد(?:م)? بده|آموزش(?:م)? بده|بنویس/.test(question);
   const detailed = /مراحل|متن کامل|توضیح کامل/.test(question)
     || !introduction && /گام به گام|مرحله به مرحله|آموزش کامل/.test(question);

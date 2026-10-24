@@ -36,7 +36,7 @@ function build() {
     pg('Finish Request', 'SELECT gpante_chat.finish_v3($1::text,$2::text,$3::text,$4::text) AS result', '={{ [$json.requestId,$json.success ? $json.output : null,$json.success ? "success" : "error",$json.response?.error?.code || null] }}'),
     code('Apply Persistence', chat + "\nconst state=$('Finalize Request').first().json; return [{json: state.success && $input.first().json.result?.saved !== true ? failure('persistence_unavailable') : state}];"),
     node('Return Chat Reply', 'n8n-nodes-base.respondToWebhook', 1.5, { respondWith: 'json', responseBody: '={{ $json.response }}', options: { responseCode: '={{ $json.status || 503 }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store, private' }, { name: 'Retry-After', value: '={{ String($json.retryAfter || 0) }}' }] } } }, [0, 0]),
-    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۶٫۰ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nجست‌وجوی خودکار برگه، مقاله و محصول عمومی با خواندن محدود محتوا؛ FAQ رسمی Elementor با اولویت پرسش عملی خرید و بازنویسی وفادار به منبع، ارجاع طراحی به پشتیبانی و راهنمای عمومی مرتبط؛ دسته، فروش کل دوره و مقاله‌های قبلی محفوظ‌اند. سقف‌ها و آرشیو قبلی حفظ شده‌اند.', height: 330, width: 540 }, [0, 400])
+    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۶٫۱ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nجست‌وجوی خودکار برگه، مقاله و محصول عمومی با خواندن محدود محتوا؛ FAQ رسمی Elementor با اولویت پرسش عملی خرید و بازنویسی وفادار به منبع، ارجاع طراحی به پشتیبانی و راهنمای عمومی مرتبط؛ دسته، فروش کل دوره و مقاله‌های قبلی محفوظ‌اند. سقف‌ها و آرشیو قبلی حفظ شده‌اند.', height: 330, width: 540 }, [0, 400])
   ];
   const connections = {};
   const link = (from, to, branch = 0) => {
@@ -91,7 +91,7 @@ function build() {
     n.position = [position[0] + 220, position[1] + 140];
   });
   return { name: 'gpante.com — AI Support — Main', active: false,
-    description: 'نسخهٔ ۱٫۶٫۰: جست‌وجوی مشترک همهٔ برگه‌ها، مقاله‌ها و محصولات عمومی، خواندن محدود محتوای صفحه/مقاله، کنترل منبع و قیمت/ویژگی همان نوبت؛ FAQ و ارجاع طراحی محفوظ؛ دسته‌ها، محصولات و مقاله‌های قبلی محفوظ‌اند. اجرای ترتیبی سه ابزار/چهار تماس، سقف ۲ دلار/ماه UTC و آرشیو ۳۰روزه محفوظ‌اند.',
+    description: 'نسخهٔ ۱٫۶٫۱: جست‌وجوی خودکار برگه، مقاله و محصول عمومی و خواندن متن مرتبط؛ FAQ، کنترل منبع و قیمت محفوظ. گراف و اتصال‌های قبلی، سه ابزار/چهار تماس، بودجهٔ ۲ دلار/ماه UTC و آرشیو ۳۰روزه حفظ می‌شوند.',
     nodes, connections, settings: { executionOrder: 'v1', timezone: 'Asia/Tehran', executionTimeout: 150,
       saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, callerPolicy: 'workflowsFromSameOwner' } };
 }

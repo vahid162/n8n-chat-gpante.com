@@ -24,30 +24,45 @@ function failure(code = 'unavailable', status = 503, retryAfter = 60) {
 function validateTrusted(input) {
   if (!input || typeof input !== 'object' || !/^[a-f0-9]{64}$/.test(input.sessionId || '')
     || !/^[a-f0-9]{64}$/.test(input.clientId || '')
-    || !['sendMessage', 'loadPreviousSession', 'resetSession'].includes(input.action)) {
+    || !['sendMessage', 'loadPreviousSession', 'resetSession', 'feedback'].includes(input.action)
+    || input.sendId != null && (typeof input.sendId !== 'string' || !/^[a-f0-9]{32}$/.test(input.sendId))
+    || input.historyCursor != null && (typeof input.historyCursor !== 'string' || !/^[1-9][0-9]{0,17}$/.test(input.historyCursor))
+    || input.action === 'feedback' && (typeof input.feedbackRequestId !== 'string' || !/^[a-f0-9]{32}$/.test(input.feedbackRequestId) || !['helpful', 'unhelpful'].includes(input.feedbackValue))) {
     return { ...failure('invalid_input', 400), valid: false };
   }
   const chatInput = typeof input.chatInput === 'string' ? input.chatInput.trim() : '';
   if (input.action === 'sendMessage' && (!chatInput || chatInput.length > 4000)) {
     return { ...failure('invalid_input', 400), valid: false };
   }
-  return { valid: true, action: input.action, sessionId: input.sessionId, clientId: input.clientId, chatInput, policyVersion: input.policyVersion === 2 ? 2 : 0 };
+  return { valid: true, action: input.action, sessionId: input.sessionId, clientId: input.clientId, chatInput,
+    policyVersion: input.policyVersion === 2 ? 2 : 0, sendId: input.sendId ?? null, historyCursor: input.historyCursor ?? null,
+    feedbackRequestId: input.action === 'feedback' ? input.feedbackRequestId : null, feedbackValue: input.action === 'feedback' ? input.feedbackValue : null };
 }
 
 function admitted(input, result) {
   if (result?.allowed !== true) return failure(result?.reason || 'unavailable',
     ['rate_limit', 'session_busy', 'capacity'].includes(result?.reason) ? 429 : ['client_upgrade','clear_disabled'].includes(result?.reason) ? 403 : 503, result?.retry_after || 60);
   if (input.action === 'resetSession') return { done: true, status: 200, response: { ok: result.ok === true, policy: result.policy } };
+  if (input.action === 'feedback') return { done: true, status: 200, response: { ok: result.ok === true, requestId: result.requestId, feedback: result.feedback, policy: result.policy } };
+  if (result.replay === true) {
+    if (!/^[a-f0-9]{32}$/.test(result.requestId || '') || typeof result.output !== 'string' || result.output.length > 8000) return failure();
+    return { done: true, status: 200, response: { output: finish({ output: result.output }), requestId: result.requestId,
+      expiresAt: result.expiresAt, feedback: result.feedback, policy: result.policy } };
+  }
   if (!Array.isArray(result.messages)) return failure();
   const history = result.messages.filter(m => m && ['user', 'assistant'].includes(m.role)
     && typeof m.content === 'string' && m.content.length <= 8000)
-    .map(m => ({ role: m.role, content: m.role === 'assistant' ? finish({ output: m.content }) : m.content }));
-  if (input.action === 'loadPreviousSession') return { done: true, status: 200, response: { messages: history.map((m, i) => ({ ...m, expiresAt: result.messages[i]?.expiresAt })), policy: result.policy } };
+    .map(m => ({ role: m.role, content: m.role === 'assistant' ? finish({ output: m.content }) : m.content,
+      expiresAt: m.expiresAt, ...(/^(?:[a-f0-9]{32}|legacy:[1-9][0-9]{0,17})$/.test(m.requestId || '') ? { requestId: m.requestId } : {}),
+      feedback: ['helpful', 'unhelpful'].includes(m.feedback) ? m.feedback : null }));
+  if (input.action === 'loadPreviousSession') return { done: true, status: 200, response: { messages: history, policy: result.policy,
+    hasMore: result.hasMore === true, nextCursor: /^[1-9][0-9]{0,17}$/.test(result.nextCursor || '') ? result.nextCursor : null,
+    historyResetAt: typeof result.historyResetAt === 'string' ? result.historyResetAt : null } };
   if (!/^[a-f0-9]{32}$/.test(result.requestId || '')) return failure();
   // Keep recent complete turns within the model's input bound; stored history is unchanged.
   while (JSON.stringify(history).length > 24000) history.splice(0, 2);
   return { ...input, policy: result.policy, expiresAt: result.expiresAt, requestId: result.requestId, done: false, callIndex: 0, toolCount: 0,
-    messages: [...history, { role: 'user', content: input.chatInput }] };
+    messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: input.chatInput }] };
 }
 
 function replyText(value) {
@@ -66,9 +81,7 @@ function requiredSource(state, text = state.chatInput, followup = true) {
   if (/ثبت نام/.test(q) && /دوره|کلاس|[آا]موزش/.test(q) && !/حساب|ایمیل|ای میل|email|تلفن|همراه|موبایل|پرداخت|خرید/.test(q)) return 'site';
   if (/ثبت نام|حساب کاربری|خرید مهمان|بدون حساب|(?:ایمیل|ای میل|email).*(?:ندار|خرید|اجبار|لازم|الزام)|(?:بدون|خرید|اجبار).*(?:ایمیل|ای میل|email)|آموزش.*(?:خرید|پرداخت)|(?:خرید|پرداخت).*آموزش/.test(q)) return 'faq';
   if (/https:\/\/gpante\.com\/product\//.test(q)
-    || /پرفروش|جدیدترین|تازه ترین/.test(q)
-    || /قیمت/.test(q) && /طرح|محصول|باکس|جعبه|استند|ماکت|فایل/.test(q)
-    || /طرح|محصول|باکس|جعبه|استند|ماکت/.test(q) && /دارید|داری|می خواهم|میخوام|می خوام|معرفی|پیدا|نشان/.test(q)) return 'products';
+    || /قیمت/.test(q) && /طرح|محصول|باکس|جعبه|استند|ماکت|فایل/.test(q)) return 'products';
   if (/ایمیل|ای میل|email|ثبت نام|حساب کاربری|خرید مهمان|بدون حساب/.test(q)
     || /(?:تلفن|شماره همراه|موبایل).*(?:خرید|اجباری|الزام)|خرید.*(?:تلفن|شماره همراه|موبایل)/.test(q)
     || /شیار|زبانه/.test(q)
@@ -77,9 +90,11 @@ function requiredSource(state, text = state.chatInput, followup = true) {
   if (/(?:فایل|طرح|محصول|باکس|جعبه|استند|ماکت)/.test(q)
     && /فرمت|کورل|corel|cdr|dxf|svg|pdf|mdf|میل|ضخامت|متریال/.test(q)
     && /معرفی|می ?خواهم|می ?خوام|دارید|داری|پیدا|نشان/.test(q)) return 'products';
+  if (/طرح|محصول|باکس|جعبه|استند|ماکت/.test(q) && /دارید|داری|می خواهم|میخوام|می خوام|معرفی|پیدا|نشان/.test(q)) return 'products';
   if (/تماس با ما|راه ارتباط|شماره پشتیبانی/.test(q)) return 'guides';
   if (/[آا]موزش|یادگیری|دوره|کورل|corel|coreldraw|فتوگراو/.test(q)
     || /(?:صفحه|برگه).*(?:خدمات|پیدا|معرفی|نشانی)|(?:جستجو|جست وجو|سرچ).*سایت/.test(q)) return 'site';
+  if (/پرفروش|جدیدترین|تازه ترین/.test(q)) return 'products';
   if (followup && /ارزان.?تر|مدل دیگر|ادامه|همین دسته|همین ها/.test(q)) {
     let skippedCurrent = false;
     for (const message of (state.messages || []).slice(-12).reverse()) {
@@ -107,6 +122,44 @@ function attributeMatches(taxonomy, term, value) {
   return (term.match(/\d+(?:\.\d+)?/g) || []).some(number => decimalValue(number) === decimalValue(value));
 }
 
+function limitationOnly(output, discovery = false) {
+  // A limitation can excuse only a limitation-only reply, never another positive clause.
+  const clauses = output.replace(/\[[^\]\n]*\]\(https:\/\/[^\s<>()[\]]+\)/g, '')
+    .replace(/https:\/\/[^\s<>()[\]]+/g, '').replace(/[*_#>|]/g, '')
+    .split(/[.!?؟؛;،\n]+|\s+(?:اما|ولی|با این حال|بنابراین|پس|و)\s+/).map(replyText).filter(Boolean);
+  let limitation = false;
+  for (const clause of clauses) {
+    const negative = /(?:پیدا نشد|پیدا نکردم|یافت نشد|نیافتم|ذکر نشده|در دسترس نیست|دسترسی ندارم|مشخص نیست|اطلاعات.*کافی نیست|گزینه.*مرتبط.*نیست|نتوانستم.*|امکان.*(?:خواندن|دریافت|بررسی).*نیست)$/.test(clause);
+    const affirmative = /(?:^|\s)(?:است|هست|باید|دارد|دارند|می تواند|می شود|اجباری|الزامی)(?:$|\s)/.test(clause);
+    if (negative && !affirmative) { limitation = true; continue; }
+    if (/^پوشش (?:جستجو|جست وجو|منابع) کامل نیست$/.test(clause)) { limitation = true; continue; }
+    if (/^(?:متأسفانه|متاسفانه|فعلا|فعلاً|در حال حاضر)$/.test(clause)) continue;
+    if (/^(?:برای (?:پیگیری|بررسی|اطلاعات بیشتر)|(?:می توانید )?(?:با پشتیبانی تماس بگیرید|از صفحه تماس با ما استفاده کنید))$/.test(clause)) continue;
+    if (discovery && (/^برای (?:آموزش|مطالعه|بررسی|اطلاعات بیشتر)$/.test(clause)
+      || /^(?:این )?(?:صفحه|برگه|مقاله|منبع) (?:مرتبط است|را بررسی کنید|را ببینید)$/.test(clause))) continue;
+    return false;
+  }
+  return limitation;
+}
+
+function linkedSections(output) {
+  // Every source link bounds its own claims, including non-product recommendations.
+  const refs = [...output.matchAll(/https:\/\/[^\s<>()[\]]+/g)];
+  if (refs.length && new Set(refs.map(ref => ref[0])).size === 1) return [{ text: output, url: refs[0][0] }];
+  const headings = output.split(/(?=^(?:\*\*[^*\n]+\*\*|#{1,6} [^\n]+)\s*$)/m);
+  return (headings.length > 1 ? headings : output.split(/\n\s*\n/)).flatMap(block => {
+    const refs = [...block.matchAll(/https:\/\/[^\s<>()[\]]+/g)];
+    if (!refs.length) return [{ text: block, url: null }];
+    if (new Set(refs.map(ref => ref[0])).size === 1) return [{ text: block, url: refs[0][0] }];
+    const prefix = block.slice(0, refs[0].index).replace(/\[[^\]\n]*\]\($/, '').replace(/^[\s*#>\d.،)-]+/, '').trim();
+    const linkFirst = !prefix;
+    return refs.map((ref, i) => ({ url: ref[0], text: linkFirst
+      ? block.slice(ref.index + ref[0].length, refs[i + 1]?.index ?? block.length)
+      : block.slice(i ? refs[i - 1].index + refs[i - 1][0].length : 0, ref.index) }))
+      .concat(linkFirst ? [] : [{ text: block.slice(refs.at(-1).index + refs.at(-1)[0].length), url: null }]);
+  });
+}
+
 function groundingError(state, output) {
   const evidence = state.evidence || [];
   const required = requiredSource(state);
@@ -125,25 +178,32 @@ function groundingError(state, output) {
       ? [{ ...e, results: e.results.filter(r => r.kind === 'post') }] : [];
   });
   if (required && !relevant.some(e => e.status !== 'invalid_query')) return 'source_required';
-  const abstains = /پیدا نشد|پیدا نکردم|یافت نشد|نیافتم|ذکر نشده|در دسترس نیست|دسترسی ندارم|نتوانستم|مشخص نیست|اطلاعات.*کافی نیست|گزینه.*مرتبط.*نیست/.test(output);
+  const abstains = limitationOnly(output);
   const results = evidence.filter(e => e.ok).flatMap(e => e.results || []);
   const allowed = new Set(results.flatMap(r => [r.url, ...(r.links || []).map(l => l.url)]));
   const links = [...output.matchAll(/https:\/\/[^\s<>()[\]]+/g)];
   // Static support navigation is permitted without retrieval, never product/FAQ facts.
   const navigation = new Set(['https://gpante.com/contact-us/', 'https://gpante.com/my-account/']);
   if (links.some(m => !allowed.has(m[0]) && !navigation.has(m[0]))) return 'unverified_reference';
+  const reads = required ? relevant : evidence;
+  const incomplete = reads.some(e => e.ok && e.source === 'site' && (e.coverage?.complete === false || e.status === 'incomplete_source'));
+  if (incomplete && (!/پوشش (?:جستجو|جست وجو|منابع) کامل نیست/.test(replyText(output))
+    || !reads.some(e => e.ok && e.results?.length) && /پیدا نشد|پیدا نکردم|یافت نشد|نیافتم/.test(output))) return 'source_incomplete';
   if (required && relevant.some(e => e.ok && e.results?.length)
     && !links.some(m => relevant.some(e => e.ok && e.results?.some(r => r.url === m[0])))
     && !abstains) return 'reference_required';
   const prices = text => [...replyText(text).replace(/\*/g, '').matchAll(/(\d[\d,٬،.]*)\s*(هزار|میلیون)?\s*(تومان|تومن|ریال|دلار|usd|irr|irt)(?=$|[\s،.,؛!؟|)])/g)];
   const products = results.filter(r => r.price !== undefined && Array.isArray(r.attributes));
   if (prices(output).length && !products.length) return 'unverified_price';
-  const reads = required ? relevant : evidence;
-  const reportsReadFailure = /در دسترس نیست|دسترسی ندارم|نتوانستم|امکان.*(?:خواندن|دریافت|بررسی).*نیست/.test(output);
+  const linkedDiscovery = results.some(r => ['page', 'post'].includes(r.kind) && !r.navigationOnly && links.some(m => m[0] === r.url));
+  const limitedRead = limitationOnly(output, linkedDiscovery);
+  const reportsReadFailure = limitedRead && /در دسترس نیست|دسترسی ندارم|نتوانستم|امکان.*(?:خواندن|دریافت|بررسی).*نیست/.test(output);
   if (!reads.some(e => e.ok) && reads.some(e => e.ok === false && e.status !== 'invalid_query')
     && !reportsReadFailure) return 'source_read_failed';
+  const generalGuidance = /^(?:راهنمای عمومی|اطلاعات عمومی|به طور عمومی)(?:\s|:)/.test(replyText(output))
+    && !/فروشگاه|پانته|gpante|این (?:سایت|محصول|طرح|فایل|دوره|مقاله|صفحه)|سفارش|محصول|سازگاری|رایگان|قیمت|هزینه|الزام|اجبار|حساب|ثبت نام|ایمیل|تلفن|همراه|پرداخت|خرید/.test(replyText(output));
   if (required && !relevant.some(e => e.ok && e.results?.length) && !abstains
-    && !(required === 'faq' && !/خرید|ایمیل|تلفن|همراه|حساب|ثبت.?نام|پرداخت/.test(replyText(state.chatInput)) && /راهنمای عمومی|اطلاعات عمومی|به.?طور عمومی/.test(output))) return 'source_unavailable';
+    && !(required === 'faq' && !/خرید|ایمیل|تلفن|همراه|حساب|ثبت.?نام|پرداخت/.test(replyText(state.chatInput)) && generalGuidance)) return 'source_unavailable';
   const question = replyText(state.chatInput);
   // “Complete/step-by-step course” can describe a resource to recommend, not steps to explain.
   const introduction = /دوره|آموزش|منبع|مقاله/.test(question)
@@ -155,18 +215,30 @@ function groundingError(state, output) {
     const contentReads = evidence.filter(e => e.name === 'Knowledge_Read');
     if (contentReads.some(e => !e.ok && e.status !== 'invalid_query') && !contentReads.some(e => e.ok && e.results?.some(r => r.content))
       && !reportsReadFailure) return 'source_read_failed';
-    if (!abstains) {
+    if (!limitedRead) {
       const citedContent = results.filter(r => ['page', 'post'].includes(r.kind) && !r.navigationOnly && links.some(m => m[0] === r.url));
       const contentRead = url => contentReads.some(e => e.ok && e.results?.some(r => r.url === url && typeof r.content === 'string' && r.content.trim()));
       if (citedContent.some(r => !contentRead(r.url)) || !citedContent.length) return 'content_read_required';
     }
   }
-  let start = 0;
-  for (const link of links.filter(m => /^https:\/\/gpante\.com\/product\//.test(m[0]))) {
-    const item = [...products].reverse().find(r => r.url === link[0]);
+  for (const block of output.split(/\n\s*\n/)) {
+    const productLinks = [...block.matchAll(/https:\/\/gpante\.com\/product\/[^\s<>()[\]]+/g)];
+    if (new Set(productLinks.map(link => link[0])).size > 1 && (prices(block).length || /رایگان/.test(block))) {
+      const adjacent = productLinks.some((link, i) => i && !block.slice(productLinks[i - 1].index + productLinks[i - 1][0].length, link.index)
+        .replace(/\[[^\]\n]*\]\(/g, '').replace(/[\s)*#>،:.-]/g, ''));
+      if (adjacent || /هر دو|هر یک|هر کدام|همه(?:ٔ| ی)? دوره|همه(?:ٔ| ی)? محصول/.test(block)) return 'unverified_price';
+    }
+  }
+  for (const { text: section, url } of linkedSections(output)) {
+    if (!url || !/^https:\/\/gpante\.com\/product\//.test(url)) {
+      if (prices(section).length) return 'unverified_price';
+      if (/رایگان(?!\s+نیست)/.test(section) && !limitationOnly(section)
+        && !results.some(r => r.url === url && r.kind !== 'product' && !r.navigationOnly)) return 'unverified_price';
+      if (!url && section.split('\n').some(row => /^\|?\s*(?:فرمت|ضخامت|متریال|جنس)\s*\|/.test(replyText(row)) && !/ذکر نشده|نامشخص/.test(row))) return 'attribute_mismatch';
+      continue;
+    }
+    const item = [...products].reverse().find(r => r.url === url);
     if (!item) return 'unverified_reference';
-    const section = output.slice(start, link.index);
-    start = link.index + link[0].length;
     for (const p of prices(section)) {
       const unit = /تومان|تومن|irt/.test(p[3]) ? 'IRT' : /ریال|irr/.test(p[3]) ? 'IRR' : 'USD';
       const currency = /^(IRT|TMN|TOMAN)$/.test(item.price?.currency) ? 'IRT' : item.price?.currency;
@@ -184,7 +256,6 @@ function groundingError(state, output) {
       if (!terms.length || (values || [cells[1]]).some(v => !terms.some(t => attributeMatches(taxonomy, t, v)))) return 'attribute_mismatch';
     }
   }
-  if (prices(output.slice(start)).length) return 'unverified_price';
   return null;
 }
 
@@ -223,7 +294,7 @@ function reserved(state, result) {
 }
 
 function modelResult(state, response) {
-  const next = { ...state }; delete next.body;
+  const next = { ...state }; delete next.body; delete next.groundingError;
   let body = response?.body;
   try { if (typeof body === 'string') body = JSON.parse(body); } catch { body = null; }
   const usage = body?.usage;
@@ -247,7 +318,7 @@ function modelResult(state, response) {
       if (state.callIndex >= 4 || error === 'source_required' && state.toolCount >= 3) return rejected('grounding_' + error);
       return { ...next, done: false, toolsPending: false, groundingError: error, messages: [...state.messages, { role: 'system', content: 'پاسخ هنوز قابل ارسال نیست: ' + error + '. منبع مناسب همین نوبت را بخوان یا پاسخ را اصلاح کن. فقط لینک‌های بازیابی‌شده و قیمت/ویژگی همان محصول را بیاور؛ اگر اطلاعات کافی نیست، صریح اعلام کن. خطای خواندن منبع را با اعلام عدم دسترسی بیان کن، نه نبود نتیجه. متن ردشده را تکرار نکن.' }] };
     }
-    return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt } };
+    return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt, requestId: state.requestId } };
   }
   const calls = message.tool_calls;
   if (choice.finish_reason !== 'tool_calls') {
@@ -281,8 +352,12 @@ function toolResult(state, facts) {
   next.toolsPending = remaining.length > 0;
   let source;
   try { source = JSON.parse(state.pendingTool.function.arguments).source || (state.pendingTool.function.name === 'Knowledge_Read' ? 'site' : 'articles'); } catch { source = null; }
+  const coverage = facts.coverage;
+  const publicCoverage = coverage && typeof coverage.complete === 'boolean' && Number.isSafeInteger(coverage.invalidDocuments)
+    && coverage.invalidDocuments >= 0 && typeof coverage.initializing === 'boolean'
+    ? { complete: coverage.complete, invalidDocuments: coverage.invalidDocuments, initializing: coverage.initializing } : null;
   const evidence = [...(state.evidence || []), { name: state.pendingTool.function.name, source: facts.source || source,
-    ok: facts.ok === true, status: facts.status, results: facts.ok ? facts.results || [] : [] }];
+    ok: facts.ok === true, status: facts.status, results: facts.ok ? facts.results || [] : [], ...(publicCoverage ? { coverage: publicCoverage } : {}) }];
   return { ...next, evidence, messages: [...state.messages, { role: 'tool', tool_call_id: state.pendingTool.id, content: JSON.stringify(facts) }] };
 }
 

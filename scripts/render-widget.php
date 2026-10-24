@@ -5,6 +5,7 @@ define( 'ABSPATH', __DIR__ );
 function esc_html_e( $text, $domain ) { echo htmlspecialchars( $text, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr_e( $text, $domain ) { esc_html_e( $text, $domain ); }
 function rest_url( $path ) { return '/wp-json/' . $path; }
+function home_url( $path = '/' ) { return 'https://gpante.com' . $path; }
 function wp_make_link_relative( $path ) { return $path; }
 function esc_url( $url ) { return htmlspecialchars( $url, ENT_QUOTES, 'UTF-8' ); }
 function __( $text, $domain ) { return $text; }

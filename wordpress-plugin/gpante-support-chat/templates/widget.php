@@ -20,7 +20,7 @@ $public_appearance = array(
 	'links'   => $appearance['links'],
 );
 ?>
-<div id="gpante-support" dir="rtl" lang="fa" style="<?php echo esc_attr( $styles ); ?>" data-appearance="<?php echo esc_attr( wp_json_encode( $public_appearance ) ); ?>" data-appearance-endpoint="<?php echo esc_url( wp_make_link_relative( rest_url( 'gpante-support/v1/appearance' ) ) ); ?>" data-endpoint="<?php echo esc_url( wp_make_link_relative( rest_url( 'gpante-support/v1/chat' ) ) ); ?>">
+<div id="gpante-support" dir="rtl" lang="fa" style="<?php echo esc_attr( $styles ); ?>" data-search-url="<?php echo esc_url( home_url( '/' ) ); ?>" data-appearance="<?php echo esc_attr( wp_json_encode( $public_appearance ) ); ?>" data-appearance-endpoint="<?php echo esc_url( wp_make_link_relative( rest_url( 'gpante-support/v1/appearance' ) ) ); ?>" data-endpoint="<?php echo esc_url( wp_make_link_relative( rest_url( 'gpante-support/v1/chat' ) ) ); ?>">
 	<section id="gpante-support-panel" class="gpante-chat-panel" role="dialog" aria-labelledby="gpante-support-title" tabindex="-1" hidden>
 		<div class="gpante-chat-header">
 			<div class="gpante-chat-heading">
@@ -40,12 +40,14 @@ $public_appearance = array(
 			<button type="button" data-clear><?php esc_html_e( 'بله، پاک شود', 'gpante-support-chat' ); ?></button><button type="button" data-cancel><?php esc_html_e( 'انصراف', 'gpante-support-chat' ); ?></button>
 		</div>
 		<div class="gpante-chat-messages" data-scroll tabindex="0" role="region" aria-label="<?php esc_attr_e( 'گفتگو و پیوندهای راهنما', 'gpante-support-chat' ); ?>">
+			<button type="button" class="gpante-chat-older" data-older hidden><?php esc_html_e( 'نمایش پیام‌های قدیمی‌تر', 'gpante-support-chat' ); ?></button>
 			<div data-messages role="log" aria-label="<?php esc_attr_e( 'پیام‌های گفت‌وگو', 'gpante-support-chat' ); ?>" aria-live="polite" aria-relevant="additions"></div>
 			<div class="gpante-chat-activity" data-activity role="status" aria-live="polite" hidden><span class="gpante-chat-dots" aria-hidden="true"><i></i><i></i><i></i></span><span data-activity-text></span></div>
 			<div class="gpante-chat-notice" data-notice hidden>
 				<p data-status-text role="status" aria-live="polite" aria-atomic="true"></p>
 				<button type="button" data-reconnect hidden><?php esc_html_e( 'اتصال مجدد', 'gpante-support-chat' ); ?></button>
 				<button type="button" data-retry hidden><?php esc_html_e( 'تلاش دوباره', 'gpante-support-chat' ); ?></button>
+				<a class="gpante-chat-link" data-fallback hidden><?php esc_html_e( 'جست‌وجوی همین پرسش در سایت', 'gpante-support-chat' ); ?></a>
 			</div>
 			<nav class="gpante-chat-shortcuts" data-shortcuts aria-label="<?php esc_attr_e( 'پیوندهای راهنما', 'gpante-support-chat' ); ?>" <?php echo array_filter( $appearance['links'], static fn( $shortcut ) => '' !== $shortcut['label'] ) ? '' : 'hidden'; ?>>
 				<?php foreach ( $appearance['links'] as $shortcut ) : ?>

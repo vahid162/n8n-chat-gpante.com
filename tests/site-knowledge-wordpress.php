@@ -2,6 +2,9 @@
 // Run only through WP-CLI against the isolated local fixture installation.
 if (!defined('GPANTE_SUPPORT_LOCAL_TEST') || !GPANTE_SUPPORT_LOCAL_TEST || home_url() !== 'https://127.0.0.1:9443') throw new RuntimeException('Isolated local test site required');
 require_once __DIR__ . '/../wordpress-plugin/gpante-support-chat/includes/catalog.php';
+gpante_support_search_index_register();
+gpante_support_search_index_upgrade();
+for ($i=0;$i<50 && !gpante_support_search_index_health()['complete'];$i++) gpante_support_search_index_batch();
 function site_native_check($value, $message) { if (!$value) throw new RuntimeException($message); echo "PASS $message\n"; }
 function site_native_read($params = []) { $r = new WP_REST_Request('GET', '/gpante-support/v1/knowledge'); $r->set_query_params(['source'=>'site'] + $params); return gpante_support_catalog_knowledge($r); }
 $GLOBALS['gpante_site_fixture_ids'] = [];
@@ -28,6 +31,7 @@ try {
     $password = site_native_create(['post_title'=>"$topic رمزدار",'post_password'=>'fixture','post_content'=>'SECRET_PASSWORD']);
     $draft = site_native_create(['post_title'=>"$topic پیش نویس",'post_status'=>'draft']);
     $elementor = site_native_create(['post_title'=>"برگه $topic",'post_content'=>'متن قدیمی مخفی نباید منبع شود']);
+    update_post_meta($elementor, '_elementor_edit_mode', 'builder');
     update_post_meta($elementor, '_elementor_data', wp_slash(wp_json_encode([['elType'=>'e-paragraph','settings'=>['paragraph'=>['$$type'=>'escaped-html','value'=>'&lt;p&gt;درس المنتور یکتاعبارت&lt;/p&gt;']]]])));
     $r = site_native_read(['search'=>"کورل $topic",'intent'=>'learning']);
     if (is_wp_error($r)) throw new RuntimeException('Site source failed: '.$r->get_error_code());
@@ -60,11 +64,15 @@ try {
         $r=site_native_read(['contentId'=>$elementor]);
         site_native_check(is_wp_error($r) && $r->get_error_code()==='gpante_support_catalog_unavailable', 'malformed authoritative Elementor ID read reports catalog unavailable');
         $r=site_native_read(['search'=>'خلاصهکهنه']);
-        site_native_check(is_wp_error($r) && $r->get_error_code()==='gpante_support_catalog_unavailable', 'malformed authoritative Elementor search reports catalog unavailable');
+        site_native_check(!is_wp_error($r) && $r->get_headers()['X-GPante-Coverage']==='incomplete' && $r->get_headers()['X-GPante-Invalid-Documents']===1, 'malformed neighbor is isolated with explicit incomplete coverage');
     }
     delete_post_meta($elementor, '_elementor_data');
     $r=site_native_read(['contentId'=>$elementor]);
-    site_native_check(!is_wp_error($r) && str_contains($r->get_data()[0]['content']['rendered'],'متن قدیمی'), 'deleting Elementor metadata restores ordinary stored content');
+    site_native_check(!is_wp_error($r) && $r->get_data()[0]['content']['rendered']==='', 'active empty Elementor source does not restore obsolete stored content');
+    delete_post_meta($elementor, '_elementor_edit_mode');
+    $r=site_native_read(['contentId'=>$elementor]);
+    site_native_check(!is_wp_error($r) && str_contains($r->get_data()[0]['content']['rendered'],'متن قدیمی'), 'switching to ordinary editor restores its current content despite obsolete builder meta');
+    update_post_meta($elementor, '_elementor_edit_mode', 'builder');
     update_post_meta($elementor, '_elementor_data', '');
     $r=site_native_read(['contentId'=>$elementor]);
     site_native_check(!is_wp_error($r) && $r->get_data()[0]['content']['rendered']==='', 'present empty meta value cannot reuse absent-meta cached body');

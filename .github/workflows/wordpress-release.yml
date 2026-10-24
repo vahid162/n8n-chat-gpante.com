@@ -47,6 +47,7 @@ jobs:
           php tests/catalog-query.php
           php tests/faq-search.php
           php tests/site-knowledge.php
+          php tests/plugin-diagnostics.php
           find wordpress-plugin/gpante-support-chat -name '*.php' -print0 | xargs -0 -n 1 php -l
           python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Validate version and build the package
@@ -85,11 +86,17 @@ jobs:
       - name: Verify additive migration and retention boundaries
         run: |
           set -euo pipefail
-          psql -v ON_ERROR_STOP=1 -c 'CREATE ROLE gpante_chat_app; GRANT CREATE ON DATABASE gpante_chat_archive_test TO gpante_chat_app;'
+          psql -v ON_ERROR_STOP=1 -c 'CREATE ROLE gpante_chat_app; CREATE ROLE gpante_chat_admin; GRANT CREATE ON DATABASE gpante_chat_archive_test TO gpante_chat_app;'
           psql -v ON_ERROR_STOP=1 -f sql/chat.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/002-public-chat.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/003-conversation-archive.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/004-conversation-reliability.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/005-search-diagnostics.sql
           psql -v ON_ERROR_STOP=1 -f tests/archive-database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/conversation-database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/diagnostics-database.sql
+          python3 tests/money-concurrency.py --direct --database gpante_chat_archive_test --user postgres
 
   publish:
     needs: [verify, archive-database]

@@ -1,6 +1,6 @@
 <?php
 /**
- * Public catalog reads for support tools; no credentials or maintained index.
+ * Public catalog reads for support tools; no credentials or customer data.
  *
  * @package GPanteSupportChat
  */
@@ -9,6 +9,7 @@ defined( 'ABSPATH' ) || exit;
 
 require_once __DIR__ . '/faq.php';
 require_once __DIR__ . '/site.php';
+require_once __DIR__ . '/search-index.php';
 
 /**
  * Normalize public search text and Persian variants.
@@ -843,6 +844,15 @@ function gpante_support_register_catalog() {
 		array(
 			'methods'             => WP_REST_Server::READABLE,
 			'callback'            => 'gpante_support_catalog_products',
+			'permission_callback' => '__return_true',
+		)
+	);
+	register_rest_route(
+		'gpante-support/v1',
+		'/search',
+		array(
+			'methods'             => WP_REST_Server::READABLE,
+			'callback'            => 'gpante_support_search_index_endpoint',
 			'permission_callback' => '__return_true',
 		)
 	);

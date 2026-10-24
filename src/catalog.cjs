@@ -399,8 +399,29 @@ function shape(context, httpResponse) {
       if (previous.length > current.length || previous.length === current.length && previous > current) return fail('sort_mismatch');
     }
   }
+  let coverage, querySuggestion;
+  if (context.source === 'site') {
+    const complete = headers['x-gpante-coverage'];
+    const invalid = headers['x-gpante-invalid-documents'];
+    const initializing = headers['x-gpante-index-initializing'];
+    if ([complete, invalid, initializing].some(value => value !== undefined)) {
+      if (!['complete', 'incomplete'].includes(complete) || !/^(?:0|[1-9]\d{0,9})$/.test(String(invalid))
+        || !['0', '1'].includes(String(initializing)) || Number(invalid) > 2147483647
+        || (complete === 'complete') !== (Number(invalid) === 0 && String(initializing) === '0')) return fail('invalid_response');
+      coverage = { complete: complete === 'complete', invalidDocuments: Number(invalid), initializing: String(initializing) === '1' };
+    } else coverage = { complete: true, invalidDocuments: 0, initializing: false }; // Rolling upgrade from the previous provider.
+    if (headers['x-gpante-suggestion'] !== undefined) {
+      try {
+        const suggestion = searchText(decodeURIComponent(headers['x-gpante-suggestion']));
+        if (!suggestion || results.length || typeof headers['x-gpante-suggestion'] !== 'string') return fail('invalid_response');
+        querySuggestion = { search: suggestion, applied: false };
+      } catch { return fail('invalid_response'); }
+    }
+  }
   const result = {
-    ok: true, status: !results.length ? 'no_matches' : hasMore === false ? 'ok' : 'partial', kind, results,
+    ok: true, status: coverage && !coverage.complete ? 'incomplete_source' : !results.length ? 'no_matches' : hasMore === false ? 'ok' : 'partial', kind, results,
+    ...(coverage ? { coverage } : {}),
+    ...(querySuggestion ? { querySuggestion } : {}),
     pagination: { page: context.page, perPage: context.perPage, total, totalPages, hasMore, scope: 'server_filtered_page' },
     ...(context.categoryId ? { categoryId: context.categoryId } : {}),
     ...(context.source ? { source: context.source } : {}),

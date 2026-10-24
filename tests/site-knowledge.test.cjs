@@ -11,6 +11,37 @@ const response = body => ({ statusCode: 200, headers: { 'x-wp-total': String(bod
 const state = (chatInput, evidence = []) => ({ chatInput, evidence, messages: [], toolCount: evidence.length, callIndex: 0 });
 const site = results => ({ name: 'Knowledge_Search', source: 'site', ok: true, results });
 
+test('site coverage distinguishes incomplete empty results and exposes explicit unapplied suggestions', () => {
+  const context = prepare('knowledge', { source: 'site', search: 'تراکتورنمونهه رایگان 2026' }).context;
+  const r = response([]);
+  Object.assign(r.headers, { 'x-gpante-coverage': 'incomplete', 'x-gpante-invalid-documents': '1', 'x-gpante-index-initializing': '0',
+    'x-gpante-suggestion': encodeURIComponent('تراکتورنمونه رایگان 2026') });
+  const result = shape(context, r);
+  assert.equal(result.ok, true); assert.equal(result.status, 'incomplete_source');
+  assert.deepEqual(result.coverage, { complete: false, invalidDocuments: 1, initializing: false });
+  assert.deepEqual(result.querySuggestion, { search: 'تراکتورنمونه رایگان 2026', applied: false });
+  r.headers['x-gpante-invalid-documents'] = '0'; r.headers['x-gpante-index-initializing'] = '1';
+  assert.equal(shape(context, r).status, 'incomplete_source');
+  r.headers['x-gpante-index-initializing'] = '0'; r.headers['x-gpante-coverage'] = 'complete';
+  assert.equal(shape(context, r).status, 'no_matches');
+  r.headers['x-gpante-coverage'] = 'incomplete';
+  assert.equal(shape(context, r).status, 'invalid_response');
+});
+
+test('malformed coverage and spelling suggestion headers fail closed', () => {
+  const context = prepare('knowledge', { source: 'site', search: 'کورل' }).context;
+  for (const headers of [
+    { 'x-gpante-coverage': 'unknown' },
+    { 'x-gpante-coverage': 'complete', 'x-gpante-invalid-documents': '1', 'x-gpante-index-initializing': '0' },
+    { 'x-gpante-coverage': 'incomplete', 'x-gpante-invalid-documents': '-1', 'x-gpante-index-initializing': '1' },
+    { 'x-gpante-suggestion': '%ff' },
+    { 'x-gpante-suggestion': encodeURIComponent('https://evil.example') },
+  ]) {
+    const r=response([]); Object.assign(r.headers, headers);
+    assert.equal(shape(context,r).status,'invalid_response');
+  }
+});
+
 test('site search and bounded ID read use the one fixed provider and reject URL/category/intent abuse', () => {
   const search = prepare('knowledge', { source: 'site', search: 'کورل ۲۰۲۶ رایگان', intent: 'learning', page: 2 });
   assert.deepEqual(search.qs, { page: 2, source: 'site', search: 'کورل 2026 رایگان', intent: 'learning' });
@@ -109,7 +140,7 @@ test('model exposes read plus typed site search and every workflow tool round ma
   assert(tools.find(t => t.name === 'Knowledge_Search').parameters.properties.source.enum.includes('site'));
   assert.deepEqual(tools.find(t => t.name === 'Knowledge_Read').parameters.required, ['contentId']);
   const workflow = build(); assert.equal(workflow.nodes.length, 69);
-  assert.match(workflow.description, /۱٫۶٫۱/);
+  assert.match(workflow.description, /۱٫۷٫۰/);
   assert(workflow.description.length <= 255, 'workflow metadata fits the connector contract');
   for (let i = 1; i <= 3; i++) assert.match(workflow.nodes.find(n => n.name === 'Prepare Tool ' + i).parameters.jsCode, /Knowledge_Read:'read'/);
 });

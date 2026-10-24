@@ -5,6 +5,7 @@ $config = false;
 $admin = true;
 $autoload = true;
 $writes = 0;
+$autoload_checks = 0;
 $errors = array();
 $routes = array();
 function get_option($name, $default = false) { if ('gpante_support_appearance' !== $name) throw new RuntimeException('Private option read'); return false === $GLOBALS['config'] ? $default : $GLOBALS['config']; }
@@ -12,7 +13,7 @@ function add_option($name, $value, $unused, $autoload) { $GLOBALS['config']=$val
 function update_option($name,$value,$autoload) { $GLOBALS['config']=$value; $GLOBALS['autoload']=$autoload; ++$GLOBALS['writes']; }
 function wp_parse_url($url) { return parse_url($url); }
 function esc_url_raw($url,$protocols) { return $url; }
-function wp_set_option_autoload($name, $value) { $GLOBALS['autoload']=$value; }
+function wp_set_option_autoload($name, $value) { $GLOBALS['autoload']=$value; ++$GLOBALS['autoload_checks']; }
 function current_user_can($cap) { return $GLOBALS['admin'] && 'manage_options' === $cap; }
 function add_action(...$args) {}
 function __($text, $domain) { return $text; }
@@ -28,6 +29,8 @@ check($autoload === false && $writes === 1, 'new option is nonautoloaded');
 $defaults=$config;
 gpante_support_appearance_upgrade();
 check($writes === 1, 'upgrade idempotent');
+check($autoload_checks===0,'ordinary initialization performs no autoload query');
+$autoload=true;gpante_support_appearance_upgrade(false);check($autoload===false,'activation repairs appearance autoload');
 check(gpante_support_valid_appearance($defaults), 'default palette readable');
 $config['schema_version']=1;unset($config['links']);$legacy=$config;gpante_support_appearance_upgrade();
 check($config['schema_version']===2 && count($config['links'])===4 && $config['texts']===$legacy['texts'] && $config['colors']===$legacy['colors'],'legacy appearance migrates without losing custom texts or colors');

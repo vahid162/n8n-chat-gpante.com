@@ -8,10 +8,11 @@ $autoload = true;
 $admin = true;
 $errors = array();
 $writes = 0;
+$autoload_checks = 0;
 function get_option($name, $default = false) { return false === $GLOBALS['config'] ? $default : $GLOBALS['config']; }
 function add_option($name, $value, $unused, $autoload) { $GLOBALS['config'] = $value; $GLOBALS['autoload'] = $autoload; ++$GLOBALS['writes']; }
 function update_option($name, $value, $autoload) { $GLOBALS['config'] = $value; $GLOBALS['autoload'] = $autoload; ++$GLOBALS['writes']; }
-function wp_set_option_autoload($name, $autoload) { $GLOBALS['autoload'] = $autoload; }
+function wp_set_option_autoload($name, $autoload) { $GLOBALS['autoload'] = $autoload; ++$GLOBALS['autoload_checks']; }
 function current_user_can($cap) { return $GLOBALS['admin'] && 'manage_options' === $cap; }
 function add_action(...$args) {}
 function __($text, $domain) { return $text; }
@@ -50,6 +51,8 @@ check($config === array_merge($legacy, array('schema_version' => 2)) && $autoloa
 $before = $writes;
 gpante_support_upgrade();
 check($writes === $before, 'migration is idempotent');
+$checks=$autoload_checks;gpante_support_upgrade();check($autoload_checks===$checks,'ordinary initialization performs no autoload query');
+$autoload=true;gpante_support_upgrade(false);check($autoload===false,'activation repairs autoload without changing settings');
 $config['schema_version'] = 99;
 $future = $config;
 gpante_support_upgrade();

@@ -248,6 +248,8 @@
   const confirmation = find('[data-confirm]');
   const clear = find('[data-clear]');
   const retry = find('[data-retry]');
+  const older = find('[data-older]');
+  const fallback = find('[data-fallback]');
   let busy = null;
   let historyRequest = null;
   let pendingSend = false;
@@ -256,6 +258,12 @@
   let policy = null;
   let historyTimer = null;
   let welcomeItem = null;
+  let sendAttempt = null;
+  let loadedHistory = [];
+  let historyCursor = null;
+  let olderLoaded = false;
+  let historyResetAt;
+  let historyPolicyRevision;
   const appearanceTextLimits = {title:80,subtitle:160,launcher:60,welcome:1000,input_label:80,placeholder:250,send:40,clear:100};
   let appearanceTexts = {title:'دستیار پانته',welcome:'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.'};
 
@@ -316,6 +324,7 @@
     if (fresh) fresh.disabled = Boolean(busy || pendingSend);
     if (clear) clear.disabled = Boolean(busy || pendingSend);
     retry.disabled = reconnect.disabled = Boolean(busy || pendingSend);
+    if (older) older.disabled = Boolean(busy || pendingSend);
   }
 
   function setConnection(state) {
@@ -334,6 +343,18 @@
     notice.hidden = !text;
     root.dataset.error = error ? 'true' : 'false';
     if (!text) retry.hidden = reconnect.hidden = true;
+    if (fallback) {
+      const question = failed?.text || input.value.trim();
+      fallback.hidden = !error || !question || !root.dataset.searchUrl;
+      if (!fallback.hidden) {
+        const url = new URL(root.dataset.searchUrl, typeof window !== 'undefined' ? window.location.href : 'https://gpante.com/');
+        url.searchParams.set('s', question);
+        const tooLong = url.href.length > 1800;
+        if (tooLong) url.searchParams.set('s', '');
+        fallback.textContent = tooLong ? 'جست‌وجوی سایت؛ پرسش را کوتاه‌تر وارد کنید' : 'جست‌وجوی همین پرسش در سایت';
+        fallback.href = url.href;
+      }
+    }
   }
 
   function setActivity(text = '') {
@@ -352,7 +373,11 @@
     if (!action && requestHadFocus && !panel.hidden && document.activeElement === document.body) input.focus({ preventScroll: true });
   }
 
-  function addMessage(role, text, scroll = true, expiresAt, products) {
+  function addMessage(role, text, scroll = true, expiresAt, products, requestId, feedback) {
+    if (/^[a-f0-9]{32}$/.test(requestId || '')) {
+      const existing = [...messages.children].find(item => item.dataset.requestId === requestId && item.dataset.role === role);
+      if (existing) return existing;
+    }
     const item = document.createElement('div');
     item.dataset.role = role;
     if (expiresAt) item.dataset.expiresAt = expiresAt;
@@ -366,6 +391,33 @@
     }
     else body.textContent = text;
     item.append(label, body);
+    if (/^[a-f0-9]{32}$/.test(requestId || '')) {
+      item.dataset.requestId = requestId;
+      if (role === 'assistant') {
+        const controls = document.createElement('div');
+        controls.className = 'gpante-chat-feedback';
+        controls.setAttribute('role', 'group');
+        controls.setAttribute('aria-label', 'آیا این پاسخ مفید بود؟');
+        for (const [value, caption] of [['helpful','مفید بود'],['unhelpful','مفید نبود']]) {
+          const button = document.createElement('button');
+          button.type = 'button';button.textContent = caption;
+          button.setAttribute('aria-pressed', String(feedback === value));
+          button.addEventListener('click', async () => {
+            if (busy || pendingSend) return;
+            setBusy('feedback');
+            try {
+              await api('feedback', null, {feedbackRequestId:requestId,feedbackValue:value});
+              for (const child of controls.children) child.setAttribute('aria-pressed', String(child === button));
+              for (const message of loadedHistory) if (message.requestId === requestId) message.feedback = value;
+              showNotice('بازخورد شما ثبت شد.');
+            } catch (_) { showNotice('بازخورد ثبت نشد؛ کمی بعد دوباره تلاش کنید.', true); }
+            finally { setBusy(null); }
+          });
+          controls.append(button);
+        }
+        item.append(controls);
+      }
+    }
     messages.append(item);
     if (scroll) scrollArea.scrollTop = scrollArea.scrollHeight;
     return item;
@@ -383,6 +435,13 @@
 
   function applyPolicy(value) {
     if (!validPolicy(value)) throw new Error('سیاست گفتگو دریافت نشد. لطفاً صفحه را تازه کنید.');
+    if (historyPolicyRevision && historyPolicyRevision !== value.revision) {
+      // Missed intermediate policies may have expired rows permanently, even if days returns to its old value.
+      loadedHistory = [];historyCursor = null;olderLoaded = false;
+      for (const item of [...messages.children]) if (item.dataset.expiresAt) item.remove();
+      if (older) older.hidden = true;
+    }
+    historyPolicyRevision = value.revision;
     policy = value;
     if (fresh) fresh.hidden = !value.allowClear;
     if (!value.allowClear && confirmation) confirmation.hidden = true;
@@ -413,11 +472,11 @@
     return Object.assign(new Error(message), {code, uncertain});
   }
 
-  async function api(action, text) {
+  async function api(action, text, extra = {}) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 160000);
     try {
-      const body = { action, policyVersion: policy?.version || 0 };
+      const body = { action, policyVersion: policy?.version || 0, ...extra };
       if (action === 'sendMessage') body.chatInput = text;
       const response = await fetch(root.dataset.endpoint, {
         method: 'POST', mode: 'same-origin', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
@@ -426,7 +485,7 @@
       });
       const data = await response.json();
       if (!response.ok || !data || data.error) {
-        const reasons = ['rate_limit','session_busy','capacity','request_limit','monthly_budget','pricing_review'];
+        const reasons = ['rate_limit','session_busy','capacity','request_limit','monthly_budget','pricing_review','prior_request_failed','prior_request_expired','feedback_unavailable'];
         const code = reasons.includes(data?.error?.code) ? data.error.code
           : response.status === 429 ? 'request_limit' : response.status >= 400 && response.status < 500 ? 'request_rejected' : 'backend_unavailable';
         throw apiError(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.',
@@ -438,6 +497,11 @@
       if (action === 'loadPreviousSession' && (!Array.isArray(data.messages) || data.messages.length > 100 || data.messages.some(message =>
         !message || !['user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || message.content.length > 8000 || !Number.isFinite(Date.parse(message.expiresAt))))) throw apiError('تاریخچه در دسترس نیست. لطفاً دوباره تلاش کنید.', 'invalid_response');
       if (action === 'resetSession' && data.ok !== true) throw apiError('پاک‌کردن تاریخچه انجام نشد. لطفاً دوباره تلاش کنید.', 'operation_failed');
+      if (action === 'feedback' && data.ok !== true) throw apiError('بازخورد ثبت نشد.', 'operation_failed');
+      if (action === 'loadPreviousSession' && (data.hasMore !== undefined && typeof data.hasMore !== 'boolean'
+        || data.nextCursor != null && (typeof data.nextCursor !== 'string' || !/^[1-9][0-9]{0,17}$/.test(data.nextCursor))
+        || data.hasMore === true && !data.nextCursor
+        || data.historyResetAt != null && !Number.isFinite(Date.parse(data.historyResetAt)))) throw apiError('تاریخچه معتبر نیست.', 'invalid_response');
       setConnection('ready');
       return data;
     } catch (error) {
@@ -453,7 +517,7 @@
     if (!failed) return;
     let text = failed.error.uncertain && failed.checked ? 'نتیجهٔ ارسال قبلی تأیید نشد.' : failed.error.message;
     if (failed.error.uncertain) text += failed.checked
-      ? ' تاریخچه به‌روز شد؛ اگر پاسخ در پیام‌ها نیست، می‌توانید دوباره بفرستید. ارسال دوباره ممکن است درخواست تازه‌ای ایجاد کند.'
+      ? ' تاریخچه به‌روز شد؛ اگر پاسخ در پیام‌ها نیست، می‌توانید دوباره بفرستید. همان ارسال با شناسهٔ قبلی بررسی می‌شود.'
       : ' دریافت پاسخ تأیید نشد؛ ابتدا اتصال و تاریخچه را بررسی کنید. ممکن است پاسخ روی سرور ثبت شده باشد.';
     if (input.value.trim()) text += ' متن نوشته‌شده در کادر محفوظ است؛ نیازی به نوشتن دوبارهٔ آن نیست.';
     showNotice(text, true);
@@ -476,19 +540,31 @@
     return historyRequest;
   }
 
-  async function readHistory(quiet) {
+  function renderHistory(showWelcome = true) {
+    messages.replaceChildren();
+    for (const message of loadedHistory) addMessage(message.role, message.content, false, message.expiresAt, message.products, message.requestId, message.feedback);
+    if (!loadedHistory.length && showWelcome) welcome();
+    if (older) older.hidden = !historyCursor;
+  }
+
+  async function readHistory(quiet, cursor) {
     const previousFailure = failed;
     setBusy('history');
     scheduleHistoryCheck();
     if (!quiet || status.dataset.state !== 'ready') setConnection('connecting');
     try {
-      const data = await api('loadPreviousSession');
-      messages.replaceChildren();
-      if (data.messages.length) {
-        data.messages.forEach(message => addMessage(message.role, message.content, false, message.expiresAt, message.products));
-        scrollArea.scrollTop = scrollArea.scrollHeight;
-      }
-      else welcome();
+      const data = await api('loadPreviousSession', null, cursor ? {historyCursor:cursor} : {});
+      const reset = !Object.hasOwn(data, 'historyResetAt') || data.historyResetAt !== historyResetAt;
+      if (reset) { loadedHistory = [];olderLoaded = false; }
+      historyResetAt = data.historyResetAt;
+      const key = message => message.role + ':' + (message.requestId || message.content + ':' + message.expiresAt);
+      const combined = new Map((cursor ? [...data.messages, ...loadedHistory] : [...loadedHistory, ...data.messages]).map(message => [key(message),message]));
+      loadedHistory = [...combined.values()].filter(message => Date.parse(message.expiresAt) > Date.now());
+      if (cursor || !olderLoaded || reset) historyCursor = data.hasMore ? data.nextCursor : null;
+      if (cursor) olderLoaded = true;
+      const previousHeight = scrollArea.scrollHeight || 0, previousTop = scrollArea.scrollTop || 0;
+      renderHistory(!data.messages.length);
+      scrollArea.scrollTop = cursor ? previousTop + (scrollArea.scrollHeight || 0) - previousHeight : scrollArea.scrollHeight;
       if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession'
         && (previousFailure.action !== 'resetSession' || policy.allowClear)) {
         previousFailure.checked = true;
@@ -545,19 +621,30 @@
     showNotice();
     if (confirmation) confirmation.hidden = true;
     const item = addMessage('user', text);
+    if (!sendAttempt || sendAttempt.text !== text) {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      sendAttempt = {text,id:Array.from(bytes, value => value.toString(16).padStart(2,'0')).join('')};
+    }
     input.value = '';
     setBusy('send');
     setActivity('در حال آماده‌کردن پاسخ…');
     try {
-      const data = await api('sendMessage', text);
+      const data = await api('sendMessage', text, {sendId:sendAttempt.id});
       item.dataset.expiresAt = data.expiresAt;
-      addMessage('assistant', data.output, true, data.expiresAt, data.products);
+      if (data.requestId && [...messages.children].some(message => message !== item && message.dataset.role === 'user' && message.dataset.requestId === data.requestId)) item.remove();
+      else if (data.requestId) item.dataset.requestId = data.requestId;
+      addMessage('assistant', data.output, true, data.expiresAt, data.products, data.requestId, data.feedback);
+      loadedHistory.push({role:'user',content:text,expiresAt:data.expiresAt,requestId:data.requestId},
+        {role:'assistant',content:data.output,expiresAt:data.expiresAt,products:data.products,requestId:data.requestId,feedback:data.feedback});
+      sendAttempt = null;
       failed = null;
       showNotice();
     } catch (error) {
       item.remove();
       input.value = text;
       failure(error, 'sendMessage', text);
+      if (['prior_request_failed','prior_request_expired'].includes(error.code)) sendAttempt = null;
     } finally {
       setBusy(null);
       scheduleHistoryCheck();
@@ -574,6 +661,8 @@
     try {
       await api('resetSession');
       messages.replaceChildren();
+      loadedHistory = [];historyCursor = null;olderLoaded = false;sendAttempt = null;
+      if (older) older.hidden = true;
       welcome();
       input.value = '';
       failed = null;
@@ -670,6 +759,9 @@
   });
   if (typeof window !== 'undefined') window.addEventListener('focus', () => { if (!panel.hidden && !busy) loadHistory(true); });
   reconnect.addEventListener('click', () => { if (!busy && !pendingSend) loadHistory(true); });
+  if (older) older.addEventListener('click', () => {
+    if (!busy && !pendingSend && historyCursor && !historyRequest) historyRequest = readHistory(true, historyCursor).finally(() => { historyRequest = null; });
+  });
   function offlineNotice() {
     setConnection('offline');
     showNotice(busy === 'send' ? 'ارتباط قطع شد؛ دریافت نتیجهٔ پیام هنوز تأیید نشده است. ابتدا منتظر نتیجهٔ درخواست بمانید.'

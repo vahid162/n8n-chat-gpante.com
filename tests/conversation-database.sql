@@ -1,0 +1,58 @@
+-- Isolated database only. All fixtures roll back; no model calls.
+BEGIN;
+SET LOCAL ROLE gpante_chat_app;
+DO $$
+DECLARE s TEXT:=repeat('a',64); c TEXT:=repeat('b',64); a JSONB; b JSONB; r TEXT; first_id TEXT; i INTEGER;
+BEGIN
+  ASSERT current_database() IN ('gpante_chat_archive_test','gpante_chat_feature017_test'),'isolated database required';
+  DELETE FROM gpante_chat.requests; DELETE FROM gpante_chat.request_counters; DELETE FROM gpante_chat.turns;
+  ASSERT NOT (gpante_chat.admit_v4(s,c,'sendMessage','question',2,'bad',NULL,NULL,NULL)->>'allowed')::boolean,'send ID format';
+  a:=gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL);r:=a->>'requestId';
+  ASSERT (a->>'allowed')::boolean,'current admission';
+  ASSERT (SELECT count(*)=1 FROM gpante_chat.histories WHERE turn_id=r),'accepted question stored once';
+  b:=gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL);
+  ASSERT b->>'reason'='session_busy','same pending send cannot dispatch twice';
+  ASSERT (SELECT count(*)=1 FROM gpante_chat.turns WHERE session_id=s),'one logical turn';
+  ASSERT (gpante_chat.finish_v3(r,'answer','success',NULL)->>'saved')::boolean,'finish current turn';
+  b:=gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL);
+  ASSERT (b->>'replay')::boolean AND b->>'requestId'=r AND b->>'output'='answer','completed exact send replays';
+  ASSERT NOT EXISTS(SELECT 1 FROM gpante_chat.model_calls WHERE request_id=r),'replay does not reserve money';
+  ASSERT gpante_chat.admit_v4(s,c,'sendMessage','changed',2,repeat('1',32),NULL,NULL,NULL)->>'reason'='invalid_input','same ID cannot change text';
+  ASSERT (gpante_chat.admit_v4(s,c,'feedback',NULL,2,NULL,NULL,r,'helpful')->>'ok')::boolean,'owned feedback';
+  ASSERT gpante_chat.admit_v4(repeat('c',64),c,'feedback',NULL,2,NULL,NULL,r,'unhelpful')->>'reason'='feedback_unavailable','feedback cannot target another visitor';
+  ASSERT (SELECT user_feedback='helpful' FROM gpante_chat.turns WHERE request_id=r),'cross-session feedback unchanged';
+  b:=gpante_chat.admit_v4(repeat('c',64),c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL);
+  ASSERT (b->>'allowed')::boolean AND b->>'requestId'<>r,'same send ID in another signed session is independent';
+  PERFORM gpante_chat.finish_v3(b->>'requestId',NULL,'error','fixture_error');
+  ASSERT (gpante_chat.admit_v4(s,c,'resetSession',NULL,2,NULL,NULL,NULL,NULL)->>'ok')::boolean,'clear succeeds';
+  ASSERT gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL)->>'reason'='prior_request_expired','clear cannot replay old content';
+  b:=gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,NULL,NULL,NULL);
+  ASSERT jsonb_array_length(b->'messages')=0 AND b->>'historyResetAt' IS NOT NULL,'clear marker accompanies empty history';
+  ASSERT (SELECT count(*)=2 FROM gpante_chat.histories WHERE turn_id=r),'clear retains administrator archive';
+  DELETE FROM gpante_chat.request_counters;
+  s:=repeat('d',64);
+  FOR i IN 1..7 LOOP
+    a:=gpante_chat.admit_v4(s,c,'sendMessage','question '||i,2,md5(i::text),NULL,NULL,NULL);
+    ASSERT (a->>'allowed')::boolean,'history fixture admission';
+    IF i=1 THEN first_id:=a->>'requestId'; END IF;
+    PERFORM gpante_chat.finish_v3(a->>'requestId','answer '||i,'success',NULL);
+    DELETE FROM gpante_chat.request_counters;
+  END LOOP;
+  a:=gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,NULL,NULL,NULL);
+  ASSERT jsonb_array_length(a->'messages')=12 AND (a->>'hasMore')::boolean,'latest visible page has six complete turns';
+  ASSERT a->'messages'->0->>'content'='question 2','latest page starts on a complete turn';
+  b:=gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,a->>'nextCursor',NULL,NULL);
+  ASSERT jsonb_array_length(b->'messages')=2 AND NOT (b->>'hasMore')::boolean,'older seventh turn remains accessible';
+  ASSERT b->'messages'->0->>'content'='question 1','older page is scoped and ordered';
+  ASSERT jsonb_array_length(gpante_chat.admit_v3(s,c,'loadPreviousSession',NULL,2)->'messages')=12,'model context remains six turns';
+  UPDATE gpante_chat.turns SET user_expires_at=clock_timestamp()-INTERVAL '1 second' WHERE request_id=first_id;
+  ASSERT gpante_chat.admit_v4(s,c,'sendMessage','question 1',2,md5('1'),NULL,NULL,NULL)->>'reason'='prior_request_expired','expired send cannot replay';
+  ASSERT gpante_chat.admit_v4(s,c,'feedback',NULL,2,NULL,NULL,first_id,'helpful')->>'reason'='feedback_unavailable','expired feedback denied';
+  DELETE FROM gpante_chat.request_counters;
+  a:=gpante_chat.admit_v4(s,c,'sendMessage','failed',2,repeat('f',32),NULL,NULL,NULL);r:=a->>'requestId';
+  PERFORM gpante_chat.finish_v3(r,NULL,'error','fixture_error');
+  ASSERT gpante_chat.admit_v4(s,c,'sendMessage','failed',2,repeat('f',32),NULL,NULL,NULL)->>'reason'='prior_request_failed','failed send never silently charges again';
+  ASSERT NOT (gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,'-1',NULL,NULL)->>'allowed')::boolean,'invalid cursor rejected';
+  ASSERT NOT (gpante_chat.admit_v4(s,c,'feedback',NULL,2,NULL,NULL,r,'invented')->>'allowed')::boolean,'feedback value bounded';
+END $$;
+ROLLBACK;

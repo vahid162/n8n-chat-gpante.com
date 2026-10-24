@@ -1,6 +1,6 @@
 <?php
 // Isolated WordPress/WooCommerce lifecycle, concurrency and shared-query contract.
-if (!defined('GPANTE_SUPPORT_LOCAL_TEST') || !GPANTE_SUPPORT_LOCAL_TEST || home_url() !== 'https://127.0.0.1:9443') throw new RuntimeException('Isolated local test site required');
+if (!defined('GPANTE_SUPPORT_LOCAL_TEST') || !GPANTE_SUPPORT_LOCAL_TEST || home_url() !== (defined('GPANTE_SUPPORT_TEST_URL') ? GPANTE_SUPPORT_TEST_URL : 'https://127.0.0.1:9443')) throw new RuntimeException('Isolated local test site required');
 require_once __DIR__ . '/../wordpress-plugin/gpante-support-chat/includes/catalog.php';
 gpante_support_search_index_register();
 gpante_support_search_index_upgrade();

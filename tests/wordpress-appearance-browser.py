@@ -5,10 +5,8 @@ import ssl
 import subprocess
 import urllib.request
 from pathlib import Path
+from wordpress_test_config import root, base, browser
 
-root = Path('/home/codexops/n8n/.gpante-wp-test')
-base = 'https://127.0.0.1:9443'
-browser = '/home/codexops/n8n/.tools/agent-browser'
 session = 'gpante-appearance-ui'
 
 def run(*args):

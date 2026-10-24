@@ -8,9 +8,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from wordpress_test_config import root, base, browser
 
-root = Path('/home/codexops/n8n/.gpante-wp-test')
-base = 'https://127.0.0.1:9443'
 page = '/wp-admin/admin.php?page=gpante-support-appearance'
 context = ssl._create_unverified_context()  # Self-signed loopback only.
 

@@ -92,6 +92,63 @@ class AnswerQualityTests(unittest.TestCase):
         del sample["toolCalls"][0]["arguments"]["thickness"]
         self.assertIn("arguments:Product_Search", quality.evaluate_case(case, sample)["failures"])
 
+    def test_default_sources_match_the_runtime_and_explicit_mismatches_fail(self):
+        for tool, source, arguments in [("Category_Search", "products", {"parentId": 0}),
+                                         ("Knowledge_Search", "articles", {"search": "کورل"})]:
+            with self.subTest(tool=tool):
+                case = self.case(toolsAll=[tool], sourcesAll=[source], mustIncludeAny=[])
+                sample = self.sample(answer="https://gpante.com/public/", toolCalls=[{
+                    "name": tool, "arguments": arguments,
+                    "result": {"ok": True, "source": source, "results": [{"url": "https://gpante.com/public/"}]}}])
+                self.assertEqual(quality.evaluate_case(case, sample)["failures"], [])
+                sample["toolCalls"][0]["arguments"]["source"] = "faq"
+                self.assertIn("source_mismatch", quality.evaluate_case(case, sample)["failures"])
+
+    def test_later_search_cannot_drop_constraints_even_after_a_valid_empty_search(self):
+        corpus = json.loads((ROOT / "evals/answer-quality.json").read_text())
+        case = next(case for case in corpus["cases"] if case["id"] == "product-and")
+        fields = {"format": "DXF", "material": "MDF", "thickness": "۲٫۷"}
+        for key in fields:
+            with self.subTest(dropped=key):
+                relaxed = dict(fields)
+                del relaxed[key]
+                sample = self.sample(answer="https://gpante.com/product/box/", toolCalls=[
+                    {"name": "Product_Search", "arguments": fields, "result": {"ok": True, "results": []}},
+                    {"name": "Product_Search", "arguments": relaxed, "result": {"ok": True, "results": [{"url": "https://gpante.com/product/box/"}]}}])
+                self.assertIn("constraints:Product_Search", quality.evaluate_case(case, sample)["failures"])
+
+    def test_pagination_and_sort_are_step_specific_while_filters_persist(self):
+        case = self.case(toolsAll=["Product_Search"], sourcesAll=[], needsCitation=False,
+                         mustIncludeAny=[], arguments=[{"tool": "Product_Search", "fields": {
+                             "page": 2, "sort": "price_asc", "format": "dxf", "material": "mdf"}}])
+        calls = [{"name": "Product_Search", "arguments": {"page": page, "sort": sort,
+                  "format": "DXF", "material": "MDF"}, "result": {"ok": True, "results": [{"id": page}]}}
+                 for page, sort in [(2, "price_asc"), (3, "relevance")]]
+        self.assertEqual(quality.evaluate_case(case, self.sample(answer="اطلاعات محصول", toolCalls=calls))["failures"], [])
+
+    def test_details_evidence_cannot_replace_constrained_discovery_with_an_unmatched_product(self):
+        case = self.case(toolsAll=["Product_Search"], sourcesAll=[], mustIncludeAny=[],
+                         arguments=[{"tool": "Product_Search", "fields": {"format": "dxf", "material": "mdf"}}])
+        search = {"name": "Product_Search", "arguments": {"format": "DXF", "material": "MDF"},
+                  "result": {"ok": True, "results": [{"id": 1, "url": "https://gpante.com/product/matching/"}]}}
+        for product_id, slug in [(1, "matching"), (2, "unmatched")]:
+            details = {"name": "Product_Details", "arguments": {"productId": product_id},
+                       "result": {"ok": True, "results": [{"id": product_id, "url": f"https://gpante.com/product/{slug}/"}]}}
+            failures = quality.evaluate_case(case, self.sample(answer=f"https://gpante.com/product/{slug}/", toolCalls=[search, details]))["failures"]
+            self.assertEqual("constraints:Product_Details" in failures, product_id == 2)
+
+    def test_site_product_evidence_cannot_bypass_constrained_discovery(self):
+        case = self.case(toolsAll=["Product_Search"], sourcesAll=[], mustIncludeAny=[],
+                         arguments=[{"tool": "Product_Search", "fields": {"format": "dxf", "material": "mdf"}}])
+        search = {"name": "Product_Search", "arguments": {"format": "DXF", "material": "MDF"},
+                  "result": {"ok": True, "results": [{"id": 1, "url": "https://gpante.com/product/matching/"}]}}
+        for product_id, slug in [(1, "matching"), (2, "unmatched")]:
+            site = {"name": "Knowledge_Search", "arguments": {"source": "site", "search": "باکس"},
+                    "result": {"ok": True, "source": "site", "results": [
+                        {"kind": "product", "id": product_id, "url": f"https://gpante.com/product/{slug}/"}]}}
+            failures = quality.evaluate_case(case, self.sample(answer=f"https://gpante.com/product/{slug}/", toolCalls=[search, site]))["failures"]
+            self.assertEqual("constraints:Knowledge_Search" in failures, product_id == 2)
+
     def test_no_tools_for_greeting_and_limits_are_checked(self):
         case = self.case(toolsAll=[], sourcesAll=[], needsEvidence=False, needsCitation=False, mustIncludeAny=[], noTools=True)
         self.assertEqual(quality.evaluate_case(case, self.sample(answer="سلام", toolCalls=[], modelCalls=1))["failures"], [])

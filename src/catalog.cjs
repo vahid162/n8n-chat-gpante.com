@@ -156,7 +156,8 @@ function publicText(value, limit) {
   });
   text = strip(text).replace(/(?:https?:\/\/|www\.)[^\s<>]+/gi, ' ')
     .replace(/[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim();
-  return { text: text.slice(0, limit), truncated: text.length > limit };
+  const characters = Array.from(text);
+  return { text: characters.slice(0, limit).join(''), truncated: characters.length > limit };
 }
 
 function safeLink(value, mode) {
@@ -320,7 +321,7 @@ function publicSite(item, context) {
   const limit = context.kind === 'read' ? 6000 : 1200;
   const snippet = item[field];
   if (!plainObject(snippet) || typeof snippet.rendered !== 'string' || snippet.protected !== false
-    || typeof snippet.truncated !== 'boolean' || snippet.rendered.length > limit) throw new Error('Invalid site content.');
+    || typeof snippet.truncated !== 'boolean' || Array.from(snippet.rendered).length > limit) throw new Error('Invalid site content.');
   const text = publicText(snippet.rendered, limit);
   return { id: item.id, kind: item.content_type, title: title.text, url: item.link, navigationOnly: false,
     [field]: text.text, truncated: title.truncated || snippet.truncated || text.truncated };

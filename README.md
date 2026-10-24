@@ -6,6 +6,8 @@
 
 **وضعیت در ۲۴ اکتبر ۲۰۲۶:** افزونهٔ رسمی **0.10.0** نصب، Main **1.7.0** و Admin **1.3.0** منتشر و Retention **1.2.0** فعال‌اند. جستجوی بومی اصلی سایت و AI از نمایهٔ مشترکِ خودکارِ ۱٬۱۴۵ سند عمومی مجاز استفاده می‌کنند؛ تاریخچهٔ صفحه‌بندی‌شده، بازیابی همان ارسال، بازخورد و گزارش محدود مدیریتی فعال‌اند. تنظیمات، مدل، بودجه و سیاست قبلی حفظ شدند. [رفتار و محدودیت‌ها](docs/reliable-site-assistant.md) · [شواهد نصب و آزمون](specs/017-reliable-site-assistant/verification.md).
 
+**نسخهٔ آماده‌سازی در مخزن:** افزونهٔ0.10.1 و Main1.7.1 اصلاح‌های اعتبارسنجی، تاریخچه و نگهداری شناسهٔ ارسال را دارند؛ migration006 پس از005 لازم است. این نسخه هنوز شاهد انتشار یا نصب زنده ندارد. [اصلاح‌ها و بررسی](docs/engineering-repairs.md) · [راه‌اندازی محیط آزمایشی](docs/testing.md).
+
 تنظیمات ظاهر از این مسیر در دسترس‌اند: «چت پانته ← ظاهر» برای تغییر متن‌ها، خوشامد و رنگ‌ها با حفظ اتصال و تاریخچه. [راهنمای ظاهر](integration/wordpress/README.md). [شواهد ظاهر و نصب](specs/003-chat-appearance/verification.md).
 
 از نسخهٔ **۰٫۴٫۰** چهار لینک اختیاری در تنظیمات ظاهر، ارسال داخل کادر، focus ملایم و بستن با Back/کلیک بیرون اضافه شده‌اند. اندازهٔ پنجره حفظ شده است؛ [جزئیات و شواهد](specs/004-widget-composer-shortcuts/).
@@ -48,8 +50,8 @@
 | دیتابیس داخلی n8n | فقط امور خود n8n؛ schema چت در آن ایجاد نشده |
 | Admin در n8n | مدیریت خصوصی آرشیو/سیاست، با کلید مستقل و بدون تماس مدل |
 | Retention در n8n | پاک‌سازی ساعتی؛ اجرای طبیعی زمان‌بندی نیز مشاهده شد |
-| افزونهٔ وردپرس | [GPante Support Chat 0.10.0](wordpress-plugin/gpante-support-chat/readme.txt)، تنظیم امن و رابط عمومی؛ روی سایت واقعی بررسی شده |
-| مهارت نگهداری | [operate-gpante-support-chat](.agents/skills/operate-gpante-support-chat/SKILL.md)، نسخهٔ ۰٫۱۳٫۰؛ منبع canonical در همین مخزن |
+| افزونهٔ وردپرس | [GPante Support Chat](wordpress-plugin/gpante-support-chat/readme.txt)، منبع0.10.1؛ آخرین نصب ثبت‌شده0.10.0 |
+| مهارت نگهداری | [operate-gpante-support-chat](.agents/skills/operate-gpante-support-chat/SKILL.md)، نسخهٔ ۰٫۱۳٫۱؛ منبع canonical در همین مخزن |
 
 سامانهٔ جداگانهٔ `woo2` برای انتشار محصول است. چت عمومی به ابزارهای مدیریت، تلگرام، Nextcloud، بارگذاری فایل یا state آن سامانه متصل نیست.
 
@@ -122,11 +124,15 @@ provider روی WooCommerce واقعی بررسی شد؛ قیمت، فیلتر �
 - `scripts/build-workflow.cjs`: ساخت قطعی JSONهای `workflows/`؛ بدون شناسهٔ استقرار، اتصال یا کلید خصوصی.
 - `sql/chat.sql`: migration اولیه؛ روی schema موجود دوباره اجرا نشود.
 - `sql/002-public-chat.sql`: ارتقای کنترل بودجه و نگهداری؛ یک‌بار پس از migration اولیه.
-- `tests/database.sql`: بررسی تراکنشی با rollback؛ فقط وقتی Main غیرفعال است اجرا شود.
+- `sql/003-conversation-archive.sql` تا `sql/006-expired-send-guards.sql`: migrationهای افزایشی آرشیو، گفتگو، گزارش محدود و محافظ شناسهٔ ارسال؛ به‌ترتیب و هرکدام یک‌بار، با Main تخلیه‌شده.
+- `tests/*database.sql`: بررسی تراکنشی با rollback روی دیتابیس ایزوله؛ به تولید متصل نشود.
+- [راهنمای تست](docs/testing.md): پیش‌نیازها، محیط تازهٔ وردپرس/ووکامرس، تست‌های SQL بومی، مرورگر و CI.
 
 ```sh
 node --test tests/*.test.cjs
+python3 -m unittest discover -s tests -p 'test_*.py'
 node scripts/build-workflow.cjs
+node scripts/build-widget.cjs
 php tests/plugin-settings.php
 php -l wordpress-plugin/gpante-support-chat/includes/bridge.php
 php -l wordpress-plugin/gpante-support-chat/includes/catalog.php
@@ -151,6 +157,6 @@ php tests/catalog-query.php
 
 ## ساخت و ارتقای افزونهٔ وردپرس
 
-منبع واحد PHP، template و assetها در `wordpress-plugin/gpante-support-chat/` است. `python3 scripts/build-plugin.py` فقط runtime را ZIP می‌کند؛ به بستهٔ Codex skill ارتباطی ندارد. [راهنمای فارسی نصب، تنظیم و ارتقا](integration/wordpress/README.md) و [نیاز/برنامه/کارهای Spec Kit](specs/001-wordpress-plugin-basic/spec.md) همراه کد نگهداری می‌شوند. تنظیمات با Settings API و schema مستقل حفظ می‌شوند؛ چارچوب، جدول، سرویس یا updater سفارشی اضافه نشده است.
+منبع واحد PHP، template و assetها در `wordpress-plugin/gpante-support-chat/` است. `python3 scripts/build-plugin.py` فقط runtime را ZIP می‌کند؛ به بستهٔ Codex skill ارتباطی ندارد. [راهنمای فارسی نصب، تنظیم و ارتقا](integration/wordpress/README.md) و [نیاز/برنامه/کارهای Spec Kit](specs/001-wordpress-plugin-basic/spec.md) همراه کد نگهداری می‌شوند. تنظیمات با Settings API و schema مستقل حفظ می‌شوند؛ نمایهٔ عمومی یک جدول متعلق به افزونه دارد و محافظ شناسهٔ ارسال در PostgreSQL کاربردی است. چارچوب، سرویس یا updater سفارشی تازه‌ای اضافه نشده است.
 
 برای نصب، ZIP افزونه را از Assets همان Release دانلود کنید؛ Source code ZIP بستهٔ نصب وردپرس نیست. تگ‌های افزونه قالب `wordpress-vX.Y.Z` دارند و فایل `SHA256SUMS` همراه هر انتشار است.

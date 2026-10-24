@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_FAQ = "https://gpante.com/wp-json/gpante-support/v1/knowledge"
 TOOLS = {"Product_Search", "Product_Details", "Knowledge_Search", "Knowledge_Read", "Category_Search"}
 SOURCES = {"faq", "articles", "guides", "products", "site"}
+PRODUCT_FILTERS = {"format", "material", "thickness", "categoryId"}
 LINKS = re.compile(r"https?://[^\s<>()[\]]+")
 PRICE = re.compile(r"([0-9۰-۹٠-٩][0-9۰-۹٠-٩,٬٫.\s]*?)\s*(تومان|ریال|دلار|یورو|IRT|IRR|USD|EUR)\b", re.I)
 CURRENCIES = {"تومان": "IRT", "ریال": "IRR", "دلار": "USD", "یورو": "EUR"}
@@ -116,7 +117,8 @@ def call_source(call):
     if call.get("name") == "Knowledge_Read":
         return "site"
     arguments = call.get("arguments")
-    return arguments.get("source") if isinstance(arguments, dict) else None
+    defaults = {"Category_Search": "products", "Knowledge_Search": "articles"}
+    return arguments.get("source", defaults.get(call.get("name"))) if isinstance(arguments, dict) else None
 
 
 def evaluate_case(case, sample):
@@ -149,6 +151,14 @@ def evaluate_case(case, sample):
                    and all(normalize(call["arguments"].get(key, "")) == normalize(value)
                            for key, value in contract["fields"].items()) for call in calls):
             failures.append("arguments:" + contract["tool"])
+        # Page and ordering describe a step; explicit product filters bind every search in this turn.
+        persistent = {key: value for key, value in contract["fields"].items()
+                      if key in PRODUCT_FILTERS}
+        if persistent and any(call.get("name") == contract["tool"] and (
+                not isinstance(call.get("arguments"), dict) or any(
+                    normalize(call["arguments"].get(key, "")) != normalize(value)
+                    for key, value in persistent.items())) for call in calls):
+            failures.append("constraints:" + contract["tool"])
     if len(calls) > 3:
         failures.append("tool_limit")
     model_calls = sample.get("modelCalls")
@@ -157,6 +167,10 @@ def evaluate_case(case, sample):
 
     evidence = []
     evidence_sources = set()
+    constrained_discovery = any(contract["tool"] == "Product_Search" and
+        set(contract["fields"]).intersection(PRODUCT_FILTERS)
+        for contract in expected.get("arguments", []))
+    discovered_ids = set()
     for call in calls:
         result = call.get("result")
         if not isinstance(result, dict):
@@ -164,6 +178,14 @@ def evaluate_case(case, sample):
         if result.get("source") is not None and result["source"] != call_source(call):
             failures.append("source_mismatch")
         if result.get("ok") is True and isinstance(result.get("results"), list) and result["results"]:
+            if constrained_discovery and call.get("name") != "Product_Search" and any(
+                    (call.get("name") == "Product_Details" or isinstance(item, dict) and item.get("kind") == "product")
+                    and (not isinstance(item, dict) or normalize(item.get("id", "")) not in discovered_ids)
+                    for item in result["results"]):
+                failures.append("constraints:" + call["name"])
+            if call.get("name") == "Product_Search":
+                discovered_ids.update(normalize(item["id"]) for item in result["results"]
+                                      if isinstance(item, dict) and "id" in item)
             evidence.extend(result["results"])
             if result.get("source") == call_source(call):
                 evidence_sources.add(result.get("source"))

@@ -111,6 +111,23 @@ test('site raw and normalized output budgets are measured in bytes and not silen
   assert.equal(shape(prepare('read', { contentId: 123 }).context, response([record])).status, 'invalid_response');
 });
 
+test('site content limits count Unicode characters without splitting supplementary characters', () => {
+  const context = prepare('read', { contentId: 123 }).context;
+  const content = 'ژ'.repeat(5999) + '😀';
+  const record = page({ excerpt: undefined, content: { rendered: content, protected: false, truncated: true } });
+  const result = shape(context, response([record]));
+  assert.equal(result.ok, true);
+  assert.equal(result.results[0].content, content);
+  assert.equal(result.results[0].truncated, true);
+  record.content.rendered += 'ژ';
+  assert.equal(shape(context, response([record])).status, 'invalid_response');
+
+  const title = 'ژ'.repeat(239) + '😀' + 'پ';
+  const summary = shape(prepare('knowledge', { source: 'site', search: 'آموزش' }).context, response([page({ title: { rendered: title } })]));
+  assert.equal(summary.results[0].title, 'ژ'.repeat(239) + '😀');
+  assert.equal(summary.results[0].truncated, true);
+});
+
 test('learning and installation use site; product format, FAQ and legal gates keep precedence', () => {
   for (const q of ['آموزش کورل', 'دوره رایگان کورل', 'کورل', 'آموزش نصب کورل ۲۰۲۶', 'یادگیری طراحی', 'صفحه خدمات را پیدا کن', 'ثبت نام دوره کورل چطور است؟', 'اموزش طراحی']) assert.equal(requiredSource(state(q)), 'site', q);
   assert.equal(requiredSource(state('مقاله نصب کورل')), 'articles');
@@ -140,7 +157,7 @@ test('model exposes read plus typed site search and every workflow tool round ma
   assert(tools.find(t => t.name === 'Knowledge_Search').parameters.properties.source.enum.includes('site'));
   assert.deepEqual(tools.find(t => t.name === 'Knowledge_Read').parameters.required, ['contentId']);
   const workflow = build(); assert.equal(workflow.nodes.length, 69);
-  assert.match(workflow.description, /۱٫۷٫۰/);
+  assert.match(workflow.description, /۱٫۷٫۱/);
   assert(workflow.description.length <= 255, 'workflow metadata fits the connector contract');
   for (let i = 1; i <= 3; i++) assert.match(workflow.nodes.find(n => n.name === 'Prepare Tool ' + i).parameters.jsCode, /Knowledge_Read:'read'/);
 });

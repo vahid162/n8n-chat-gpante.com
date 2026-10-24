@@ -2,6 +2,8 @@
 
 ## قرارداد 017 — Main1.7.0 / Admin1.3.0
 
+نامزد اصلاح مهندسی مخزن Main1.7.1 / افزونه0.10.1 است؛ نسخهٔ نصب‌شده از این نامزد نتیجه گرفته نشود. migration006 پس از005، با امضای ثابت `admit_v4` و `cleanup()`، محافظ بدون متنِ شناسهٔ ارسال را مستقل از حذف آرشیو نگه می‌دارد؛ [رفتار و بررسی](../../../../docs/engineering-repairs.md).
+
 منبع جاری قابلیت جدید، [spec017](../../../../specs/017-reliable-site-assistant/spec.md) و [قراردادها](../../../../specs/017-reliable-site-assistant/contracts/interfaces.md) است؛ وضعیت نصب را از project-state و verification بخوانید. migrationهای004/005 افزایشی‌اند: admit_v4 با۹ آرگومان، finish_v4 با metadata محدود، تاریخچهٔ قابل مشاهدهٔ صفحه‌بندی‌شده و replay همان sendId. زمینهٔ مدل همان۶ نوبت و سقف مالی قبلی است. گزارش منبع/خطا حداکثر۲۰۰۰ رکورد و۷روز، مستقل از آرشیو۳۰روزه است؛ Admin برچسب آزمون مصنوعی دارد. گراف Main۶۹ و Admin۵ نود می‌ماند.
 
 افزونهٔ0.10.0 نمایهٔ بومی مشترک، انتخاب ویرایشگر فعال، جداسازی سند خراب و پوشش ناقصِ صریح دارد. جستجوی اصلی وردپرس و site discovery از یک selector می‌خوانند؛ قیمت جاری بیرون نمایه از WooCommerce می‌آید. قواعد سراسری‌اند و صفحهٔ خاصی در ranking ثابت نشده است. متن زیر تاریخچهٔ قراردادهای قبلی را نیز نگه می‌دارد؛ موارد017 بر شرح قدیمیِ تاریخچهٔ۱۲پیامی مقدم‌اند.
@@ -78,7 +80,7 @@ Retention دو نود دارد: Schedule Trigger ساعتی → `gpante_chat.cle
 
 ## قرارداد provider و کد سایت
 
-منبع ابزارها `https://gpante.com/wp-json/gpante-support/v1/products` و `/knowledge` است. منبع canonical اکنون افزونهٔ `wordpress-plugin/gpante-support-chat/` نسخهٔ ۰٫۸٫۱ است؛ `integration/wordpress` راهنما، loader سازگاری و embed تولیدی را نگه می‌دارد. اتصال تولید با درخواست بعدی کاربر مجاز و بررسی شد؛ نتیجه در [گزارش تولید](../../../../docs/production-readiness.md) است. اجرای PHP سمت سرور لازم است؛ درج JavaScript یا HTML به‌تنهایی واسط امن یا provider را ایجاد نمی‌کند. قالب عمومی عمداً inactive است و وضعیت فعال را باید از سرویس خواند.
+منبع ابزارها `https://gpante.com/wp-json/gpante-support/v1/products` و `/knowledge` است. منبع canonical افزونهٔ `wordpress-plugin/gpante-support-chat/` است؛ نسخهٔ منبع و نصب را جدا از project-state بخوانید؛ `integration/wordpress` راهنما، loader سازگاری و embed تولیدی را نگه می‌دارد. اتصال تولید با درخواست بعدی کاربر مجاز و بررسی شد؛ نتیجه در [گزارش تولید](../../../../docs/production-readiness.md) است. اجرای PHP سمت سرور لازم است؛ درج JavaScript یا HTML به‌تنهایی واسط امن یا provider را ایجاد نمی‌کند. قالب عمومی عمداً inactive است و وضعیت فعال را باید از سرویس خواند.
 
 provider محصول publish، بدون رمز، product اصلی و visible/catalog/search را می‌پذیرد؛ hidden، variation، خصوصی و محافظت‌شده رد می‌شوند. جزئیات همان فیلتر را دارد. Schema و ترتیب قیمت بومی WooCommerce بازاستفاده شده‌اند و نبود قابلیت لازم خطا می‌دهد. رکوردهای stdClass قیمت، ویژگی، term و تصویر پیش از انتخاب فیلدهای عمومی به آرایه تبدیل می‌شوند. قیمت، ویژگی‌ها و لینک‌ها allowlist دارند؛ فایل و دادهٔ مشتری هرگز خوانده نمی‌شوند.
 
@@ -96,7 +98,7 @@ CLI `publish:workflow` نصب‌شده اعلام می‌کند تغییر ان�
 
 ## مدیریت آرشیو
 
-Main از `admit_v3` / `finish_v3` استفاده می‌کند؛ یک پرسش پذیرفته‌شده حتی در شکست مدل باقی می‌ماند. Admin پنج نود، Header Auth مستقل و نقش محدود به `admin_api(jsonb)` دارد؛ عملیات ثابت getPolicy/setPolicy/listSessions/getSession. صفحه‌های ۲۰تایی آرشیو از زمینهٔ ۱۲پیامی مستقل‌اند. Main و Admin اجرای خام ذخیره نمی‌کنند. جزئیات و محدودیت‌ها در [راهنمای آرشیو](../../../../docs/conversation-archive.md) هستند؛ وضعیت انتشار زنده باید جدا خوانده شود.
+Main جاری از `admit_v4` / `finish_v4` استفاده می‌کند و v3 قرارداد سازگار داخلی است؛ یک پرسش پذیرفته‌شده حتی در شکست مدل باقی می‌ماند. Admin پنج نود، Header Auth مستقل و نقش محدود به `admin_api(jsonb)` دارد؛ عملیات ثابت getPolicy/setPolicy/listSessions/getSession. صفحه‌های ۲۰تایی آرشیو از زمینهٔ ۱۲پیامی مستقل‌اند. Main و Admin اجرای خام ذخیره نمی‌کنند. جزئیات و محدودیت‌ها در [راهنمای آرشیو](../../../../docs/conversation-archive.md) هستند؛ وضعیت انتشار زنده باید جدا خوانده شود.
 
 
 ## منبع FAQ در Main 1.4.1

@@ -2,18 +2,8 @@ name: WordPress plugin release
 
 on:
   pull_request:
-    paths:
-      - 'wordpress-plugin/**'
-      - 'scripts/build-plugin.py'
-      - 'tests/**'
-      - 'sql/**'
-      - 'src/**'
-      - 'scripts/build-workflow.cjs'
-      - 'releases/wordpress/**'
-      - '.github/workflows/wordpress-release.yml'
   push:
     branches: [main]
-    paths: ['releases/wordpress/**']
   workflow_dispatch:
 
 permissions:
@@ -29,10 +19,12 @@ jobs:
     outputs:
       version: ${{ steps.package.outputs.version }}
       digest: ${{ steps.package.outputs.digest }}
+      release_changed: ${{ steps.release.outputs.changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '24.22.0'
@@ -61,6 +53,57 @@ jobs:
           digest=$(sha256sum "$zip" | cut -d ' ' -f 1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Detect release publication request
+        id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          changed=false
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            changed=true
+          elif [[ "$EVENT_NAME" == push ]]; then
+            if [[ "$BEFORE_SHA" == 0000000000000000000000000000000000000000 ]]; then
+              files=$(git ls-tree -r --name-only "$GITHUB_SHA" -- releases/wordpress/)
+            else
+              files=$(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA" -- releases/wordpress/)
+            fi
+            if [[ -n "$files" ]]; then changed=true; fi
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+  native-wordpress:
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb@sha256:250e1609e93c0e6aecf64bfbab2d84d5e89d2481540fe77447ff6c855c3b1873 # 11.4
+        env:
+          MARIADB_ROOT_PASSWORD: gpante-isolated-root-only
+          MARIADB_DATABASE: gpante_test_native
+          MARIADB_USER: gpante_test
+          MARIADB_PASSWORD: gpante-isolated-ci-only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      GPANTE_TEST_DB_HOST: 127.0.0.1:3306
+      GPANTE_TEST_DB_NAME: gpante_test_native
+      GPANTE_TEST_DB_USER: gpante_test
+      GPANTE_TEST_DB_PASSWORD: gpante-isolated-ci-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install native test prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y php-cli php-mysql php-curl php-mbstring php-xml php-zip mariadb-client
+      - name: Run real WordPress and WooCommerce fixtures
+        env:
+          GPANTE_WP_TEST_DIR: ${{ runner.temp }}/gpante-native-wordpress
+        run: python3 scripts/test-wordpress.py
 
   archive-database:
     runs-on: ubuntu-24.04
@@ -89,18 +132,22 @@ jobs:
           psql -v ON_ERROR_STOP=1 -c 'CREATE ROLE gpante_chat_app; CREATE ROLE gpante_chat_admin; GRANT CREATE ON DATABASE gpante_chat_archive_test TO gpante_chat_app;'
           psql -v ON_ERROR_STOP=1 -f sql/chat.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/002-public-chat.sql
+          psql -v ON_ERROR_STOP=1 -f tests/legacy-migration-before.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/003-conversation-archive.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/004-conversation-reliability.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/005-search-diagnostics.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/006-expired-send-guards.sql
+          psql -v ON_ERROR_STOP=1 -f tests/legacy-migration-after.sql
           psql -v ON_ERROR_STOP=1 -f tests/archive-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/database.sql
           psql -v ON_ERROR_STOP=1 -f tests/conversation-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/diagnostics-database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/retry-retention-database.sql
           python3 tests/money-concurrency.py --direct --database gpante_chat_archive_test --user postgres
 
   publish:
-    needs: [verify, archive-database]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [verify, archive-database, native-wordpress]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.verify.outputs.release_changed == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: write

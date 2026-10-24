@@ -48,13 +48,13 @@ Input: accepted spec.md, plan.md, research.md and contracts/interfaces.md. All33
 - [X] T024 [US6] Run combined Node/Python/PHP/native WP/database/browser/WPCS and deterministic builds; record evidence in specs/017-reliable-site-assistant/verification.md.
 - [X] T025 [US6] Validate private Main/Admin candidates against installed n8n activation/SDK strict; preserve credentials/settings and unrelated workflow fingerprints.
 - [X] T026 [US6] Review combined implementation and address verified findings; update specs/017-reliable-site-assistant/verification.md.
-- [ ] T027 [US6] Publish reviewed changes through a scoped PR, pass CI and merge against expected head; attach PR to task.
-- [ ] T028 [US6] Read back immutable official plugin Release/tag/commit/ZIP/checksum and compare allowlisted files.
-- [ ] T029 [US6] Apply protected additive application migrations, install official plugin, publish exact Main/Admin candidates and reconcile index; preserve valid settings/policy.
-- [ ] T030 [US6] Verify bounded production browser scenarios, usage/cost, owned feedback/history/replay and privileged synthetic labels; record actual limits.
-- [ ] T031 [US6] Compare installed/public/native search coverage and freshness, active graph/version, scheduled cleanup and unrelated components.
-- [ ] T032 [US6] Update actual state and evidence in README.md, docs/, canonical skill/references and specs/017-reliable-site-assistant/verification.md; publish final documentation.
-- [ ] T033 [US6] Rebuild local canonical skill package, remove only owned staging/fixtures and restore isolated services; confirm clean Git and completion receipt.
+- [X] T027 [US6] Publish reviewed changes through a scoped PR, pass CI and merge against expected head; attach PR to task.
+- [X] T028 [US6] Read back immutable official plugin Release/tag/commit/ZIP/checksum and compare allowlisted files.
+- [X] T029 [US6] Apply protected additive application migrations, install official plugin, publish exact Main/Admin candidates and reconcile index; preserve valid settings/policy.
+- [X] T030 [US6] Verify bounded production browser scenarios, usage/cost, owned feedback/history/replay and privileged synthetic labels; record actual limits.
+- [X] T031 [US6] Compare installed/public/native search coverage and freshness, active graph/version, scheduled cleanup and unrelated components.
+- [X] T032 [US6] Update actual state and evidence in README.md, docs/, canonical skill/references and specs/017-reliable-site-assistant/verification.md; publish final documentation.
+- [X] T033 [US6] Rebuild local canonical skill package, remove only owned staging/fixtures and restore isolated services; confirm clean Git and completion receipt.
 
 ## Dependencies and parallel execution
 

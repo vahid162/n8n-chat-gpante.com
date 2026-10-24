@@ -38,6 +38,21 @@ test('FAQ citation and verified design support render as safe regular navigation
   } finally { delete global.document; }
 });
 
+test('exact public account, cart and checkout landing pages render as links without exposing private destinations', () => {
+  const urls = ['https://gpante.com/my-account/', 'https://gpante.com/cart/', 'https://gpante.com/checkout/'];
+  for (const url of urls) {
+    assert.equal(safeLink(url), true, url);
+    for (const suffix of ['downloads/', 'order-received/123/', '?key=private', '#private']) assert.equal(safeLink(url + suffix), false, url + suffix);
+    assert.equal(safeLink(url.slice(0, -1)), false, 'only the canonical landing page is allowed');
+  }
+  global.document = {createTextNode:value=>node('#text',value),createElement:tag=>node(tag)};
+  try {
+    const target = node('div');
+    appendContent(target, urls.map(url => `[صفحه](${url})`).join('\n'));
+    assert.deepEqual(all(target).filter(value => value.type === 'a').map(value => value.href), urls);
+  } finally { delete global.document; }
+});
+
 function node(type, text = '') { return { type, textContent: text, children: [],
     append(...items) { this.children.push(...items); },
     setAttribute(name, value) { this[name] = value; },

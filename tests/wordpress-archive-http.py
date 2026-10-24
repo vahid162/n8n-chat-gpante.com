@@ -1,7 +1,7 @@
 """Actual WordPress capability/nonce/policy checks on the isolated loopback fixture only."""
 import runpy, re, urllib.parse, urllib.request, urllib.error, subprocess, json
 from pathlib import Path
-root=Path('/home/codexops/n8n/.gpante-wp-test')
+from wordpress_test_config import root, base, browser
 m=runpy.run_path(str(Path(__file__).with_name('wordpress-settings-http.py')))
 admin, sub, base=m['admin'],m['sub'],m['base']
 def wp(code):

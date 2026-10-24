@@ -3,10 +3,8 @@ import json
 import os
 import subprocess
 from pathlib import Path
+from wordpress_test_config import root, base, browser
 
-root=Path('/home/codexops/n8n/.gpante-wp-test')
-base='https://127.0.0.1:9443'
-browser='/home/codexops/n8n/.tools/agent-browser'
 session='gpante-layout-041'
 env=dict(os.environ,AGENT_BROWSER_DEFAULT_TIMEOUT='45000')
 evidence=root/'evidence'

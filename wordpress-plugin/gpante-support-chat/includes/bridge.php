@@ -141,16 +141,22 @@ function gpante_support_failure( $status, $code, $headers = array() ) {
 /**
  * Read or mint a signed host-only session cookie.
  *
+ * @param bool $renew Whether a current backend response confirmed this session.
  * @return string|false
  */
-function gpante_support_session_id() {
-	$now    = time();
+function gpante_support_session_id( $renew = false ) {
+	$now         = time();
+	$valid_after = $now;
+	if ( true === $renew && isset( $_SERVER['REQUEST_TIME'] ) ) {
+		// A confirmed reply may cross expiry; bound request-start grace to five minutes.
+		$valid_after = max( $now - 300, min( $now, (int) $_SERVER['REQUEST_TIME'] ) );
+	}
 	$cookie = isset( $_COOKIE[ GPANTE_SUPPORT_COOKIE ] ) && is_string( $_COOKIE[ GPANTE_SUPPORT_COOKIE ] )
 		? wp_unslash( $_COOKIE[ GPANTE_SUPPORT_COOKIE ] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Strict format and HMAC validation below must not mutate signed bytes.
 	$parts  = explode( '.', $cookie );
 	$valid  = 4 === count( $parts ) && 'v1' === $parts[0]
 		&& preg_match( '/^[0-9]{10}$/D', $parts[1] )
-		&& (int) $parts[1] <= $now && (int) $parts[1] > $now - 30 * DAY_IN_SECONDS
+		&& (int) $parts[1] <= $now && (int) $parts[1] > $valid_after - 30 * DAY_IN_SECONDS
 		&& preg_match( '/^[A-Za-z0-9_-]{43}$/D', $parts[2] )
 		&& preg_match( '/^[a-f0-9]{64}$/D', $parts[3] );
 	if ( $valid ) {
@@ -167,7 +173,7 @@ function gpante_support_session_id() {
 	} else {
 		$token = $parts[2];
 	}
-	if ( ! $valid || (int) $parts[1] <= $now - DAY_IN_SECONDS ) {
+	if ( ! $valid || ( true === $renew && (int) $parts[1] <= $now - DAY_IN_SECONDS ) ) {
 		// Renew the signed timestamp without changing the visitor's identity.
 		$value  = 'v1.' . $now . '.' . $token;
 		$cookie = $value . '.' . hash_hmac( 'sha256', 'gpante-support-cookie|' . $value, wp_salt( 'auth' ) );
@@ -314,15 +320,8 @@ function gpante_support_chat( $request ) {
 	}
 	$policy   = gpante_support_public_policy( $data['policy'] );
 	$previews = array();
-	if ( 'feedback' === $action && true === ( $data['ok'] ?? false ) ) {
-		return gpante_support_response(
-			array(
-				'ok'     => true,
-				'policy' => $policy,
-			)
-		);
-	}
-	if ( 'resetSession' === $action && true === ( $data['ok'] ?? false ) ) {
+	if ( in_array( $action, array( 'feedback', 'resetSession' ), true ) && true === ( $data['ok'] ?? false ) ) {
+		gpante_support_session_id( true );
 		return gpante_support_response(
 			array(
 				'ok'     => true,
@@ -341,6 +340,7 @@ function gpante_support_chat( $request ) {
 			$response['requestId'] = $data['requestId'];
 			$response['feedback']  = in_array( $data['feedback'] ?? null, array( 'helpful', 'unhelpful' ), true ) ? $data['feedback'] : null;
 		}
+		gpante_support_session_id( true );
 		return gpante_support_response( $response );
 	}
 	if ( 'loadPreviousSession' === $action && isset( $data['messages'] ) && is_array( $data['messages'] ) && count( $data['messages'] ) <= 100 ) {
@@ -372,6 +372,7 @@ function gpante_support_chat( $request ) {
 		if ( array_key_exists( 'historyResetAt', $data ) && ( null === $data['historyResetAt'] || gpante_support_valid_expiry( $data['historyResetAt'] ) ) ) {
 			$response['historyResetAt'] = $data['historyResetAt'];
 		}
+		gpante_support_session_id( true );
 		return gpante_support_response( $response );
 	}
 	return gpante_support_failure( 502, 'invalid_backend_response' );

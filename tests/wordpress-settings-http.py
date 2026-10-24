@@ -1,8 +1,7 @@
 """Run against the isolated HTTPS test install. No production credentials or URLs."""
 import http.cookiejar, ssl, urllib.request, urllib.parse, urllib.error, re, subprocess, json
 from pathlib import Path
-root=Path('/home/codexops/n8n/.gpante-wp-test')
-base='https://127.0.0.1:9443'
+from wordpress_test_config import root, base, browser
 ctx=ssl._create_unverified_context() # Self-signed loopback fixture only.
 def client(user,password):
  jar=http.cookiejar.CookieJar(); op=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),urllib.request.HTTPSHandler(context=ctx))

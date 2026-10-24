@@ -16,7 +16,7 @@ function wp_salt($scheme = 'auth') { return 'fixture-salt-not-a-live-secret-' . 
 function is_ssl() { return $GLOBALS['ssl']; }
 function wp_json_encode($value) { return json_encode($value, JSON_UNESCAPED_UNICODE); }
 function wp_unslash($value) { return $value; }
-function wp_remote_post($url, $args) { $GLOBALS['outbound'][] = array($url, $args);  $r=$GLOBALS['remote_result']; if(is_array($r) && $r['status']===200 && is_array($d=json_decode($r['body'],true))){$d['policy']=$GLOBALS['policy']; if(isset($d['output']))$d['expiresAt']=gmdate('c',time()+86400); if(isset($d['messages']))foreach($d['messages'] as &$m)$m['expiresAt']=gmdate('c',time()+86400); $r['body']=json_encode($d);} return $r; }
+function wp_remote_post($url, $args) { $GLOBALS['outbound'][] = array($url, $args, $_COOKIE[GPANTE_SUPPORT_COOKIE] ?? null);  $r=$GLOBALS['remote_result']; if(is_array($r) && $r['status']===200 && is_array($d=json_decode($r['body'],true))){$d['policy']=$GLOBALS['policy']; if(isset($d['output']))$d['expiresAt']=gmdate('c',time()+86400); if(isset($d['messages']))foreach($d['messages'] as &$m)$m['expiresAt']=gmdate('c',time()+86400); $r['body']=json_encode($d);} return $r; }
 function is_wp_error($result) { return $result instanceof WP_Error; }
 function wp_remote_retrieve_response_code($result) { return $result['status']; }
 function wp_remote_retrieve_body($result) { return $result['body']; }
@@ -172,10 +172,57 @@ check($footer === '' && $enqueued === array(), 'manual embed must not duplicate 
 $remote_result = array('status' => 200, 'body' => '{"output":"سلام"}');
 check(request(array('action' => 'sendMessage', 'chatInput' => 'سلام'))->get_status() === 200, 'manual widget mode leaves the server bridge available');
 
-$_COOKIE[GPANTE_SUPPORT_COOKIE] = cookie_for($token, time()-29*DAY_IN_SECONDS);
-$renewed_sid=gpante_support_session_id();
-$renewed_parts=explode('.',$_COOKIE[GPANTE_SUPPORT_COOKIE]);
-check($renewed_sid===$first_session && $renewed_parts[2]===$token && (int)$renewed_parts[1]>=time()-2,'daily cookie renewal preserves the signed session token and identity');
+$old_cookie = cookie_for($token, time()-29*DAY_IN_SECONDS);
+$_COOKIE[GPANTE_SUPPORT_COOKIE] = $old_cookie;
+check(gpante_support_session_id()===$first_session && $_COOKIE[GPANTE_SUPPORT_COOKIE]===$old_cookie,'reading an existing signed session does not extend its backend-confirmed idle lifetime');
+check(gpante_support_session_id('true')===$first_session && $_COOKIE[GPANTE_SUPPORT_COOKIE]===$old_cookie,'only an explicit boolean renewal request can extend an existing session');
+$send_payload = array('action'=>'sendMessage','chatInput'=>'Question');
+foreach (array(
+    array($send_payload, new WP_Error()),
+    array($send_payload, array('status'=>500,'body'=>'private')),
+    array($send_payload, array('status'=>429,'body'=>'{"error":{"code":"capacity"}}')),
+    array($send_payload, array('status'=>200,'body'=>'<html>invalid</html>')),
+    array($send_payload, array('status'=>200,'body'=>'{"output":""}')),
+    array(array('action'=>'loadPreviousSession'), array('status'=>200,'body'=>'{"messages":[{"role":"system","content":"invalid"}]}')),
+    array(array('action'=>'resetSession'), array('status'=>200,'body'=>'{"ok":false}')),
+    array(array('action'=>'feedback','feedbackRequestId'=>str_repeat('e',32),'feedbackValue'=>'helpful'), array('status'=>200,'body'=>'{"ok":false}')),
+) as [$payload, $broken]) {
+    $_COOKIE[GPANTE_SUPPORT_COOKIE]=$old_cookie;
+    $remote_result=$broken;
+    check(request($payload)->get_status()>=400 && $_COOKIE[GPANTE_SUPPORT_COOKIE]===$old_cookie,'network, HTTP and malformed action failures never refresh an existing cookie');
+    check(end($outbound)[2]===$old_cookie,'existing cookies remain unchanged before backend confirmation');
+}
+$_COOKIE[GPANTE_SUPPORT_COOKIE]=$old_cookie;
+$policy['version']=1;
+$remote_result=array('status'=>200,'body'=>'{"output":"Reply"}');
+check(request($send_payload)->get_status()===502 && $_COOKIE[GPANTE_SUPPORT_COOKIE]===$old_cookie,'an invalid central policy cannot refresh an existing session');
+$policy['version']=2;
+unset($_COOKIE[GPANTE_SUPPORT_COOKIE]);
+$remote_result=new WP_Error();
+check(request(array('action'=>'loadPreviousSession'))->get_status()===502 && is_string(end($outbound)[2]) && end($outbound)[2]===$_COOKIE[GPANTE_SUPPORT_COOKIE],'a new session cookie still exists before its first backend request, including an outage');
+foreach (array(
+    array($send_payload, '{"output":"Reply"}'),
+    array(array('action'=>'loadPreviousSession'), '{"messages":[]}'),
+    array(array('action'=>'resetSession'), '{"ok":true}'),
+    array(array('action'=>'feedback','feedbackRequestId'=>str_repeat('e',32),'feedbackValue'=>'helpful'), '{"ok":true}'),
+) as [$payload, $body]) {
+    $_COOKIE[GPANTE_SUPPORT_COOKIE]=$old_cookie;
+    $remote_result=array('status'=>200,'body'=>$body);
+    check(request($payload)->get_status()===200 && end($outbound)[2]===$old_cookie,'valid actions renew only after the backend accepts their complete response');
+    $renewed_parts=explode('.',$_COOKIE[GPANTE_SUPPORT_COOKIE]);
+    check($renewed_parts[2]===$token && (int)$renewed_parts[1]>=time()-2 && gpante_support_session_id()===$first_session,'confirmed renewal preserves the signed token and session identity');
+}
+$request_started=$_SERVER['REQUEST_TIME'] ?? null;
+$_SERVER['REQUEST_TIME']=time()-10;
+$_COOKIE[GPANTE_SUPPORT_COOKIE]=cookie_for($token,time()-30*DAY_IN_SECONDS-5);
+check(gpante_support_session_id(true)===$first_session && explode('.',$_COOKIE[GPANTE_SUPPORT_COOKIE])[2]===$token,'a cookie valid at request start keeps its identity when the backend reply crosses its idle deadline');
+$_SERVER['REQUEST_TIME']=time()-3600;
+$_COOKIE[GPANTE_SUPPORT_COOKIE]=cookie_for($token,time()-30*DAY_IN_SECONDS-400);
+check(gpante_support_session_id(true)!==$first_session,'a stale request-start timestamp cannot extend an already expired session beyond the bounded response grace');
+$_COOKIE[GPANTE_SUPPORT_COOKIE]=cookie_for($token,time()+1000);
+check(gpante_support_session_id(true)!==$first_session,'confirmed renewal cannot accept a future signed cookie');
+if($request_started===null) unset($_SERVER['REQUEST_TIME']); else $_SERVER['REQUEST_TIME']=$request_started;
+$_COOKIE[GPANTE_SUPPORT_COOKIE]=cookie_for($token);
 $remote_result=array('status'=>200,'body'=>json_encode(array('output'=>'Reply','requestId'=>str_repeat('a',32),'feedback'=>'helpful','untrusted'=>'secret')));
 $response=request(array('action'=>'sendMessage','chatInput'=>'Question','sendId'=>str_repeat('b',32),'historyCursor'=>'1','feedbackRequestId'=>str_repeat('c',32)));
 $sent=json_decode(end($outbound)[1]['body'],true);

@@ -50,6 +50,45 @@ test('product price and supported attributes are checked against the linked prod
   assert.equal(groundingError(s, reply('۵۰٬۰۰۰ تومان').replace(product.url, 'https://gpante.com/product/invented/')), 'unverified_reference');
 });
 
+test('decimal thickness names and canonical slugs never authorize their integer components', () => {
+  for (const term of [
+    { name: '۲٫۷ میلیمتر', slug: '2-7' },
+    { name: '', slug: '2-7' },
+    { name: '۲٫۶ میلیمتر', slug: '2-6-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1' },
+    { name: '۲٫۴۵ میلیمتر', slug: '2-45-mm' },
+  ]) {
+    const expected = term.slug.startsWith('2-45') ? '2.45' : term.slug.startsWith('2-6') ? '2.6' : '2.7';
+    const item = { ...product, attributes: [{ taxonomy: 'pa_thickness', terms: [term] }] };
+    const s = state('باکس دارید؟', [{ name: 'Product_Search', ok: true, results: [item] }]);
+    const reply = thickness => '| ضخامت | ' + thickness + ' میلی‌متر |\n[محصول](' + item.url + ')';
+    for (const value of [expected, expected.replace('.', '-'), expected.replace('.', ',')]) {
+      assert.equal(groundingError(s, reply(value)), null, JSON.stringify({ term, value }));
+    }
+    for (const value of expected.split('.')) {
+      assert.equal(groundingError(s, reply(value)), 'attribute_mismatch', JSON.stringify({ term, value }));
+    }
+  }
+});
+
+test('explicit CDR table versions match the linked product while generic CDR remains valid', () => {
+  const item = { ...product, attributes: [{ taxonomy: 'pa_file-format', terms: [{ name: 'CDR نسخه ۱۵', slug: 'cdr-v15' }] }] };
+  const s = state('باکس دارید؟', [{ name: 'Product_Search', ok: true, results: [item] }]);
+  const reply = format => '| فرمت | ' + format + ' |\n[محصول](' + item.url + ')';
+  for (const format of ['CDR', 'CDR۱۵', 'CDR ۱۵', 'CDR نسخه۱۵', 'CDR نسخهٔ۱۵', 'CDR (نسخه۱۵)', 'CDR:۱۵', 'CDR v15', 'CDR version 15', 'cdr-v15', 'کورل ۱۵']) {
+    assert.equal(groundingError(s, reply(format)), null, format);
+  }
+  for (const format of ['CDR۲۰', 'CDR ۲۰', 'CDR نسخه۲۰', 'CDR نسخهٔ۲۰', 'CDR (نسخه۲۰)', 'CDR:۲۰', 'CDR v20', 'CDR version 20', 'cdr-v20', 'کورل ۲۰', 'CDR۱۵ و CDR۲۰', 'DXF']) {
+    assert.equal(groundingError(s, reply(format)), 'attribute_mismatch', format);
+  }
+  const all = { ...s, evidence: [{ name: 'Product_Search', ok: true, results: [{ ...item, attributes: [{ taxonomy: 'pa_file-format', terms: [{ name: 'تمام نسخه‌های CDR', slug: 'all-cdr' }] }] }] }] };
+  assert.equal(groundingError(all, reply('CDR')), null);
+  assert.equal(groundingError(all, reply('all-cdr')), null);
+  for (const format of ['CDR15', 'CDR نسخهٔ۲۰', 'CDR version 20']) assert.equal(groundingError(all, reply(format)), null, format);
+  const v13 = { ...s, evidence: [{ name: 'Product_Search', ok: true, results: [{ ...item, attributes: [{ taxonomy: 'pa_file-format', terms: [{ name: 'کورل ۱۳', slug: 'cdr-v3' }] }] }] }] };
+  for (const format of ['کورل ۱۳', 'CDR13', 'CDRv13', 'cdr-v3']) assert.equal(groundingError(v13, reply(format)), null, format);
+  assert.equal(groundingError(v13, reply('CDR۲۰')), 'attribute_mismatch');
+});
+
 test('failed/empty reads permit an honest abstention but cannot authorize invented facts', () => {
   const s = state('باکس دارید؟', [{ name: 'Product_Search', ok: false, status: 'transport_error', results: [] }]);
   assert.equal(groundingError(s, 'اطلاعات محصولات فعلاً در دسترس نیست.'), null);

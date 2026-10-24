@@ -986,3 +986,102 @@ test('missed retention revisions cannot resurrect cached older pages even when u
   assert.match(widget.elements.messages.textContent,/پاسخ جدید/);
   assert.equal(widget.elements.older.hidden,false,'older pages may be fetched again from authoritative history');
 });
+
+const historyTurns = (first, last) => Array.from({length:last-first+1}, (_, index) => {
+  const turn = first + index, requestId = turn.toString(16).padStart(32, '0');
+  return [{role:'user',content:'پرسش ' + turn,requestId},{role:'assistant',content:'پاسخ ' + turn,requestId}];
+}).flat();
+
+test('a refreshed server page restores cross-tab order rather than appending missing turns after a local reply', async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  await widget.respond(0, {messages:historyTurns(1,1),historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.type('پرسش 3');widget.submit();
+  await widget.respond(1, {output:'پاسخ 3',requestId:'3'.padStart(32,'0')});
+  widget.window.dispatch('focus');
+  await widget.respond(2, {messages:historyTurns(1,3),historyResetAt:null,hasMore:false,nextCursor:null});
+  assert.deepEqual(widget.messages(), historyTurns(1,3).map(({role,content}) => ({role,content})));
+});
+
+test('overlap with a local send does not hide an unseen turn between server history and that send', async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  await widget.respond(0, {messages:historyTurns(1,6),historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.type('پرسش 8');widget.submit();
+  await widget.respond(1, {output:'پاسخ 8',requestId:'8'.padStart(32,'0')});
+  widget.window.dispatch('focus');
+  await widget.respond(2, {messages:historyTurns(8,13),historyResetAt:null,hasMore:true,nextCursor:'15'});
+  assert.deepEqual(widget.messages(), historyTurns(8,13).map(({role,content}) => ({role,content})), 'a local response does not prove continuity with the previous server page');
+  widget.click('older');
+  assert.equal(widget.requests[3].body.historyCursor, '15');
+  await widget.respond(3, {messages:historyTurns(2,7),historyResetAt:null,hasMore:true,nextCursor:'3'});
+  widget.click('older');
+  await widget.respond(4, {messages:historyTurns(1,1),historyResetAt:null,hasMore:false,nextCursor:null});
+  assert.deepEqual(widget.messages(), historyTurns(1,13).map(({role,content}) => ({role,content})));
+});
+
+test('overlapping newest pages retain already loaded older turns and their exhausted cursor', async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  await widget.respond(0, {messages:historyTurns(7,12),historyResetAt:null,hasMore:true,nextCursor:'13'});
+  widget.click('older');
+  await widget.respond(1, {messages:historyTurns(1,6),historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.window.dispatch('focus');
+  await widget.respond(2, {messages:historyTurns(9,14),historyResetAt:null,hasMore:true,nextCursor:'17'});
+  assert.deepEqual(widget.messages(), historyTurns(1,14).map(({role,content}) => ({role,content})));
+  assert.equal(widget.elements.older.hidden, true, 'the complete continuous cache needs no repeated older-page request');
+});
+
+for (const previouslyLoadedOlder of [false, true]) test('a disjoint six-turn refresh restores reachable pagination; older cache loaded=' + previouslyLoadedOlder, async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  await widget.respond(0, {messages:historyTurns(7,12),historyResetAt:null,hasMore:true,nextCursor:'13'});
+  if (previouslyLoadedOlder) {
+    widget.click('older');
+    await widget.respond(1, {messages:historyTurns(1,6),historyResetAt:null,hasMore:false,nextCursor:null});
+  }
+  widget.type('پیش‌نویس محفوظ');
+  widget.window.dispatch('focus');
+  await widget.respond(widget.requests.length - 1, {messages:historyTurns(15,20),historyResetAt:null,hasMore:true,nextCursor:'29'});
+  assert.deepEqual(widget.messages(), historyTurns(15,20).map(({role,content}) => ({role,content})), 'disconnected cached pages are fetched again through the new cursor');
+  assert.equal(widget.elements.older.hidden, false);
+  assert.equal(widget.elements.input.value, 'پیش‌نویس محفوظ');
+  for (const [first,last,cursor,nextCursor] of [[9,14,'29','17'],[3,8,'17','5'],[1,2,'5',null]]) {
+    widget.click('older');
+    assert.equal(widget.requests.at(-1).body.historyCursor, cursor);
+    await widget.respond(widget.requests.length - 1, {messages:historyTurns(first,last),historyResetAt:null,hasMore:nextCursor !== null,nextCursor});
+  }
+  assert.deepEqual(widget.messages(), historyTurns(1,20).map(({role,content}) => ({role,content})), 'all intervening turns are ordered and reachable without duplicates');
+  assert.equal(widget.elements.older.hidden, true);
+});
+
+for (const change of ['policy', 'clear']) test('an older-page response after a ' + change + ' change reloads the newest page before releasing a queued send', async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  await widget.respond(0, {messages:historyTurns(7,12),historyResetAt:null,hasMore:true,nextCursor:'13'});
+  const changed = change === 'policy' ? {policy:{...policy,userDays:3,revision:2},historyResetAt:null} : {historyResetAt:new Date().toISOString()};
+  widget.click('older');
+  await widget.respond(1, {messages:historyTurns(1,6),hasMore:false,nextCursor:null,...changed});
+  assert.equal(widget.requests.length, 3, 'the invalidated older page requires a current newest-page read');
+  assert.equal(widget.requests[2].body.action, 'loadPreviousSession');
+  assert.equal(widget.requests[2].body.historyCursor, undefined);
+  assert(!widget.messages().some(message => message.content === 'پرسش 1'), 'the invalidated older page is never displayed');
+  widget.type('پرسش پس از بازخوانی');widget.submit();
+  assert.equal(widget.requests.length, 3, 'the queued send shares the existing history operation');
+  await widget.respond(2, {messages:historyTurns(7,12),hasMore:true,nextCursor:'13',...changed});
+  assert.equal(widget.requests.length, 4);
+  assert.equal(widget.requests[3].body.action, 'sendMessage');
+  assert.equal(widget.requests[3].body.chatInput, 'پرسش پس از بازخوانی');
+  assert.equal(widget.elements.older.hidden, false);
+  assert.deepEqual(widget.messages().slice(0,-1), historyTurns(7,12).map(({role,content}) => ({role,content})));
+  await widget.respond(3, {output:'پاسخ پس از بازخوانی',requestId:'d'.padStart(32,'0'),...changed});
+});
+
+test('a failed newest-page reload after policy invalidation never restores old text or dispatches the queued send', async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  await widget.respond(0, {messages:historyTurns(7,12),historyResetAt:null,hasMore:true,nextCursor:'13'});
+  widget.click('older');
+  await widget.respond(1, {messages:historyTurns(1,6),hasMore:false,nextCursor:null,historyResetAt:null,policy:{...policy,userDays:3,revision:2}});
+  widget.type('پیش‌نویس محفوظ');widget.submit();
+  await widget.respond(2, {error:{code:'backend_unavailable'}}, false, 502);
+  assert.deepEqual(widget.messages(), []);
+  assert.equal(widget.elements.input.value, 'پیش‌نویس محفوظ');
+  assert.equal(widget.elements.input.disabled, false);
+  assert.equal(widget.requests.some(request => request.body.action === 'sendMessage'), false);
+  assert.equal(widget.elements.reconnect.hidden, false);
+});

@@ -1,8 +1,7 @@
 """Real Chrome checks through agent-browser, against the isolated mock WP site."""
 import json, os, subprocess
 from pathlib import Path
-root=Path(os.environ.get('GPANTE_WP_TEST_DIR','/home/codexops/n8n/.gpante-wp-test'))
-browser=os.environ.get('AGENT_BROWSER_BIN','/home/codexops/n8n/.tools/agent-browser')
+from wordpress_test_config import root, base, browser
 session=os.environ.get('AGENT_BROWSER_TEST_SESSION','gpante-plugin-archive-local'); evidence=root/'evidence';evidence.mkdir(exist_ok=True)
 def run(*args):
  res=subprocess.run([browser,'--session',session,'--ignore-https-errors','--json',*args],text=True,capture_output=True,check=True)
@@ -12,7 +11,9 @@ def js(code):return run('eval',code)['result']
 def ready():run('wait','--fn',"!document.querySelector('#gpante-support [data-input]').disabled && document.querySelector('#gpante-support [data-messages]').getAttribute('aria-busy')==='false'")
 def mode(value):subprocess.run(['php',str(root/'wp-cli.phar'),'--path='+str(root/'wordpress'),'option','update','gptest_backend_mode',value],check=True,capture_output=True)
 def message(text):run('fill','#gpante-support [data-input]',text);run('press','Enter');ready()
-mode('success'); run('open','https://127.0.0.1:9443');run('snapshot','-i');run('click','#gpante-support [data-launcher]');ready()
+mode('success'); run('open',base);run('snapshot','-i')
+if js("document.querySelector('#gpante-support-panel').hidden"):run('click','#gpante-support [data-launcher]')
+ready()
 message('آزمون مرورگر واقعی')
 assert 'پاسخ آزمایشی: آزمون مرورگر واقعی' in js("document.querySelector('#gpante-support [data-messages]').textContent")
 assert js("document.querySelector('#gpante-support [data-messages] a').href")=='https://gpante.com/product/local-test/'
@@ -25,10 +26,13 @@ assert 'آزمون مرورگر واقعی' in js("document.querySelector('#gpan
 print('PASS real persisted session reload')
 mode('error');message('پیش‌نویس پس از خطا')
 assert js("document.querySelector('#gpante-support [data-input]').value")=='پیش‌نویس پس از خطا'
+assert not js("document.querySelector('#gpante-support [data-reconnect]').hidden")
+assert js("document.querySelector('#gpante-support [data-retry]').hidden")
+mode('success');run('scrollintoview','#gpante-support [data-reconnect]');run('click','#gpante-support [data-reconnect]');ready()
 assert not js("document.querySelector('#gpante-support [data-retry]').hidden")
-mode('success');run('snapshot','-i');run('click','#gpante-support [data-retry]');ready()
+run('snapshot','-i');run('scrollintoview','#gpante-support [data-retry]');run('click','#gpante-support [data-retry]');ready()
 assert 'پاسخ آزمایشی: پیش‌نویس پس از خطا' in js("document.querySelector('#gpante-support [data-messages]').textContent")
-print('PASS real failed send preserves draft and explicit retry succeeds')
+print('PASS uncertain send preserves draft, checks history before retry and explicit retry succeeds')
 geometry=[]
 for width,height,label in [(1440,1000,'desktop'),(390,844,'mobile-portrait'),(844,390,'mobile-landscape')]:
  run('set','viewport',str(width),str(height))
@@ -53,3 +57,4 @@ assert js("document.querySelectorAll('#gpante-support').length")==1
 assert 'fixture-only-' not in js('document.documentElement.innerHTML')
 errors=run('errors');print('Browser runtime errors:',json.dumps(errors,ensure_ascii=False))
 (evidence/'browser-result.json').write_text(json.dumps({'geometry':geometry,'runtime_errors':errors,'backend':'synthetic local only'},ensure_ascii=False,indent=2))
+run('close')

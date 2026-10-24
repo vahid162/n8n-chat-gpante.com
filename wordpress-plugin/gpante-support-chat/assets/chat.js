@@ -3,6 +3,7 @@
 
   function safeLink(address) {
     if (address === 'https://t.me/gpante_designer' || typeof address === 'string' && !/\s/.test(address) && /^https:\/\/gpante\.com\/faq-ai\/#faq-[a-z0-9][a-z0-9-]{0,79}$/.test(address)) return true;
+    if (['https://gpante.com/my-account/', 'https://gpante.com/cart/', 'https://gpante.com/checkout/'].includes(address)) return true;
     if (typeof address !== 'string' || !/^https:\/\/gpante\.com\/[^\s?#\\]*$/u.test(address)) return false;
     try {
       // Validate before URL normalization, which would hide traversal segments.
@@ -262,6 +263,7 @@
   let loadedHistory = [];
   let historyCursor = null;
   let olderLoaded = false;
+  let latestHistoryKey = null;
   let historyResetAt;
   let historyPolicyRevision;
   const appearanceTextLimits = {title:80,subtitle:160,launcher:60,welcome:1000,input_label:80,placeholder:250,send:40,clear:100};
@@ -437,7 +439,7 @@
     if (!validPolicy(value)) throw new Error('سیاست گفتگو دریافت نشد. لطفاً صفحه را تازه کنید.');
     if (historyPolicyRevision && historyPolicyRevision !== value.revision) {
       // Missed intermediate policies may have expired rows permanently, even if days returns to its old value.
-      loadedHistory = [];historyCursor = null;olderLoaded = false;
+      loadedHistory = [];historyCursor = null;olderLoaded = false;latestHistoryKey = null;
       for (const item of [...messages.children]) if (item.dataset.expiresAt) item.remove();
       if (older) older.hidden = true;
     }
@@ -549,17 +551,32 @@
 
   async function readHistory(quiet, cursor) {
     const previousFailure = failed;
+    const previousRevision = historyPolicyRevision;
     setBusy('history');
     scheduleHistoryCheck();
     if (!quiet || status.dataset.state !== 'ready') setConnection('connecting');
     try {
-      const data = await api('loadPreviousSession', null, cursor ? {historyCursor:cursor} : {});
-      const reset = !Object.hasOwn(data, 'historyResetAt') || data.historyResetAt !== historyResetAt;
+      let data = await api('loadPreviousSession', null, cursor ? {historyCursor:cursor} : {});
+      let reset = !Object.hasOwn(data, 'historyResetAt') || data.historyResetAt !== historyResetAt;
+      if (cursor && (reset || previousRevision !== data.policy.revision)) {
+        loadedHistory = [];historyCursor = null;olderLoaded = false;
+        renderHistory(false);
+        cursor = null;
+        data = await api('loadPreviousSession');
+        reset = !Object.hasOwn(data, 'historyResetAt') || data.historyResetAt !== historyResetAt;
+      }
       if (reset) { loadedHistory = [];olderLoaded = false; }
       historyResetAt = data.historyResetAt;
       const key = message => message.role + ':' + (message.requestId || message.content + ':' + message.expiresAt);
-      const combined = new Map((cursor ? [...data.messages, ...loadedHistory] : [...loadedHistory, ...data.messages]).map(message => [key(message),message]));
+      const pageKeys = new Set(data.messages.map(key));
+      const overlap = loadedHistory.findIndex(message => pageKeys.has(key(message)));
+      // A shared server-read boundary proves continuity; a local send alone can conceal a gap.
+      const continuous = data.hasMore && overlap >= 0 && pageKeys.has(latestHistoryKey);
+      const combined = new Map((cursor ? [...data.messages, ...loadedHistory]
+        : [...(continuous ? loadedHistory.slice(0, overlap) : []), ...data.messages]).map(message => [key(message),message]));
       loadedHistory = [...combined.values()].filter(message => Date.parse(message.expiresAt) > Date.now());
+      if (!cursor) latestHistoryKey = data.messages.length ? key(data.messages.at(-1)) : null;
+      if (!cursor && !continuous) olderLoaded = false;
       if (cursor || !olderLoaded || reset) historyCursor = data.hasMore ? data.nextCursor : null;
       if (cursor) olderLoaded = true;
       const previousHeight = scrollArea.scrollHeight || 0, previousTop = scrollArea.scrollTop || 0;
@@ -661,7 +678,7 @@
     try {
       await api('resetSession');
       messages.replaceChildren();
-      loadedHistory = [];historyCursor = null;olderLoaded = false;sendAttempt = null;
+      loadedHistory = [];historyCursor = null;olderLoaded = false;latestHistoryKey = null;sendAttempt = null;
       if (older) older.hidden = true;
       welcome();
       input.value = '';

@@ -1,6 +1,6 @@
 <?php
 // Run only via wp eval-file on the isolated fixture install.
-if (!defined('GPANTE_SUPPORT_LOCAL_TEST') || !GPANTE_SUPPORT_LOCAL_TEST || home_url() !== 'https://127.0.0.1:9443') throw new RuntimeException('Local test site required');
+if (!defined('GPANTE_SUPPORT_LOCAL_TEST') || !GPANTE_SUPPORT_LOCAL_TEST || home_url() !== (defined('GPANTE_SUPPORT_TEST_URL') ? GPANTE_SUPPORT_TEST_URL : 'https://127.0.0.1:9443')) throw new RuntimeException('Local test site required');
 function gptest_check($condition, $message) { if (!$condition) throw new RuntimeException($message); echo "PASS $message\n"; }
 wp_set_current_user(get_user_by('login', 'gpante_admin')->ID);
 $config = get_option('gpante_support_runtime');

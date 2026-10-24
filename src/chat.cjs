@@ -117,9 +117,25 @@ function decimalValue(value, zeros = 0) {
   return digits.slice(0, split).replace(/^0+(?=\d)/, '') + (decimals ? '.' + decimals : '');
 }
 
+function cdrVersion(text) {
+  const match = text.match(/(?:cdr|کورل)[\s\p{P}]*(?:(?:version|v|نسخه\p{M}*)[\s\p{P}]*)?(\d+)/u);
+  if (!match) return null;
+  const version = match[1].replace(/^0+(?=\d)/, '');
+  // The verified catalog uses cdr-v3 as the slug for Corel 13.
+  return version === '13' ? '3' : version;
+}
+
 function attributeMatches(taxonomy, term, value) {
-  if (taxonomy !== 'pa_thickness') return term.includes(value);
-  return (term.match(/\d+(?:\.\d+)?/g) || []).some(number => decimalValue(number) === decimalValue(value));
+  const texts = [replyText(term.name), replyText(term.slug)];
+  if (taxonomy === 'pa_thickness') {
+    const numbers = texts[0].match(/\d+(?:[.,-]\d+)?/g) || [texts[1].match(/^\d+(?:[.-]\d+)?/)?.[0]].filter(Boolean);
+    return numbers.some(number => decimalValue(number.replace(/[,-]/g, '.')) === decimalValue(value.replace(/[,-]/g, '.')));
+  }
+  if (taxonomy === 'pa_file-format' && /^(?:cdr|کورل)/.test(value)) {
+    const version = cdrVersion(value);
+    return texts.some(text => /\bcdr|کورل/.test(text)) && (!version || texts[1] === 'all-cdr' || version === (cdrVersion(texts[1]) || cdrVersion(texts[0])));
+  }
+  return texts.some(text => text.includes(value));
 }
 
 function limitationOnly(output, discovery = false) {
@@ -250,9 +266,9 @@ function groundingError(state, output) {
       if (cells.length !== 2 || /ذکر نشده|نامشخص/.test(cells[1])) continue;
       const taxonomy = { فرمت: 'pa_file-format', ضخامت: 'pa_thickness', متریال: 'pa_materials-required', جنس: 'pa_materials-required' }[cells[0]];
       if (!taxonomy) continue;
-      const terms = item.attributes.filter(a => a.taxonomy === taxonomy).flatMap(a => a.terms.flatMap(t => [replyText(t.name), replyText(t.slug)]));
-      const values = taxonomy === 'pa_file-format' ? cells[1].match(/\b(?:dxf|cdr|svg|pdf|ai|eps)\b/g)
-        : taxonomy === 'pa_thickness' ? cells[1].match(/\d+(?:\.\d+)?/g) : cells[1].match(/mdf|ام دی اف|پلکسی|چوب|مقوا/g);
+      const terms = item.attributes.filter(a => a.taxonomy === taxonomy).flatMap(a => a.terms);
+      const values = taxonomy === 'pa_file-format' ? cells[1].match(/(?:\bcdr|کورل)(?:[\s\p{P}]*(?:(?:version|v|نسخه\p{M}*)[\s\p{P}]*)?\d+)?(?![a-z0-9])|\b(?:dxf|svg|pdf|ai|eps)\b/gu)
+        : taxonomy === 'pa_thickness' ? cells[1].match(/\d+(?:[.,-]\d+)?/g) : cells[1].match(/mdf|ام دی اف|پلکسی|چوب|مقوا/g);
       if (!terms.length || (values || [cells[1]]).some(v => !terms.some(t => attributeMatches(taxonomy, t, v)))) return 'attribute_mismatch';
     }
   }

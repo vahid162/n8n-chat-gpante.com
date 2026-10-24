@@ -29,7 +29,7 @@ function run(question, replies, source, options = {}) {
       const message = replies[calls++];
       data = { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
         choices: [{ finish_reason: message.tool_calls ? 'tool_calls' : 'stop', message }] } };
-    } else if (name.startsWith('Read Public Source')) data = source;
+    } else if (name.startsWith('Read Public Source')) data = typeof source === 'function' ? source(data.toolRequest) : source;
     else assert.fail('Unexpected graph node: ' + name);
     outputs.set(name, data);
     name = w.connections[name].main[branch][0].node;
@@ -78,4 +78,24 @@ test('settlement refusal after a rejected final prevents any correction dispatch
   assert(!result.visited.includes('Prepare Model 2'));
   assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
   assert.equal(result.data.success, false);
+});
+
+
+test('generated graph corrects a summary-only lesson by reading the discovered public page within four calls', () => {
+  const url = 'https://gpante.com/corel-training/';
+  const record = { id: 123, status: 'publish', is_password_protected: false, content_type: 'page', navigation_only: false,
+    link: url, title: { rendered: 'آموزش کورل' } };
+  const source = request => http([{ ...record, [request.context.kind === 'read' ? 'content' : 'excerpt']:
+    { rendered: request.context.kind === 'read' ? 'مرحله اول یک سند تازه بسازید.' : 'آموزش طراحی کورل', protected: false, truncated: false } }]);
+  const result = run('مراحل آموزش کورل را گام به گام توضیح بده', [
+    call('Knowledge_Search', { source: 'site', search: 'کورل', intent: 'learning' }),
+    { content: 'مرحله اول یک سند تازه بسازید. [آموزش](' + url + ')' },
+    call('Knowledge_Read', { contentId: 123 }),
+    { content: 'مرحله اول یک سند تازه بسازید. [آموزش](' + url + ')' }
+  ], source);
+  assert.equal(result.data.status, 200); assert.equal(result.calls, 4);
+  assert.equal(result.visited.filter(n => n.startsWith('Read Public Source')).length, 2);
+  assert.equal(result.visited.filter(n => n.startsWith('Settle Model')).length, 4);
+  assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
+  assert.equal(result.data.toolCount, 2);
 });

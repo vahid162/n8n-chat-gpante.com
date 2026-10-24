@@ -14,7 +14,7 @@ test('source requirements are narrow, preserve explicit intent, and use context 
   for (const q of ['ایمیل ندارم می‌توانم خرید کنم؟', 'شماره همراه برای خرید اجباریه؟', 'زبانه تو شیار جا نمیره', 'DXF چیست؟', 'طراحی اختصاصی می‌خواهم']) assert.equal(requiredSource(state(q)), 'faq', q);
   assert.equal(requiredSource(state('طرح استند موبایل دارید؟')), 'products');
   assert.equal(requiredSource(state('باکس MDF معرفی کن و بگو بدون ایمیل میشه خرید؟')), 'faq');
-  assert.equal(requiredSource(state('آموزش کورل')), 'articles');
+  assert.equal(requiredSource(state('آموزش کورل')), 'site');
   assert.equal(requiredSource(state('متن قوانین بازپرداخت')), 'guides');
   assert.equal(requiredSource(state('سلام')), null);
   assert.equal(requiredSource(state('پایتخت فرانسه کجاست؟')), null);

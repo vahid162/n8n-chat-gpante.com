@@ -8,6 +8,7 @@
 defined( 'ABSPATH' ) || exit;
 
 require_once __DIR__ . '/faq.php';
+require_once __DIR__ . '/site.php';
 
 /**
  * Normalize public search text and Persian variants.
@@ -157,10 +158,11 @@ function gpante_support_catalog_run_query( $args, $search = '', $sort = 'relevan
 		$args['cache_results'] = false;
 	}
 	$query         = new WP_Query();
-	$articles      = 'post' === $args['post_type'];
+	$site          = ! empty( $args['gpante_site_search'] );
+	$articles      = 'post' === $args['post_type'] || $site;
 	$products      = 'product' === $args['post_type'];
 	$title_order   = '';
-	$search_filter = static function ( $sql, $current ) use ( $query, $search, $wpdb, $articles, $products, &$title_order ) {
+	$search_filter = static function ( $sql, $current ) use ( $query, $search, $wpdb, $articles, $products, $site, &$title_order ) {
 		if ( $current !== $query || '' === $search ) {
 			return $sql;
 		}
@@ -203,7 +205,7 @@ function gpante_support_catalog_run_query( $args, $search = '', $sort = 'relevan
 		$groups = array();
 		$scores = array();
 		$words  = array();
-		foreach ( gpante_support_catalog_search_groups( $search, $articles ) as $aliases ) {
+		foreach ( $site ? gpante_support_site_search_groups( $search ) : gpante_support_catalog_search_groups( $search, $articles ) as $aliases ) {
 			$matches = array();
 			$titles  = array();
 			$whole   = array();
@@ -626,15 +628,21 @@ function gpante_support_catalog_products( $request ) {
  * @return WP_REST_Response|WP_Error
  */
 function gpante_support_catalog_knowledge( $request ) {
-	$params = gpante_support_catalog_query_params( $request, array( 'search', 'source', 'page', 'categoryId' ) );
+	$params = gpante_support_catalog_query_params( $request, array( 'search', 'source', 'page', 'categoryId', 'contentId', 'intent' ) );
 	if ( is_wp_error( $params ) ) {
 		return $params;
 	}
 	$source = $params['source'] ?? 'articles';
 	$page   = isset( $params['page'] ) ? gpante_support_catalog_integer( $params['page'] ) : 1;
 	$search = isset( $params['search'] ) ? gpante_support_catalog_search_text( $params['search'] ) : '';
-	if ( ! in_array( $source, array( 'articles', 'guides', 'faq' ), true ) || false === $page || false === $search
+	if ( ! in_array( $source, array( 'articles', 'guides', 'faq', 'site' ), true ) || false === $page || false === $search
 		|| ( 'articles' !== $source && isset( $params['categoryId'] ) ) ) {
+		return gpante_support_catalog_error();
+	}
+	if ( 'site' === $source ) {
+		return gpante_support_catalog_site( $params, $search, $page );
+	}
+	if ( isset( $params['contentId'] ) || isset( $params['intent'] ) ) {
 		return gpante_support_catalog_error();
 	}
 	if ( 'faq' === $source ) {

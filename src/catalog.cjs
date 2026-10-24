@@ -72,7 +72,7 @@ function attributeTerm(kind, value) {
 }
 
 function prepare(kind, rawQuery) {
-  if (!['search', 'details', 'knowledge', 'categories'].includes(kind)) throw new Error('Unsupported tool kind.');
+  if (!['search', 'details', 'knowledge', 'read', 'categories'].includes(kind)) throw new Error('Unsupported tool kind.');
   let query = rawQuery;
   if (typeof query === 'string') {
     if (query.length > 6000) throw new Error('Query is too long.');
@@ -80,10 +80,10 @@ function prepare(kind, rawQuery) {
   }
   if (!plainObject(query)) throw new Error('Query must be an object.');
   const allowed = { search: ['search', 'format', 'thickness', 'material', 'page', 'sort', 'categoryId'], details: ['productId'],
-    knowledge: ['search', 'source', 'page', 'categoryId'], categories: ['search', 'source', 'parentId', 'page'] }[kind];
+    knowledge: ['search', 'source', 'page', 'categoryId', 'intent'], read: ['contentId', 'search'], categories: ['search', 'source', 'parentId', 'page'] }[kind];
   if (Object.keys(query).some((key) => !allowed.includes(key))) throw new Error('Unsupported query field.');
   const page = query.page === undefined ? 1 : positiveInteger(query.page, 'page');
-  const context = { kind, page, perPage: kind === 'details' ? 1 : kind === 'knowledge' ? 3 : 5, constraints: {} };
+  const context = { kind, page, perPage: ['details', 'read'].includes(kind) ? 1 : kind === 'knowledge' ? 3 : 5, constraints: {} };
   const qs = { page };
   if (query.categoryId !== undefined) context.categoryId = qs.categoryId = positiveInteger(query.categoryId, 'categoryId');
   if (kind === 'categories') {
@@ -96,10 +96,23 @@ function prepare(kind, rawQuery) {
     }
     return { url: 'https://gpante.com/wp-json/gpante-support/v1/categories', qs, context };
   }
+  if (kind === 'read') {
+    context.contentId = positiveInteger(query.contentId, 'contentId');
+    context.source = 'site';
+    delete qs.page;
+    qs.source = 'site';
+    qs.contentId = context.contentId;
+    if (query.search !== undefined) qs.search = searchText(query.search);
+    return { url: 'https://gpante.com/wp-json/gpante-support/v1/knowledge', qs, context };
+  }
   if (kind === 'knowledge') {
     const source = query.source === undefined ? 'articles' : inputText(query.source, 'source');
-    if (!['articles', 'guides', 'faq'].includes(source)) throw new Error('Unsupported knowledge source.');
+    if (!['articles', 'guides', 'faq', 'site'].includes(source)) throw new Error('Unsupported knowledge source.');
     if (source !== 'articles' && context.categoryId !== undefined) throw new Error('Only articles support article categories.');
+    if (query.intent !== undefined) {
+      if (source !== 'site' || !['general', 'learning', 'installation'].includes(query.intent)) throw new Error('Invalid site intent.');
+      qs.intent = query.intent;
+    }
     context.source = source;
     qs.source = source;
     if (query.search !== undefined) qs.search = searchText(query.search);
@@ -274,10 +287,49 @@ function publicCategory(item, context) {
   return { id: item.id, name: publicText(item.name, 160).text, parent: item.parent, url: safeLink(item.link, 'page') };
 }
 
+// Pure JavaScript: Code task runners do not always expose Buffer/TextEncoder.
+function utf8Bytes(text) {
+  let bytes = 0;
+  for (const char of text) {
+    const point = char.codePointAt(0);
+    bytes += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+  }
+  return bytes;
+}
+
+const SITE_NAVIGATION = ['https://gpante.com/my-account/', 'https://gpante.com/cart/', 'https://gpante.com/checkout/'];
+function publicSite(item, context) {
+  if (!plainObject(item) || !Number.isSafeInteger(item.id) || item.id < 1 || item.id > 2147483647
+    || context.kind === 'read' && item.id !== context.contentId) throw new Error('Invalid site record.');
+  if (item.content_type === 'product') {
+    if (context.kind === 'read') throw new Error('Products require Product_Details.');
+    return { ...publicProduct(item, context), kind: 'product' };
+  }
+  if (!['page', 'post'].includes(item.content_type) || item.status !== 'publish' || item.is_password_protected !== false
+    || typeof item.navigation_only !== 'boolean' || !plainObject(item.title) || typeof item.title.rendered !== 'string'
+    || item.title.protected === true) throw new Error('Invalid site record.');
+  const title = publicText(item.title.rendered, 240);
+  if (!title.text) throw new Error('Empty site title.');
+  if (item.navigation_only) {
+    if (context.kind === 'read' || !(item.link === 'https://gpante.com/' || safeLink(item.link, 'page')) || item.content !== undefined || item.excerpt !== undefined) throw new Error('Invalid navigation record.');
+    return { id: item.id, kind: item.content_type, title: title.text, url: item.link, navigationOnly: true, truncated: title.truncated };
+  }
+  if (!(item.link === 'https://gpante.com/' || safeLink(item.link, 'page')) || safeLink(item.link, 'product') || SITE_NAVIGATION.includes(item.link)
+    || /^https:\/\/gpante\.com\/(?:my-account|cart|checkout|download|downloads|wc-api|wp-includes|wp-signup\.php|xmlrpc\.php)(?:\/|$)/i.test(item.link)) throw new Error('Invalid content link.');
+  const field = context.kind === 'read' ? 'content' : 'excerpt';
+  const limit = context.kind === 'read' ? 6000 : 1200;
+  const snippet = item[field];
+  if (!plainObject(snippet) || typeof snippet.rendered !== 'string' || snippet.protected !== false
+    || typeof snippet.truncated !== 'boolean' || snippet.rendered.length > limit) throw new Error('Invalid site content.');
+  const text = publicText(snippet.rendered, limit);
+  return { id: item.id, kind: item.content_type, title: title.text, url: item.link, navigationOnly: false,
+    [field]: text.text, truncated: title.truncated || snippet.truncated || text.truncated };
+}
+
 function shape(context, httpResponse) {
   const kind = context && context.kind;
   const fail = (status, extra = {}) => ({ ok: false, status, kind, results: [], ...extra });
-  if (!plainObject(context) || !['search', 'details', 'knowledge', 'categories'].includes(kind)
+  if (!plainObject(context) || !['search', 'details', 'knowledge', 'read', 'categories'].includes(kind)
     || !Number.isSafeInteger(context.page) || context.page < 1 || ![1, 3, 5].includes(context.perPage)
     || !plainObject(context.constraints)) return fail('invalid_response');
   if (!plainObject(httpResponse) || !Number.isInteger(httpResponse.statusCode)) return fail('transport_error');
@@ -293,6 +345,9 @@ function shape(context, httpResponse) {
   }
   if (statusCode < 200 || statusCode >= 300) return fail('api_error', { httpStatus: statusCode });
   let body = httpResponse.body;
+  if (context.source === 'site') {
+    try { if (utf8Bytes(typeof body === 'string' ? body : JSON.stringify(body)) > 64000) return fail('response_too_large'); } catch { return fail('invalid_response'); }
+  }
   if (typeof body === 'string') {
     if (body.length > 2000000) return fail('invalid_response');
     try { body = JSON.parse(body); } catch { return fail('invalid_response'); }
@@ -320,7 +375,12 @@ function shape(context, httpResponse) {
     : total !== null ? context.page * context.perPage < total : body.length < context.perPage ? false : null;
   let results;
   try {
-    results = body.map((item) => kind === 'categories' ? publicCategory(item, context) : kind === 'knowledge' ? publicArticle(item, context) : publicProduct(item, context));
+    results = body.map((item) => {
+      if (kind === 'categories') return publicCategory(item, context);
+      if (context.source === 'site') return publicSite(item, context);
+      if (kind === 'knowledge') return publicArticle(item, context);
+      return publicProduct(item, context);
+    });
     if (new Set(results.map((item) => item.id)).size !== results.length) return fail('invalid_response');
   } catch (error) { return fail(error.code === 'constraint_mismatch' ? error.code : 'invalid_response'); }
   if (kind === 'search' && ['newest', 'best_selling'].includes(context.sort)) {
@@ -348,7 +408,7 @@ function shape(context, httpResponse) {
     ...(kind === 'search' ? { sort: context.sort, ...(Object.keys(context.constraints).length
       ? { constraints: context.constraints, attributeMatching: 'verified_taxonomy_compatibility' } : {}) } : {}),
   };
-  return JSON.stringify(result).length > MAX_TOOL_OUTPUT ? fail('response_too_large') : result;
+  return (context.source === 'site' ? utf8Bytes(JSON.stringify(result)) : JSON.stringify(result).length) > MAX_TOOL_OUTPUT ? fail('response_too_large') : result;
 }
 
 module.exports = { normalize, prepare, shape };

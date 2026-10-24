@@ -33,13 +33,22 @@ class AnswerQualityTests(unittest.TestCase):
         value.update(changes)
         return value
 
-    def test_corpus_has_fifty_unique_synthetic_cases_and_separate_retrieval_queries(self):
+    def test_corpus_has_sixty_five_unique_synthetic_cases_and_separate_retrieval_queries(self):
         corpus = json.loads((ROOT / "evals/answer-quality.json").read_text())
         quality.validate_corpus(corpus)
-        self.assertEqual(len(corpus["cases"]), 50)
+        self.assertEqual(len(corpus["cases"]), 65)
         self.assertGreaterEqual(len({case["group"] for case in corpus["cases"]}), 8)
         self.assertTrue(any(case.get("history") for case in corpus["cases"]))
         self.assertTrue(any(case.get("retrieval") for case in corpus["cases"]))
+
+    def test_read_tool_has_fixed_site_source_without_model_supplied_source(self):
+        case = self.case(toolsAll=["Knowledge_Read"], sourcesAll=["site"], firstSource="site", mustIncludeAny=[])
+        sample = self.sample(answer="راهنمای منبع: https://gpante.com/training/", toolCalls=[{
+            "name": "Knowledge_Read", "arguments": {"contentId": 7},
+            "result": {"ok": True, "source": "site", "results": [{"id": 7, "url": "https://gpante.com/training/"}]}}])
+        self.assertEqual(quality.evaluate_case(case, sample)["failures"], [])
+        sample["toolCalls"][0]["result"]["source"] = "faq"
+        self.assertIn("source_mismatch", quality.evaluate_case(case, sample)["failures"])
 
     def test_correct_faq_sample_passes_and_wrong_source_fails(self):
         self.assertEqual(quality.evaluate_case(self.case(), self.sample())["failures"], [])

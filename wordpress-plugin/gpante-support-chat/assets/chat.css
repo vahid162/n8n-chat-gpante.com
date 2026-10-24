@@ -278,3 +278,8 @@
   #gpante-support .gpante-chat-composer { transition: none; }
   #gpante-support .gpante-chat-status-icon, #gpante-support .gpante-chat-dots i { animation: none !important; }
 }
+#gpante-support .gpante-chat-feedback { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+#gpante-support .gpante-chat-feedback button,
+#gpante-support .gpante-chat-older { background: var(--gpante-surface); color: var(--gpante-text); border-color: var(--gpante-border); font-size: 12px; }
+#gpante-support .gpante-chat-feedback button[aria-pressed="true"] { border-color: var(--gpante-text); text-decoration: underline; }
+#gpante-support .gpante-chat-older { display: block; margin: 0 auto 12px; }

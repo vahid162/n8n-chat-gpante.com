@@ -19,6 +19,7 @@ function gate(name, field, position) {
 function build() {
   const chat = library('src/chat.cjs');
   const catalog = library('src/catalog.cjs');
+  const diagnostics = library('src/diagnostics.cjs');
   const code = (name, source) => node(name, 'n8n-nodes-base.code', 2, { jsCode: source }, [0, 0]);
   const pg = (name, query, replacement) => node(name, 'n8n-nodes-base.postgres', 2.6,
     { operation: 'executeQuery', query, options: { queryReplacement: replacement, connectionTimeout: 10 } }, [0, 0], { onError: 'continueRegularOutput' });
@@ -29,14 +30,14 @@ function build() {
     node('Chat Entry', 'n8n-nodes-base.webhook', 2.2, { httpMethod: 'POST', path: 'gpante-ai-support-v1', authentication: 'headerAuth', responseMode: 'responseNode', options: {} }, [0, 0], { webhookId: 'b4f78fd3-66b8-4a6b-9f98-3461dad39e6c' }),
     code('Validate Trusted Input', chat + '\nreturn [{json: validateTrusted($input.first().json.body)}];'),
     gate('Input Is Valid', 'valid', [0, 0]),
-    pg('Admit Request', 'SELECT gpante_chat.admit_v3($1::text,$2::text,$3::text,$4::text,$5::integer) AS result', '={{ [$json.sessionId,$json.clientId,$json.action,$json.chatInput,$json.policyVersion] }}'),
+    pg('Admit Request', 'SELECT gpante_chat.admit_v4($1::text,$2::text,$3::text,$4::text,$5::integer,$6::text,$7::text,$8::text,$9::text) AS result', '={{ [$json.sessionId,$json.clientId,$json.action,$json.chatInput,$json.policyVersion,$json.sendId,$json.historyCursor,$json.feedbackRequestId,$json.feedbackValue] }}'),
     code('Apply Admission', chat + "\nreturn [{json: admitted($('Validate Trusted Input').first().json,$input.first().json.result)}];"),
     gate('Action Is Complete', 'done', [0, 0]),
     code('Finalize Request', "const state=$input.first().json; return [{json:state}];"),
-    pg('Finish Request', 'SELECT gpante_chat.finish_v3($1::text,$2::text,$3::text,$4::text) AS result', '={{ [$json.requestId,$json.success ? $json.output : null,$json.success ? "success" : "error",$json.response?.error?.code || null] }}'),
+    pg('Finish Request', 'SELECT gpante_chat.finish_v4($1::text,$2::text,$3::text,$4::text,$5::jsonb) AS result', '={{ [$json.requestId,$json.success ? $json.output : null,$json.success ? "success" : "error",$json.response?.error?.code || null,JSON.stringify($json.diagnostics || [])] }}'),
     code('Apply Persistence', chat + "\nconst state=$('Finalize Request').first().json; return [{json: state.success && $input.first().json.result?.saved !== true ? failure('persistence_unavailable') : state}];"),
     node('Return Chat Reply', 'n8n-nodes-base.respondToWebhook', 1.5, { respondWith: 'json', responseBody: '={{ $json.response }}', options: { responseCode: '={{ $json.status || 503 }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store, private' }, { name: 'Retry-After', value: '={{ String($json.retryAfter || 0) }}' }] } } }, [0, 0]),
-    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۶٫۱ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nجست‌وجوی خودکار برگه، مقاله و محصول عمومی با خواندن محدود محتوا؛ FAQ رسمی Elementor با اولویت پرسش عملی خرید و بازنویسی وفادار به منبع، ارجاع طراحی به پشتیبانی و راهنمای عمومی مرتبط؛ دسته، فروش کل دوره و مقاله‌های قبلی محفوظ‌اند. سقف‌ها و آرشیو قبلی حفظ شده‌اند.', height: 330, width: 540 }, [0, 400])
+    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۷٫۰ — پیش‌نویس احراز هویت‌شده\n\nبودجهٔ پروژه: ۲ دلار در ماه UTC، تاریخچه: ۳۰ روز.\nرزرو محافظه‌کارانهٔ هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nجست‌وجوی خودکار برگه، مقاله و محصول عمومی با خواندن محدود محتوا؛ FAQ رسمی Elementor با اولویت پرسش عملی خرید و بازنویسی وفادار به منبع، ارجاع طراحی به پشتیبانی و راهنمای عمومی مرتبط؛ دسته، فروش کل دوره و مقاله‌های قبلی محفوظ‌اند. سقف‌ها و آرشیو قبلی حفظ شده‌اند.', height: 330, width: 540 }, [0, 400])
   ];
   const connections = {};
   const link = (from, to, branch = 0) => {
@@ -58,7 +59,7 @@ function build() {
       code(n('Apply Reservation'), chat + `\nreturn [{json:reserved($('${n('Prepare Model')}').first().json,$input.first().json.result)}];`),
       gate(n('Reservation Failed'), 'done', [0, 0]),
       http(n('Call DeepSeek'), { method: 'POST', url: 'https://api.deepseek.com/chat/completions', authentication: 'predefinedCredentialType', nodeCredentialType: 'deepSeekApi', sendBody: true, specifyBody: 'json', jsonBody: '={{ JSON.stringify($json.body) }}' }, 25000),
-      code(n('Parse Model'), chat + `\nreturn [{json:modelResult($('${n('Apply Reservation')}').first().json,$input.first().json)}];`),
+      code(n('Parse Model'), diagnostics + '\n' + chat + `\nreturn [{json:modelDiagnostic(modelResult($('${n('Apply Reservation')}').first().json,$input.first().json))}];`),
       pg(n('Settle Model'), 'SELECT gpante_chat.settle_call($1::text,$2::integer,$3::integer,$4::integer,$5::integer) AS result', '={{ [$json.requestId,$json.callIndex,$json.usage.prompt,$json.usage.completion,$json.usage.total] }}'),
       code(n('Apply Settlement'), chat + `\nreturn [{json:settled($('${n('Parse Model')}').first().json,$input.first().json.result)}];`),
       gate(n('Reply Is Ready'), 'done', [0, 0])
@@ -74,8 +75,8 @@ function build() {
       code(n('Prepare Tool'), catalog + `\nconst state=$input.first().json; try { const kind={Product_Search:'search',Product_Details:'details',Knowledge_Search:'knowledge',Knowledge_Read:'read',Category_Search:'categories'}[state.pendingTool.function.name]; return [{json:{...state,toolValid:true,toolRequest:prepare(kind,state.pendingTool.function.arguments)}}]; } catch { return [{json:{...state,toolValid:false}}]; }`),
       gate(n('Tool Is Valid'), 'toolValid', [0, 0]),
       http(n('Read Public Source'), { method: 'GET', url: '={{ $json.toolRequest.url }}', sendQuery: true, specifyQuery: 'json', jsonQuery: '={{ JSON.stringify($json.toolRequest.qs) }}' }, 10000),
-      code(n('Record Tool Facts'), catalog + '\n' + chat + `\nconst state={...$('${n('Prepare Tool')}').itemMatching(0).json}; const facts=shape(state.toolRequest.context,$input.first().json); delete state.toolRequest; return [{json:toolResult(state,facts)}];`),
-      code(n('Record Tool Error'), chat + "\nreturn [{json:toolResult($input.first().json,{ok:false,status:'invalid_query',results:[]})}];"),
+      code(n('Record Tool Facts'), catalog + '\n' + chat + '\n' + diagnostics + `\nconst state={...$('${n('Prepare Tool')}').itemMatching(0).json}; const facts=shape(state.toolRequest.context,$input.first().json); delete state.toolRequest; return [{json:appendDiagnostic(toolResult(state,facts),toolDiagnostic(state,facts))}];`),
+      code(n('Record Tool Error'), chat + '\n' + diagnostics + "\nconst state=$input.first().json; const facts={ok:false,status:'invalid_query',results:[]}; return [{json:appendDiagnostic(toolResult(state,facts),toolDiagnostic(state,facts))}];"),
       gate(n('Tools Remain'), 'toolsPending', [0, 0])
     );
     link(n('Reply Is Ready'), n('Tools Remain'), 1); link(n('Prepare Tool'), n('Tool Is Valid'));
@@ -91,7 +92,7 @@ function build() {
     n.position = [position[0] + 220, position[1] + 140];
   });
   return { name: 'gpante.com — AI Support — Main', active: false,
-    description: 'نسخهٔ ۱٫۶٫۱: جست‌وجوی خودکار برگه، مقاله و محصول عمومی و خواندن متن مرتبط؛ FAQ، کنترل منبع و قیمت محفوظ. گراف و اتصال‌های قبلی، سه ابزار/چهار تماس، بودجهٔ ۲ دلار/ماه UTC و آرشیو ۳۰روزه حفظ می‌شوند.',
+    description: 'نسخهٔ ۱٫۷٫۰: منابع عمومی با نمایهٔ مشترک، کنترل ادعای همان منبع، تاریخچهٔ صفحه‌بندی‌شده، ارسال تکرارپذیر و گزارش محدود؛ گراف و اتصال‌های قبلی، سه ابزار/چهار تماس، بودجهٔ ۲ دلار/ماه UTC و آرشیو ۳۰روزه حفظ می‌شوند.',
     nodes, connections, settings: { executionOrder: 'v1', timezone: 'Asia/Tehran', executionTimeout: 150,
       saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, callerPolicy: 'workflowsFromSameOwner' } };
 }
@@ -107,7 +108,7 @@ function cleanup() {
 function admin() {
   const source = library('src/admin.cjs');
   return { name: 'gpante.com — AI Support — Admin', active: false,
-    description: 'نسخهٔ ۱٫۲٫۰: مدیریت خصوصی آرشیو ۳۰روزه و سیاست تاریخچه، مستقل از مدل و بودجه.',
+    description: 'نسخهٔ ۱٫۳٫۰: آرشیو و سیاست خصوصی، گزارش محدود منابع/خطا و بودجه، بازخورد و برچسب آزمون مصنوعی؛ بدون تماس مدل.',
     nodes: [
       node('Admin Entry','n8n-nodes-base.webhook',2.2,{httpMethod:'POST',path:'gpante-ai-support-admin-v1',authentication:'headerAuth',responseMode:'responseNode',options:{}},[0,0],{webhookId:stableId('Admin Entry')}),
       node('Validate Admin Input','n8n-nodes-base.code',2,{jsCode:source+'\nreturn [{json:adminInput($input.first().json.body)}];'},[250,0]),

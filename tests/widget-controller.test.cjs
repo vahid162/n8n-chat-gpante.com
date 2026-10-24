@@ -62,7 +62,7 @@ function createWidget(appearance, withHistory = false) {
   document.createTextNode = text => { const node = new Element('#text'); node.textContent = text; return node; };
   const elements = Object.fromEntries([
     'root', 'panel', 'launcher', 'messages', 'status', 'input', 'form', 'send', 'new',
-    'confirm', 'clear', 'retry', 'reconnect', 'notice', 'activity', 'activity-text', 'count', 'close', 'cancel', 'shortcuts', 'send-label', 'title', 'subtitle', 'launcher-label', 'input-label', 'status-label', 'status-text'
+    'confirm', 'clear', 'retry', 'reconnect', 'older', 'fallback', 'notice', 'activity', 'activity-text', 'count', 'close', 'cancel', 'shortcuts', 'send-label', 'title', 'subtitle', 'launcher-label', 'input-label', 'status-label', 'status-text'
   ].map(name => [name, new Element()]));
   const { root, panel, launcher } = elements;
   document.body = new Element('body');
@@ -71,6 +71,7 @@ function createWidget(appearance, withHistory = false) {
   document.body.append(footer);
   root.dataset.appearanceEndpoint = '/wp-json/gpante-support/v1/appearance';
   root.dataset.endpoint = '/wp-json/gpante-support/v1/chat';
+  root.dataset.searchUrl = 'https://gpante.com/';
   root.append(panel, launcher);
   panel.append(...Object.entries(elements).filter(([name]) => !['root', 'panel', 'launcher', 'status-label', 'status-text'].includes(name)).map(([, node]) => node));
   elements.status.append(elements['status-label'], elements['status-text']);
@@ -97,7 +98,7 @@ function createWidget(appearance, withHistory = false) {
       }};
   }
   const context = vm.createContext({
-    document, AbortController, URL, navigator: {onLine:true}, ...(browserWindow ? {window:browserWindow} : {}),
+    document, AbortController, URL, crypto: require('node:crypto').webcrypto, navigator: {onLine:true}, ...(browserWindow ? {window:browserWindow} : {}),
     setTimeout(callback, delay) { const id = ++nextTimer; timers.set(id, {callback,delay}); return id; },
     clearTimeout(id) { timers.delete(id); },
     fetch(url, options) {
@@ -179,7 +180,7 @@ test('uncertain send requires a history check; reconnect never resends and retai
   assert.equal(widget.elements.status.dataset.state, 'ready');
   assert.equal(widget.requests.filter(r=>r.body.action==='sendMessage').length, 1);
   assert.equal(widget.messages().at(-1).content, 'پاسخ ثبت‌شده');
-  assert.match(widget.elements['status-text'].textContent, /درخواست تازه/);
+  assert.match(widget.elements['status-text'].textContent, /شناسهٔ قبلی/);
 });
 
 test('safe temporary refusals retain online status and do not expose an unrelated reconnect action', async () => {
@@ -335,7 +336,7 @@ test('early submit waits for the existing history request and dispatches exactly
   assert.equal(widget.requests.length, 1, 'rapid reopen keeps the queued operation');
   await widget.respond(0, { messages: previousMessages, policy: {...policy, allowClear: false} });
   assert.equal(widget.requests.length, 2);
-  assert.deepEqual(widget.requests[1].body, {action:'sendMessage', policyVersion:2, chatInput:'پیام هنگام اتصال'});
+  assert.deepEqual({...widget.requests[1].body,sendId:undefined}, {action:'sendMessage', policyVersion:2, chatInput:'پیام هنگام اتصال',sendId:undefined});
   assert.equal(widget.elements.new.hidden, true, 'current policy is applied before dispatch');
   assert.deepEqual(widget.messages(), [...previousMessages, {role:'user',content:'پیام هنگام اتصال'}]);
   widget.submit();
@@ -410,7 +411,7 @@ test('busy send blocks duplicates; failure restores the draft and one explicit r
   widget.elements.input.dispatch('keydown', { key: 'Enter', shiftKey: false, isComposing: false });
   widget.click('retry');
   assert.equal(widget.requests.length, 2, 'duplicate events do not send another request');
-  assert.deepEqual(widget.requests[1].body, { action: 'sendMessage', policyVersion:2, chatInput: 'ضخامت ۲٫۷ و فایل DXF' });
+  assert.deepEqual({...widget.requests[1].body,sendId:undefined}, { action: 'sendMessage', policyVersion:2, chatInput: 'ضخامت ۲٫۷ و فایل DXF',sendId:undefined });
   await widget.respond(1, { error: 'unavailable', output: 'لطفاً دوباره تلاش کنید.' }, false);
   assert.deepEqual(widget.messages(), previousMessages, 'the temporary user bubble is removed');
   assert.equal(widget.elements.input.value, 'ضخامت ۲٫۷ و فایل DXF');
@@ -879,4 +880,109 @@ test('fresh and restored assistant products receive the same thumbnails while us
   assert.equal(descendants(widget.elements.messages.children[1]).filter(e=>e.tagName==='img').length,1);
   widget.type('دیگری');widget.submit();await widget.respond(1,{output:content,products});
   assert.equal(descendants(widget.elements.messages.children.at(-1)).filter(e=>e.tagName==='img').length,1);
+});
+
+test('uncertain resend retains a cryptographic send ID; editing creates a new logical send', async () => {
+  const widget=createWidget(undefined,true);await widget.open([]);
+  widget.type('پرسش پایدار');widget.submit();
+  const first=widget.requests[1].body.sendId;
+  assert.match(first,/^[a-f0-9]{32}$/);
+  await widget.respond(1,{error:{code:'backend_unavailable'},output:'خطا'},false,502);
+  widget.click('reconnect');await widget.respond(2,{messages:[]});
+  widget.click('retry');assert.equal(widget.requests[3].body.sendId,first);
+  await widget.respond(3,{error:{code:'backend_unavailable'},output:'خطا'},false,502);
+  widget.click('reconnect');await widget.respond(4,{messages:[]});
+  widget.type('پرسش تازه');widget.click('retry');
+  assert.notEqual(widget.requests[5].body.sendId,first);
+  await widget.respond(5,{output:'پاسخ'});
+});
+
+test('older history survives refresh; a server clear marker drops prior pages', async () => {
+  const widget=createWidget(undefined,true);widget.click('launcher');
+  const a='a'.repeat(32),b='b'.repeat(32);
+  await widget.respond(0,{messages:[{role:'assistant',content:'پاسخ تازه',requestId:b}],hasMore:true,nextCursor:'20',historyResetAt:null});
+  assert.equal(widget.elements.older.hidden,false);
+  widget.click('older');assert.equal(widget.requests[1].body.historyCursor,'20');
+  await widget.respond(1,{messages:[{role:'assistant',content:'پاسخ قدیمی',requestId:a}],hasMore:false,nextCursor:null,historyResetAt:null});
+  widget.window.dispatch('focus');
+  await widget.respond(2,{messages:[{role:'assistant',content:'پاسخ تازه',requestId:b}],hasMore:true,nextCursor:'20',historyResetAt:null});
+  assert.match(widget.elements.messages.textContent,/قدیمی/);
+  assert.equal(widget.elements.older.hidden,true);
+  widget.window.dispatch('focus');
+  await widget.respond(3,{messages:[{role:'assistant',content:'گفتگوی بعد از پاک‌کردن',requestId:b}],hasMore:false,nextCursor:null,historyResetAt:new Date().toISOString()});
+  assert.doesNotMatch(widget.elements.messages.textContent,/قدیمی/);
+});
+
+test('AI refusal offers trusted native search without dispatching another request', async () => {
+  const widget=createWidget(undefined,true);await widget.open([]);
+  widget.type('طرح اسب & برش');widget.submit();
+  await widget.respond(1,{error:{code:'monthly_budget'},output:'سهمیه'},false,503);
+  assert.equal(widget.elements.fallback.hidden,false);
+  const target=new URL(widget.elements.fallback.href);
+  assert.equal(target.origin,'https://gpante.com');assert.equal(target.searchParams.get('s'),'طرح اسب & برش');
+  assert.equal(widget.requests.length,2);
+});
+
+test('a long fallback query opens native search with an explicit shorter-query instruction', async () => {
+  const widget=createWidget(undefined,true);await widget.open([]);
+  widget.type('پرسش '.repeat(500));widget.submit();
+  await widget.respond(1,{error:{code:'monthly_budget'},output:'سهمیه'},false,503);
+  assert.equal(widget.elements.fallback.hidden,false);
+  assert.equal(new URL(widget.elements.fallback.href).searchParams.get('s'),'');
+  assert.match(widget.elements.fallback.textContent,/کوتاه‌تر/);
+  assert(widget.elements.fallback.href.length<1800);
+});
+
+test('a definitive prior failure permits a deliberate new send instead of an endless replay loop', async () => {
+  const widget=createWidget(undefined,true);await widget.open([]);
+  widget.type('همان پرسش');widget.submit();const first=widget.requests[1].body.sendId;
+  await widget.respond(1,{error:{code:'prior_request_failed'},output:'ارسال قبلی پایان یافت'},false,503);
+  widget.click('retry');assert.notEqual(widget.requests[2].body.sendId,first);
+  await widget.respond(2,{output:'پاسخ تازه',requestId:'a'.repeat(32)});
+});
+
+test('feedback targets the returned request ID and a replay does not duplicate restored messages', async () => {
+  const widget=createWidget(undefined,true);await widget.open([]);
+  const id='b'.repeat(32);
+  widget.type('پرسش');widget.submit();
+  await widget.respond(1,{error:{code:'backend_unavailable'},output:'قطع شد'},false,502);
+  widget.click('reconnect');await widget.respond(2,{messages:[{role:'user',content:'پرسش',requestId:id},{role:'assistant',content:'پاسخ',requestId:id}],historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.click('retry');await widget.respond(3,{output:'پاسخ',requestId:id});
+  assert.equal(widget.elements.messages.children.length,2);
+  const assistant=widget.elements.messages.children[1];
+  const helpful=assistant.children[2].children[0];helpful.dispatch('click');
+  assert.equal(widget.requests[4].body.action,'feedback');
+  assert.equal(widget.requests[4].body.feedbackRequestId,id);
+  assert.equal(widget.requests[4].body.feedbackValue,'helpful');
+  await widget.respond(4,{ok:true});assert.equal(helpful.attributes['aria-pressed'],'true');
+});
+
+test('shorter central retention removes previously loaded old pages even after a failed refresh', async () => {
+  const widget=createWidget(undefined,true);widget.click('launcher');
+  const oldExpiry=new Date(Date.now()+20*86400000).toISOString();
+  await widget.respond(0,{messages:[{role:'assistant',content:'صفحه قدیمی',requestId:'a'.repeat(32),expiresAt:oldExpiry}],historyResetAt:null,hasMore:true,nextCursor:'20'});
+  widget.click('older');await widget.respond(1,{messages:[{role:'assistant',content:'قدیمی‌تر',requestId:'b'.repeat(32),expiresAt:oldExpiry}],historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.window.dispatch('focus');await widget.respond(2,{error:{code:'backend_unavailable'}},false,502);
+  widget.click('reconnect');await widget.respond(3,{messages:[],historyResetAt:null,hasMore:false,nextCursor:null,policy:{...policy,userDays:3,revision:2}});
+  assert.doesNotMatch(widget.elements.messages.textContent,/قدیمی/);
+});
+
+test('separate identical legacy messages keep their identity across history pages', async () => {
+  const widget=createWidget(undefined,true);widget.click('launcher');
+  await widget.respond(0,{messages:[{role:'assistant',content:'متن یکسان',requestId:'legacy:12'}],historyResetAt:null,hasMore:true,nextCursor:'12'});
+  widget.click('older');await widget.respond(1,{messages:[{role:'assistant',content:'متن یکسان',requestId:'legacy:2'}],historyResetAt:null,hasMore:false,nextCursor:null});
+  assert.equal(widget.elements.messages.children.length,2);
+  assert(widget.elements.messages.children.every(item=>item.children.length===2),'legacy IDs do not authorize feedback controls');
+});
+
+test('missed retention revisions cannot resurrect cached older pages even when userDays returns to thirty', async () => {
+  const widget=createWidget(undefined,true);widget.click('launcher');
+  const deadline=new Date(Date.now()+26*86400000).toISOString();
+  await widget.respond(0,{messages:[{role:'assistant',content:'پاسخ جدید',requestId:'a'.repeat(32)}],historyResetAt:null,hasMore:true,nextCursor:'20'});
+  widget.click('older');await widget.respond(1,{messages:[{role:'assistant',content:'منقضی‌شده در سیاست میانی',requestId:'b'.repeat(32),expiresAt:deadline}],historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.window.dispatch('focus');
+  await widget.respond(2,{messages:[{role:'assistant',content:'پاسخ جدید',requestId:'a'.repeat(32)}],historyResetAt:null,hasMore:true,nextCursor:'20',policy:{...policy,userDays:30,revision:3}});
+  assert.doesNotMatch(widget.elements.messages.textContent,/سیاست میانی/);
+  assert.match(widget.elements.messages.textContent,/پاسخ جدید/);
+  assert.equal(widget.elements.older.hidden,false,'older pages may be fetched again from authoritative history');
 });

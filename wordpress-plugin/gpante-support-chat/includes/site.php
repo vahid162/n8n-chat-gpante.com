@@ -119,15 +119,15 @@ function gpante_support_site_navigation_only( $post ) {
  * @throws UnexpectedValueException If the authoritative document shape is invalid.
  */
 function gpante_support_site_post_text( $post ) {
-	$has_elementor = metadata_exists( 'post', $post->ID, '_elementor_data' );
+	$has_elementor = 'builder' === get_post_meta( $post->ID, '_elementor_edit_mode', true );
 	$elementor     = get_post_meta( $post->ID, '_elementor_data', true );
-	$version       = md5( 'static-text-v2|' . (int) $has_elementor . '|' . $post->post_content . "\n" . $post->post_excerpt . "\n" . ( is_string( $elementor ) ? $elementor : wp_json_encode( $elementor ) ) );
+	$version       = md5( 'static-text-v3|' . (int) $has_elementor . '|' . $post->post_content . "\n" . $post->post_excerpt . "\n" . ( is_string( $elementor ) ? $elementor : wp_json_encode( $elementor ) ) );
 	$key           = 'gpante_site_' . $post->ID;
 	$cached        = get_transient( $key );
 	if ( is_array( $cached ) && ( $cached['version'] ?? '' ) === $version ) {
 		return $cached['text'];
 	}
-	// Elementor content is authoritative when present; post_content may retain stale rendered HTML.
+	// Only the active builder is authoritative; switching editors can leave obsolete metadata.
 	if ( $has_elementor ) {
 		$elements = '' === $elementor ? array() : $elementor;
 		if ( is_string( $elements ) ) {
@@ -161,6 +161,7 @@ function gpante_support_site_post_text( $post ) {
  * @return array
  */
 function gpante_support_site_search_groups( $search ) {
+	$search = preg_replace( '/(?<![\p{L}\p{N}_])اموزش(ی?)(?![\p{L}\p{N}_])/u', 'آموزش$1', $search );
 	$groups = gpante_support_catalog_search_groups( gpante_support_catalog_normalize( $search ), true );
 	foreach ( $groups as &$group ) {
 		if ( array_intersect( $group, array( 'باکس', 'جعبه' ) ) ) {
@@ -168,7 +169,16 @@ function gpante_support_site_search_groups( $search ) {
 		}
 	}
 	unset( $group );
-	return $groups;
+	return array_map( static fn( $aliases ) => array_map( 'gpante_support_site_normalize', $aliases ), $groups );
+}
+
+/**
+ * Normalize general Persian typography without changing explicit query terms.
+ *
+ * @param string $value Public source text or validated literal search.
+ */
+function gpante_support_site_normalize( $value ) {
+	return str_replace( 'آ', 'ا', gpante_support_catalog_normalize( $value ) );
 }
 
 /**
@@ -179,7 +189,7 @@ function gpante_support_site_search_groups( $search ) {
  * @return bool
  */
 function gpante_support_site_matches( $text, $groups ) {
-	$text = gpante_support_catalog_normalize( $text );
+	$text = gpante_support_site_normalize( $text );
 	foreach ( $groups as $aliases ) {
 		$hit = false;
 		foreach ( $aliases as $alias ) {
@@ -202,7 +212,7 @@ function gpante_support_site_matches( $text, $groups ) {
  * @return int
  */
 function gpante_support_site_score( $title, $type, $intent, $search ) {
-	$title = gpante_support_catalog_normalize( $title );
+	$title = gpante_support_site_normalize( $title );
 	$score = 0;
 	foreach ( gpante_support_site_search_groups( $search ) as $group ) {
 		foreach ( $group as $alias ) {
@@ -330,82 +340,32 @@ function gpante_support_catalog_site( $params, $search, $page ) {
 			$query = (object) array( 'found_posts' => $item ? 1 : 0 );
 			return gpante_support_catalog_response( $item ? array( $item ) : array(), $query, 1 );
 		}
-		$groups  = gpante_support_site_search_groups( $search );
-		$matches = array();
-		$batch   = 1;
-		do {
-			$query = gpante_support_catalog_run_query(
-				array(
-					'post_type'           => array( 'page', 'post' ),
-					'post_status'         => 'publish',
-					'has_password'        => false,
-					'posts_per_page'      => 100,
-					'paged'               => $batch,
-					'ignore_sticky_posts' => true,
-					'no_found_rows'       => false,
-					'orderby'             => array( 'ID' => 'ASC' ),
-				)
-			);
-			foreach ( $query->posts as $post ) {
-				if ( ! $post || 'publish' !== $post->post_status || '' !== $post->post_password || ! in_array( $post->post_type, array( 'page', 'post' ), true ) ) {
-					continue;
-				}
-				$text = gpante_support_site_navigation_only( $post ) ? '' : gpante_support_site_post_text( $post );
-				if ( gpante_support_site_matches( $post->post_title . ' ' . $text, $groups ) ) {
-					$matches[] = array(
-						'id'    => (int) $post->ID,
-						'type'  => $post->post_type,
-						'score' => gpante_support_site_score( $post->post_title, $post->post_type, $intent, $search ),
-						'date'  => $post->post_date_gmt,
-					);
-				}
-			}
-			++$batch;
-		} while ( $batch <= $query->max_num_pages );
 		if ( ! function_exists( 'wc_get_product' ) || ! taxonomy_exists( 'product_visibility' ) ) {
 			return gpante_support_catalog_error( 'catalog_unavailable', 503 );
 		}
-		$products = gpante_support_catalog_run_query(
+		$query = gpante_support_catalog_run_query(
 			array(
-				'post_type'          => 'product',
-				'post_status'        => 'publish',
-				'has_password'       => false,
-				'posts_per_page'     => -1,
-				'paged'              => 1,
-				'fields'             => 'ids',
-				'gpante_site_search' => true,
-				's'                  => $search,
-				'orderby'            => array( 'ID' => 'ASC' ),
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Required public visibility.
-				'tax_query'          => gpante_support_catalog_visibility(),
-			),
-			$search
-		);
-		foreach ( $products->posts as $id ) {
-			$post      = get_post( $id );
-			$matches[] = array(
-				'id'    => (int) $id,
-				'type'  => 'product',
-				'score' => gpante_support_site_score( $post->post_title, 'product', $intent, $search ),
-				'date'  => $post->post_date_gmt,
-			);
-		}
-		usort(
-			$matches,
-			static function ( $a, $b ) {
-				$score = $b['score'] <=> $a['score'];
-				if ( 0 !== $score ) {
-					return $score;
-				}
-				$date = strcmp( $b['date'], $a['date'] );
-				return 0 !== $date ? $date : $b['id'] <=> $a['id'];
-			}
+				'post_type'           => array( 'page', 'post', 'product' ),
+				'post_status'         => 'publish',
+				'has_password'        => false,
+				'posts_per_page'      => 3,
+				'paged'               => $page,
+				'ignore_sticky_posts' => true,
+				'no_found_rows'       => false,
+				'cache_results'       => false,
+				'gpante_site_index'   => true,
+				'gpante_index_search' => $search,
+				'gpante_index_intent' => $intent,
+			)
 		);
 		$items = array();
-		foreach ( array_slice( $matches, ( $page - 1 ) * 3, 3 ) as $match ) {
-			if ( 'product' === $match['type'] ) {
+		foreach ( $query->posts as $post ) {
+			if ( ! gpante_support_search_index_eligible( $post ) ) {
+				return gpante_support_catalog_error( 'catalog_changed', 503 );
+			}
+			if ( 'product' === $post->post_type ) {
 				$request = new WP_REST_Request( 'GET', '/gpante-support/v1/catalog' );
-				$request->set_query_params( array( 'productId' => $match['id'] ) );
+				$request->set_query_params( array( 'productId' => $post->ID ) );
 				$result = gpante_support_catalog_products( $request );
 				if ( is_wp_error( $result ) || count( $result->get_data() ) !== 1 ) {
 					return gpante_support_catalog_error( 'catalog_changed', 503 );
@@ -413,15 +373,27 @@ function gpante_support_catalog_site( $params, $search, $page ) {
 				$item                 = $result->get_data()[0];
 				$item['content_type'] = 'product';
 			} else {
-				$item = gpante_support_site_record( get_post( $match['id'] ), $search );
+				$item = gpante_support_site_record( $post, $search );
 				if ( ! $item ) {
 					return gpante_support_catalog_error( 'catalog_changed', 503 );
 				}
 			}
 			$items[] = $item;
 		}
-		return gpante_support_catalog_response( $items, (object) array( 'found_posts' => count( $matches ) ), 3 );
+		$response = gpante_support_catalog_response( $items, $query, 3 );
+		$health   = gpante_support_search_index_health();
+		$response->header( 'X-GPante-Coverage', $health['complete'] ? 'complete' : 'incomplete' );
+		$response->header( 'X-GPante-Invalid-Documents', $health['invalidDocuments'] );
+		$response->header( 'X-GPante-Index-Initializing', $health['initializing'] ? '1' : '0' );
+		if ( 0 === (int) $query->found_posts ) {
+			$suggestion = gpante_support_search_index_suggestion( $search );
+			if ( $suggestion ) {
+				$response->header( 'X-GPante-Suggestion', rawurlencode( $suggestion ) );
+			}
+		}
+		return $response;
 	} catch ( Throwable $error ) {
+		gpante_support_search_index_health();
 		return gpante_support_catalog_error( 'catalog_unavailable', 503 );
 	}
 }

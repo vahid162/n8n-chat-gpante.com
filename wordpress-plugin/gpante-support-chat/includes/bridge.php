@@ -97,6 +97,10 @@ function gpante_support_failure( $status, $code, $headers = array() ) {
 		$messages[ $status ] = __( 'سهمیهٔ پاسخ‌گویی دستیار برای این ماه به پایان رسیده است. می‌توانید از پیوندهای راهنمای فروشگاه استفاده کنید؛ تلاش دوباره در همین لحظه این محدودیت را برطرف نمی‌کند.', 'gpante-support-chat' );
 	} elseif ( 'pricing_review' === $code ) {
 		$messages[ $status ] = __( 'پاسخ‌گویی دستیار موقتاً در دسترس نیست و به بررسی مدیر سایت نیاز دارد. فعلاً از پیوندهای راهنمای فروشگاه استفاده کنید.', 'gpante-support-chat' );
+	} elseif ( in_array( $code, array( 'prior_request_failed', 'prior_request_expired' ), true ) ) {
+		$messages[ $status ] = __( 'ارسال قبلی پایان یافته و پاسخ قابل‌بازیابی ندارد. اگر دوباره بفرستید، پرسش تازه‌ای ثبت خواهد شد.', 'gpante-support-chat' );
+	} elseif ( 'feedback_unavailable' === $code ) {
+		$messages[ $status ] = __( 'این پاسخ برای ثبت بازخورد در دسترس نیست.', 'gpante-support-chat' );
 	}
 	if ( 429 === $status ) {
 		$reasons       = array(
@@ -160,6 +164,11 @@ function gpante_support_session_id() {
 		} catch ( Exception $error ) {
 			return false;
 		}
+	} else {
+		$token = $parts[2];
+	}
+	if ( ! $valid || (int) $parts[1] <= $now - DAY_IN_SECONDS ) {
+		// Renew the signed timestamp without changing the visitor's identity.
 		$value  = 'v1.' . $now . '.' . $token;
 		$cookie = $value . '.' . hash_hmac( 'sha256', 'gpante-support-cookie|' . $value, wp_salt( 'auth' ) );
 		if ( headers_sent() || ! setcookie(
@@ -175,8 +184,7 @@ function gpante_support_session_id() {
 		) ) {
 			return false;
 		}
-	} else {
-		$token = $parts[2];
+		$_COOKIE[ GPANTE_SUPPORT_COOKIE ] = $cookie;
 	}
 	return hash_hmac( 'sha256', 'gpante-support-session|' . $token, wp_salt( 'auth' ) );
 }
@@ -215,7 +223,7 @@ function gpante_support_chat( $request ) {
 	}
 	$input = json_decode( $body, true );
 	if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $input )
-		|| ! in_array( $input['action'] ?? null, array( 'sendMessage', 'loadPreviousSession', 'resetSession' ), true ) ) {
+		|| ! in_array( $input['action'] ?? null, array( 'sendMessage', 'loadPreviousSession', 'resetSession', 'feedback' ), true ) ) {
 		return gpante_support_failure( 400, 'invalid_input' );
 	}
 	$action = $input['action'];
@@ -224,6 +232,17 @@ function gpante_support_chat( $request ) {
 	}
 	$text = is_string( $input['chatInput'] ?? null ) ? trim( $input['chatInput'] ) : '';
 	if ( 'sendMessage' === $action && ( '' === $text || preg_match_all( '/./us', $text ) > 4000 ) ) {
+		return gpante_support_failure( 400, 'invalid_input' );
+	}
+	foreach ( array( 'sendId', 'feedbackRequestId' ) as $field ) {
+		if ( isset( $input[ $field ] ) && ( ! is_string( $input[ $field ] ) || ! preg_match( '/^[a-f0-9]{32}$/D', $input[ $field ] ) ) ) {
+			return gpante_support_failure( 400, 'invalid_input' );
+		}
+	}
+	if ( isset( $input['historyCursor'] ) && ( ! is_string( $input['historyCursor'] ) || ! preg_match( '/^[1-9][0-9]{0,17}$/D', $input['historyCursor'] ) ) ) {
+		return gpante_support_failure( 400, 'invalid_input' );
+	}
+	if ( 'feedback' === $action && ( ! isset( $input['feedbackRequestId'] ) || ! in_array( $input['feedbackValue'] ?? null, array( 'helpful', 'unhelpful' ), true ) ) ) {
 		return gpante_support_failure( 400, 'invalid_input' );
 	}
 	$ip = isset( $_SERVER['REMOTE_ADDR'] ) && is_string( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : '';
@@ -242,6 +261,14 @@ function gpante_support_chat( $request ) {
 	);
 	if ( 'sendMessage' === $action ) {
 		$payload['chatInput'] = $text;
+		if ( isset( $input['sendId'] ) ) {
+			$payload['sendId'] = $input['sendId'];
+		}
+	} elseif ( 'loadPreviousSession' === $action && isset( $input['historyCursor'] ) ) {
+		$payload['historyCursor'] = $input['historyCursor'];
+	} elseif ( 'feedback' === $action ) {
+		$payload['feedbackRequestId'] = $input['feedbackRequestId'];
+		$payload['feedbackValue']     = $input['feedbackValue'];
 	}
 	$result = wp_remote_post(
 		GPANTE_SUPPORT_BACKEND,
@@ -256,7 +283,7 @@ function gpante_support_chat( $request ) {
 			'redirection'         => 0,
 			'sslverify'           => true,
 			'reject_unsafe_urls'  => true,
-			'limit_response_size' => 131072,
+			'limit_response_size' => 524288,
 		)
 	);
 	if ( is_wp_error( $result ) ) {
@@ -277,6 +304,9 @@ function gpante_support_chat( $request ) {
 		if ( 503 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'monthly_budget', 'pricing_review' ), true ) ) {
 			$code = $data['error']['code'];
 		}
+		if ( is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'prior_request_failed', 'prior_request_expired', 'feedback_unavailable' ), true ) ) {
+			$code = $data['error']['code'];
+		}
 		return gpante_support_failure( 429 === $status ? 429 : ( 403 === $status ? 403 : 502 ), $code, $headers );
 	}
 	if ( ! gpante_support_valid_policy( $data['policy'] ?? null ) ) {
@@ -284,6 +314,14 @@ function gpante_support_chat( $request ) {
 	}
 	$policy   = gpante_support_public_policy( $data['policy'] );
 	$previews = array();
+	if ( 'feedback' === $action && true === ( $data['ok'] ?? false ) ) {
+		return gpante_support_response(
+			array(
+				'ok'     => true,
+				'policy' => $policy,
+			)
+		);
+	}
 	if ( 'resetSession' === $action && true === ( $data['ok'] ?? false ) ) {
 		return gpante_support_response(
 			array(
@@ -293,14 +331,17 @@ function gpante_support_chat( $request ) {
 		);
 	}
 	if ( 'sendMessage' === $action && is_string( $data['output'] ?? null ) && '' !== trim( $data['output'] ) && strlen( $data['output'] ) <= 32000 && gpante_support_valid_expiry( $data['expiresAt'] ?? null ) ) {
-		return gpante_support_response(
-			array(
-				'output'    => $data['output'],
-				'products'  => gpante_support_reply_products( $data['output'], $previews ),
-				'policy'    => $policy,
-				'expiresAt' => $data['expiresAt'],
-			)
+		$response = array(
+			'output'    => $data['output'],
+			'products'  => gpante_support_reply_products( $data['output'], $previews ),
+			'policy'    => $policy,
+			'expiresAt' => $data['expiresAt'],
 		);
+		if ( is_string( $data['requestId'] ?? null ) && preg_match( '/^[a-f0-9]{32}$/D', $data['requestId'] ) ) {
+			$response['requestId'] = $data['requestId'];
+			$response['feedback']  = in_array( $data['feedback'] ?? null, array( 'helpful', 'unhelpful' ), true ) ? $data['feedback'] : null;
+		}
+		return gpante_support_response( $response );
 	}
 	if ( 'loadPreviousSession' === $action && isset( $data['messages'] ) && is_array( $data['messages'] ) && count( $data['messages'] ) <= 100 ) {
 		$messages = array();
@@ -315,13 +356,23 @@ function gpante_support_chat( $request ) {
 				'products'  => 'assistant' === $message['role'] ? gpante_support_reply_products( $message['content'], $previews ) : array(),
 				'expiresAt' => $message['expiresAt'],
 			);
+			if ( is_string( $message['requestId'] ?? null ) && preg_match( '/^(?:[a-f0-9]{32}|legacy:[1-9][0-9]{0,17})$/D', $message['requestId'] ) ) {
+				$messages[ count( $messages ) - 1 ]['requestId'] = $message['requestId'];
+				$messages[ count( $messages ) - 1 ]['feedback']  = in_array( $message['feedback'] ?? null, array( 'helpful', 'unhelpful' ), true ) ? $message['feedback'] : null;
+			}
 		}
-		return gpante_support_response(
-			array(
-				'messages' => $messages,
-				'policy'   => $policy,
-			)
+		$response = array(
+			'messages' => $messages,
+			'policy'   => $policy,
 		);
+		if ( isset( $data['hasMore'] ) && is_bool( $data['hasMore'] ) && ( null === ( $data['nextCursor'] ?? null ) || ( is_string( $data['nextCursor'] ) && preg_match( '/^[1-9][0-9]{0,17}$/D', $data['nextCursor'] ) ) ) ) {
+			$response['hasMore']    = $data['hasMore'];
+			$response['nextCursor'] = $data['nextCursor'] ?? null;
+		}
+		if ( array_key_exists( 'historyResetAt', $data ) && ( null === $data['historyResetAt'] || gpante_support_valid_expiry( $data['historyResetAt'] ) ) ) {
+			$response['historyResetAt'] = $data['historyResetAt'];
+		}
+		return gpante_support_response( $response );
 	}
 	return gpante_support_failure( 502, 'invalid_backend_response' );
 }

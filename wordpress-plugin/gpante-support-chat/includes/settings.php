@@ -9,8 +9,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/** Upgrade on activation and normal requests; activation is not an update hook. */
-function gpante_support_upgrade() {
+/**
+ * Upgrade on activation and normal requests; activation is not an update hook.
+ *
+ * @param bool|null $network_wide Supplied only by WordPress activation.
+ */
+function gpante_support_upgrade( $network_wide = null ) {
 	$config = get_option( 'gpante_support_runtime', false );
 	if ( false === $config ) {
 		add_option(
@@ -33,7 +37,9 @@ function gpante_support_upgrade() {
 		$config['admin_key']      = $config['admin_key'] ?? '';
 		update_option( 'gpante_support_runtime', $config, false );
 	}
-	wp_set_option_autoload( 'gpante_support_runtime', false );
+	if ( is_bool( $network_wide ) && is_array( $config ) && (int) ( $config['schema_version'] ?? 0 ) <= GPANTE_SUPPORT_SCHEMA_VERSION ) {
+		wp_set_option_autoload( 'gpante_support_runtime', false );
+	}
 }
 
 /**
@@ -81,6 +87,7 @@ function gpante_support_sanitize_settings( $input ) {
 	}
 	$next['backend_url']    = GPANTE_SUPPORT_BACKEND;
 	$next['schema_version'] = GPANTE_SUPPORT_SCHEMA_VERSION;
+	wp_set_option_autoload( 'gpante_support_runtime', false );
 	return $next;
 }
 

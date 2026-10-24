@@ -1,23 +1,23 @@
--- Run on project_db after migrations; Main must be inactive. Fixtures roll back.
+-- Isolated current-schema financial fixtures. Everything rolls back; no model calls.
 BEGIN;
 SET LOCAL ROLE gpante_chat_app;
 DO $$
 DECLARE a JSONB; b JSONB; r TEXT; s TEXT:=repeat('a',64); c TEXT:=repeat('b',64); before_cost BIGINT; after_cost BIGINT;
 BEGIN
-  DELETE FROM gpante_chat.requests;
-  DELETE FROM gpante_chat.request_counters;
+  ASSERT current_database() IN ('gpante_chat_archive_test','gpante_chat_feature017_test'),'isolated database required';
+  DELETE FROM gpante_chat.requests; DELETE FROM gpante_chat.request_counters; DELETE FROM gpante_chat.turns;
   SELECT coalesce(sum(cost_nano),0) INTO before_cost FROM gpante_chat.model_calls
     WHERE month=date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date;
   UPDATE gpante_chat.runtime SET enabled=true,pricing_valid_until=clock_timestamp()+INTERVAL '1 day',monthly_budget_nano=before_cost+640000000;
-  a:=gpante_chat.admit('invalid',c,'sendMessage');
+  a:=gpante_chat.admit_v4('invalid',c,'sendMessage','question',2,NULL,NULL,NULL,NULL);
   ASSERT NOT (a->>'allowed')::boolean,'invalid session';
-  a:=gpante_chat.admit(s,c,'sendMessage'); r:=a->>'requestId';
-  ASSERT (a->>'allowed')::boolean,'admission';
-  ASSERT NOT (gpante_chat.admit(s,c,'resetSession')->>'allowed')::boolean,'reset cannot race in-flight persistence';
-  ASSERT NOT (gpante_chat.admit(s,c,'sendMessage')->>'allowed')::boolean,'one active request per session';
-  b:=gpante_chat.admit(repeat('c',64),repeat('d',64),'sendMessage');
+  a:=gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL);r:=a->>'requestId';
+  ASSERT (a->>'allowed')::boolean,'current admission';
+  ASSERT NOT (gpante_chat.admit_v4(s,c,'resetSession',NULL,2,NULL,NULL,NULL,NULL)->>'allowed')::boolean,'reset cannot race in-flight persistence';
+  ASSERT NOT (gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL)->>'allowed')::boolean,'one active logical send';
+  b:=gpante_chat.admit_v4(repeat('c',64),repeat('d',64),'sendMessage','second',2,NULL,NULL,NULL,NULL);
   ASSERT (b->>'allowed')::boolean,'second concurrent request';
-  ASSERT NOT (gpante_chat.admit(repeat('e',64),repeat('f',64),'sendMessage')->>'allowed')::boolean,'global concurrency';
+  ASSERT NOT (gpante_chat.admit_v4(repeat('e',64),repeat('f',64),'sendMessage','third',2,NULL,NULL,NULL,NULL)->>'allowed')::boolean,'global concurrency';
   ASSERT (gpante_chat.reserve_call(r,1)->>'allowed')::boolean,'first paid reservation';
   ASSERT NOT (gpante_chat.reserve_call(r,1)->>'allowed')::boolean,'duplicate dispatch denied';
   ASSERT NOT (gpante_chat.reserve_call(r,2)->>'allowed')::boolean,'unsettled predecessor';
@@ -28,19 +28,20 @@ BEGIN
   ASSERT NOT (gpante_chat.reserve_call(r,3)->>'allowed')::boolean,'burned predecessor stops retry';
   SELECT cost_nano INTO after_cost FROM gpante_chat.model_calls WHERE request_id=r AND call_index=2;
   ASSERT after_cost=320000000,'unknown cost never refunded';
-  ASSERT (gpante_chat.finish_request(r,'سلام','درود')->>'saved')::boolean,'persist history';
-  ASSERT NOT (gpante_chat.finish_request(r,'دوباره','تکرار')->>'saved')::boolean,'no duplicate history';
-  ASSERT jsonb_array_length(gpante_chat.admit(s,c,'loadPreviousSession')->'messages')=2,'same-session memory';
-  ASSERT jsonb_array_length(gpante_chat.admit(repeat('1',64),c,'loadPreviousSession')->'messages')=0,'session isolation';
-  INSERT INTO gpante_chat.histories(session_id,message,created_at) VALUES(s,'{"type":"human","data":{"content":"expired"}}',clock_timestamp()-INTERVAL '31 days');
-  ASSERT jsonb_array_length(gpante_chat.admit(s,c,'loadPreviousSession')->'messages')=2,'expired text never read';
-  PERFORM gpante_chat.cleanup();
-  ASSERT NOT EXISTS(SELECT 1 FROM gpante_chat.histories WHERE session_id=s AND created_at<clock_timestamp()-INTERVAL '30 days'),'independent cleanup';
-  ASSERT (gpante_chat.admit(s,c,'resetSession')->>'ok')::boolean,'explicit deletion';
-  ASSERT NOT EXISTS(SELECT 1 FROM gpante_chat.histories WHERE session_id=s),'reset own history';
-  PERFORM gpante_chat.finish_request(b->>'requestId',NULL,NULL);
+  ASSERT (gpante_chat.finish_v3(r,'answer','success',NULL)->>'saved')::boolean,'persist current history';
+  ASSERT NOT (gpante_chat.finish_v3(r,'duplicate','success',NULL)->>'saved')::boolean,'no duplicate history';
+  ASSERT (gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL)->>'replay')::boolean,'paid result replays without redispatch';
+  ASSERT (SELECT count(*)=2 FROM gpante_chat.model_calls WHERE request_id=r),'replay preserves settled ledger';
+  ASSERT jsonb_array_length(gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,NULL,NULL,NULL)->'messages')=2,'same-session memory';
+  ASSERT jsonb_array_length(gpante_chat.admit_v4(repeat('1',64),c,'loadPreviousSession',NULL,2,NULL,NULL,NULL,NULL)->'messages')=0,'session isolation';
+  ASSERT (gpante_chat.admit_v4(s,c,'resetSession',NULL,2,NULL,NULL,NULL,NULL)->>'ok')::boolean,'explicit hide';
+  ASSERT (SELECT count(*)=2 FROM gpante_chat.histories WHERE turn_id=r),'clear preserves administrator archive';
+  ASSERT (SELECT count(*)=2 FROM gpante_chat.model_calls WHERE request_id=r),'clear preserves ledger';
+  ASSERT jsonb_array_length(gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,NULL,NULL,NULL)->'messages')=0,'clear excludes user and model history';
+  PERFORM gpante_chat.finish_v3(b->>'requestId',NULL,'error','fixture_error');
   UPDATE gpante_chat.runtime SET monthly_budget_nano=before_cost+320042000;
-  a:=gpante_chat.admit(repeat('2',64),repeat('3',64),'sendMessage');
+  DELETE FROM gpante_chat.request_counters;
+  a:=gpante_chat.admit_v4(repeat('2',64),repeat('3',64),'sendMessage','budget',2,NULL,NULL,NULL,NULL);
   ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'monthly monetary cap';
   UPDATE gpante_chat.runtime SET monthly_budget_nano=2000000000,pricing_valid_until=clock_timestamp()-INTERVAL '1 second';
   ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'stale tariff fails closed';

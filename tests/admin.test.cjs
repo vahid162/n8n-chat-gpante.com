@@ -15,5 +15,5 @@ test('administration is a separate authenticated graph with raw execution storag
  assert.equal(w.settings.saveDataErrorExecution,'none');
  assert(!w.nodes.some(n=>n.type==='n8n-nodes-base.httpRequest'));
  const main=build();assert(!main.nodes.some(n=>n.parameters.query?.includes('admin_api')));
- assert.match(main.nodes.find(n=>n.name==='Admit Request').parameters.query,/admit_v3/);
+ assert.match(main.nodes.find(n=>n.name==='Admit Request').parameters.query,/admit_v4/);
 });

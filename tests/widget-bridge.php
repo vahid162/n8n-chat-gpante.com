@@ -171,4 +171,28 @@ foreach ($registered_actions['wp_enqueue_scripts'] as $callback) $callback();
 check($footer === '' && $enqueued === array(), 'manual embed must not duplicate PHP markup or assets');
 $remote_result = array('status' => 200, 'body' => '{"output":"سلام"}');
 check(request(array('action' => 'sendMessage', 'chatInput' => 'سلام'))->get_status() === 200, 'manual widget mode leaves the server bridge available');
+
+$_COOKIE[GPANTE_SUPPORT_COOKIE] = cookie_for($token, time()-29*DAY_IN_SECONDS);
+$renewed_sid=gpante_support_session_id();
+$renewed_parts=explode('.',$_COOKIE[GPANTE_SUPPORT_COOKIE]);
+check($renewed_sid===$first_session && $renewed_parts[2]===$token && (int)$renewed_parts[1]>=time()-2,'daily cookie renewal preserves the signed session token and identity');
+$remote_result=array('status'=>200,'body'=>json_encode(array('output'=>'Reply','requestId'=>str_repeat('a',32),'feedback'=>'helpful','untrusted'=>'secret')));
+$response=request(array('action'=>'sendMessage','chatInput'=>'Question','sendId'=>str_repeat('b',32),'historyCursor'=>'1','feedbackRequestId'=>str_repeat('c',32)));
+$sent=json_decode(end($outbound)[1]['body'],true);
+check($sent['sendId']===str_repeat('b',32) && !isset($sent['historyCursor'],$sent['feedbackRequestId']),'send forwards only its validated additive field');
+check($response->get_data()['requestId']===str_repeat('a',32) && $response->get_data()['feedback']==='helpful' && !isset($response->get_data()['untrusted']),'success carries safe request metadata only');
+foreach(array(array('sendId'=>'bad'),array('sendId'=>array()),array('historyCursor'=>'-1'),array('historyCursor'=>'9999999999999999999'),array('feedbackRequestId'=>'bad')) as $bad){
+ $before=count($outbound);check(request(array_merge(array('action'=>'loadPreviousSession'),$bad))->get_status()===400 && count($outbound)===$before,'invalid additive fields never reach backend');
+}
+$remote_result=array('status'=>200,'body'=>json_encode(array('messages'=>array(array('role'=>'assistant','content'=>'Older','requestId'=>str_repeat('d',32),'feedback'=>'unhelpful')),'hasMore'=>true,'nextCursor'=>'123','historyResetAt'=>null)));
+$response=request(array('action'=>'loadPreviousSession','historyCursor'=>'456'));
+$sent=json_decode(end($outbound)[1]['body'],true);$data=$response->get_data();
+check($sent['historyCursor']==='456' && $data['nextCursor']==='123' && $data['hasMore']===true && array_key_exists('historyResetAt',$data) && $data['historyResetAt']===null,'paged history and clear marker cross bridge');
+check($data['messages'][0]['requestId']===str_repeat('d',32) && $data['messages'][0]['feedback']==='unhelpful','restored answers carry feedback metadata');
+$remote_result=array('status'=>200,'body'=>'{"ok":true}');
+$response=request(array('action'=>'feedback','feedbackRequestId'=>str_repeat('e',32),'feedbackValue'=>'helpful','sessionId'=>'forged'));
+$sent=json_decode(end($outbound)[1]['body'],true);
+check($response->get_data()['ok']===true && $sent['sessionId']===$first_session && $sent['feedbackRequestId']===str_repeat('e',32),'feedback uses trusted signed session identity');
+check(request(array('action'=>'feedback','feedbackRequestId'=>str_repeat('e',32),'feedbackValue'=>'invented'))->get_status()===400,'feedback value is bounded');
+
 fwrite(STDOUT, "Widget bridge security and action checks passed.\n");

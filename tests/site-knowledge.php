@@ -4,7 +4,7 @@ define('ABSPATH', __DIR__);
 function strip_shortcodes($text) { return preg_replace('/\[[^\]]*\]/', '', $text); }
 function wp_strip_all_tags($text, $breaks = false) { return strip_tags($text); }
 function metadata_exists($type, $id, $key) { return array_key_exists($id, $GLOBALS['site_metadata'] ?? []); }
-function get_post_meta($id, $key, $single) { return $GLOBALS['site_metadata'][$id] ?? ''; }
+function get_post_meta($id, $key, $single) { return $key === '_elementor_edit_mode' ? ($GLOBALS['site_modes'][$id] ?? '') : ($GLOBALS['site_metadata'][$id] ?? ''); }
 function wp_json_encode($value) { return json_encode($value); }
 function get_transient($key) { return $GLOBALS['site_cache'][$key] ?? false; }
 function set_transient($key, $value, $ttl) { $GLOBALS['site_cache'][$key] = $value; }
@@ -36,6 +36,8 @@ site_check(mb_strlen($section['rendered']) <= 6000 && $section['truncated'] && s
 $post = (object) ['ID'=>99, 'post_content'=>'STALE_BODY', 'post_excerpt'=>'STALE_EXCERPT'];
 site_check(str_contains(gpante_support_site_post_text($post), 'STALE_BODY'), 'absent Elementor metadata retains ordinary stored content');
 $GLOBALS['site_metadata'][99] = '';
+site_check(str_contains(gpante_support_site_post_text($post), 'STALE_BODY'), 'inactive Elementor metadata does not override current ordinary editor body');
+$GLOBALS['site_modes'][99] = 'builder';
 site_check(gpante_support_site_post_text($post) === '', 'present empty meta value cannot reuse the absent-meta cache fingerprint');
 $GLOBALS['site_metadata'][99] = [];
 site_check(gpante_support_site_post_text($post) === '', 'present empty Elementor document invalidates absent-meta cache and suppresses stale body and excerpt');

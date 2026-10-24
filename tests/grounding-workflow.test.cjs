@@ -99,3 +99,17 @@ test('generated graph corrects a summary-only lesson by reading the discovered p
   assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
   assert.equal(result.data.toolCount, 2);
 });
+
+test('generated graph rejects mixed uncertainty after an empty FAQ and settles the honest correction', () => {
+  const empty = { statusCode: 200, headers: { 'x-wp-total': '0', 'x-wp-totalpages': '0' }, body: [] };
+  const result = run('خرید بدون ایمیل ممکن است؟', [
+    call('Knowledge_Search', { source: 'faq', search: 'ایمیل' }),
+    { content: 'نام فروشنده مشخص نیست؛ اما ایمیل برای خرید اجباری است.' },
+    { content: 'پاسخ مرتبطی پیدا نکردم.' }
+  ], empty);
+  assert.equal(result.data.status, 200); assert.equal(result.calls, 3);
+  assert.equal(result.visited.filter(n => n.startsWith('Read Public Source')).length, 1);
+  assert.equal(result.visited.filter(n => n.startsWith('Settle Model')).length, 3);
+  assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
+  assert.equal(result.data.response.output, 'پاسخ مرتبطی پیدا نکردم.');
+});

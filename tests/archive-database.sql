@@ -5,7 +5,7 @@ DO $$
 DECLARE s TEXT:=repeat('a',64); c TEXT:=repeat('b',64); r TEXT; a JSONB; b JSONB; d INTEGER; i INTEGER;
   before_ledger JSONB; after_ledger JSONB; rev INTEGER;
 BEGIN
-  ASSERT current_database()='gpante_chat_archive_test','isolated database required';
+  ASSERT current_database() IN ('gpante_chat_archive_test','gpante_chat_feature017_test'),'isolated database required';
   DELETE FROM gpante_chat.requests;
   DELETE FROM gpante_chat.request_counters;
   DELETE FROM gpante_chat.turns;

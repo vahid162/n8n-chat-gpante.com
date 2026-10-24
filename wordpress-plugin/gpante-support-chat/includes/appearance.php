@@ -73,8 +73,12 @@ function gpante_support_appearance_defaults() {
 	return $config;
 }
 
-/** Create the owned option on updates as well as activation; never downgrade it. */
-function gpante_support_appearance_upgrade() {
+/**
+ * Create the owned option on updates as well as activation; never downgrade it.
+ *
+ * @param bool|null $network_wide Supplied only by WordPress activation.
+ */
+function gpante_support_appearance_upgrade( $network_wide = null ) {
 	$config = get_option( 'gpante_support_appearance', false );
 	if ( false === $config ) {
 		add_option( 'gpante_support_appearance', gpante_support_appearance_defaults(), '', false );
@@ -87,7 +91,9 @@ function gpante_support_appearance_upgrade() {
 			update_option( 'gpante_support_appearance', $next, false );
 		}
 	}
-	wp_set_option_autoload( 'gpante_support_appearance', false );
+	if ( is_bool( $network_wide ) && is_array( $config ) && (int) ( $config['schema_version'] ?? 0 ) <= 2 ) {
+		wp_set_option_autoload( 'gpante_support_appearance', false );
+	}
 }
 add_action( 'init', 'gpante_support_appearance_upgrade' );
 
@@ -215,6 +221,7 @@ function gpante_support_sanitize_appearance( $input ) {
 		return $old;
 	}
 	if ( '1' === ( $input['restore_defaults'] ?? null ) ) {
+		wp_set_option_autoload( 'gpante_support_appearance', false );
 		return gpante_support_appearance_defaults();
 	}
 	$next = gpante_support_appearance_defaults();
@@ -251,6 +258,7 @@ function gpante_support_sanitize_appearance( $input ) {
 		add_settings_error( 'gpante_support_appearance', 'invalid_appearance', __( 'ظاهر ذخیره نشد. متن‌ها را خالی نگذارید و از سقف طول عبور نکنید. برای هر دکمهٔ دارای متن، لینک HTTPS یا مسیر داخلی معتبر وارد کنید (حداکثر چهار دکمه). رنگ‌ها باید شش‌رقمی باشند؛ نسبت خوانایی متن روی پس‌زمینه‌های انتخابی باید حداقل ۴٫۵ باشد.', 'gpante-support-chat' ) );
 		return $old;
 	}
+	wp_set_option_autoload( 'gpante_support_appearance', false );
 	return $next;
 }
 

@@ -3,7 +3,8 @@
 function adminInput(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const { operation } = value;
-  if (operation === 'getPolicy') return { operation };
+  if (['getPolicy', 'getDiagnostics'].includes(operation)) return { operation };
+  if (operation === 'markSynthetic') return /^[a-f0-9]{32}$/.test(value.requestId || '') ? { operation, requestId: value.requestId } : {};
   if (operation === 'setPolicy') {
     if (![3, 7, 15, 30].includes(value.userDays) || typeof value.allowClear !== 'boolean'
       || !Number.isSafeInteger(value.revision) || value.revision < 1 || value.revision > 999999999) return {};

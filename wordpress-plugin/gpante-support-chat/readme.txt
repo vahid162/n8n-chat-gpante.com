@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.10.1
+Stable tag: 0.10.2
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -68,6 +68,9 @@ GET /gpante-support/v1/appearance فقط تنظیمات عمومی ظاهر را
 اندازهٔ پنجره حفظ شده است. Back مرورگر ابتدا چت را می‌بندد و Back بعدی به صفحهٔ قبلی می‌رود. ×، Escape و کلیک بیرون هم آن را می‌بندند؛ reload/Forward وضعیت باز را بازیابی می‌کند.
 
 == Changelog ==
+
+= 0.10.2 =
+سازگاری جست‌وجوی محصول با Store API قدیمی ووکامرس؛ بررسی مستقل وضعیت عمومی و رمز محصول حفظ می‌شود.
 
 = 0.10.1 =
 * اصلاح ترتیب و پیوستگی تاریخچه میان تب‌ها و بازخوانی صفحهٔ تازه پس از تغییر سیاست.

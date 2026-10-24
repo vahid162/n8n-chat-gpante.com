@@ -575,7 +575,8 @@ function gpante_support_catalog_products( $request ) {
 			if ( is_array( $data ) && ( $data['prices'] ?? null ) instanceof stdClass ) {
 				$data['prices'] = get_object_vars( $data['prices'] );
 			}
-			if ( ! is_array( $data ) || ( $data['is_password_protected'] ?? true ) !== false
+			// Older Store API schemas omit the flag; the real post was checked above.
+			if ( ! is_array( $data ) || ( array_key_exists( 'is_password_protected', $data ) && false !== $data['is_password_protected'] )
 				|| ! isset( $data['prices'] ) || ! is_array( $data['prices'] ) ) {
 				return gpante_support_catalog_error( 'catalog_unavailable', 503 );
 			}

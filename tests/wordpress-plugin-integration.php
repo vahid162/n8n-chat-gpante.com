@@ -62,10 +62,31 @@ try {
  $request->set_query_params(array('search'=>'باکس آزمون','page'=>'99')); $result=gpante_support_catalog_products($request);
  gptest_check(!is_wp_error($result) && $result->get_data() === array() && (int)$result->get_headers()['X-WP-Total'] === 3,'out of range retains complete source total');
 } finally { foreach($ids as $id) wp_delete_post($id,true); }
-// Uninstall only the owned setting; restore test config for real-browser checks.
-update_option('gptest_unrelated','preserve',false);
+// Network uninstall must remove owned data on every site and preserve unrelated data.
+$original_blog=get_current_blog_id();
+$uninstall_blogs=is_multisite() ? get_sites(['fields'=>'ids','number'=>0]) : [$original_blog];
+foreach($uninstall_blogs as $blog) {
+ if(is_multisite()) switch_to_blog($blog);
+ gpante_support_upgrade(); gpante_support_appearance_upgrade(); gpante_support_search_index_upgrade();
+ update_option('gptest_unrelated','preserve',false);
+ set_transient('gpante_support_faq_cache','fixture',300);
+ wp_schedule_single_event(time()+300,'gpante_support_search_index_update',[(int)$blog]);
+ wp_schedule_single_event(time()+300,'gptest_unrelated_hook');
+ if(is_multisite()) restore_current_blog();
+}
 define('WP_UNINSTALL_PLUGIN',true);
 require WP_PLUGIN_DIR.'/gpante-support-chat/uninstall.php';
-gptest_check(get_option('gpante_support_runtime',false) === false && get_option('gptest_unrelated') === 'preserve','uninstall removes only owned option');
+gptest_check(get_current_blog_id()===$original_blog,'uninstall restores the original blog context');
+foreach($uninstall_blogs as $blog) {
+ if(is_multisite()) switch_to_blog($blog);
+ gptest_check(get_option('gpante_support_runtime',false)===false && get_option('gpante_support_appearance',false)===false && get_transient('gpante_support_faq_cache')===false,'uninstall removes owned options and cache on site '.$blog);
+ $table=gpante_support_search_index_table();
+ gptest_check($GLOBALS['wpdb']->get_var($GLOBALS['wpdb']->prepare('SHOW TABLES LIKE %s',$GLOBALS['wpdb']->esc_like($table)))!==$table,'uninstall removes only the current site owned index on site '.$blog);
+ gptest_check(wp_next_scheduled('gpante_support_search_index_update',[(int)$blog])===false && wp_next_scheduled('gpante_support_search_index_batch')===false,'uninstall removes owned scheduled work on site '.$blog);
+ gptest_check(get_option('gptest_unrelated')==='preserve' && wp_next_scheduled('gptest_unrelated_hook')!==false,'uninstall preserves unrelated options and cron on site '.$blog);
+ wp_unschedule_hook('gptest_unrelated_hook');
+ if(is_multisite()) restore_current_blog();
+}
+// Restore test config for real-browser checks.
 update_option('gpante_support_runtime',$next,false);
 echo 'WordPress '.get_bloginfo('version').' / WooCommerce '.WC_VERSION.' / PHP '.PHP_VERSION."\n";

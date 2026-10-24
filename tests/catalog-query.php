@@ -171,6 +171,23 @@ namespace {
             check($response->headers['X-WP-Total'] === 12 && $response->headers['X-WP-TotalPages'] === (int) ceil(12 / $per_page), 'Healthy fallback must preserve filtered pagination totals');
         };
     }
+    $cases['products: legacy password flag requires independent public eligibility'] = static function () {
+        $GLOBALS['schema_data'] = array('id' => 42, 'name' => 'باکس', 'prices' => array('price' => '0'));
+        $post = (object) array('ID' => 42, 'post_type' => 'product', 'post_status' => 'publish', 'post_password' => '');
+        $response = run_callback('gpante_support_catalog_products', [], [['posts' => [$post], 'total' => 1]]);
+        check($response instanceof WP_REST_Response && $response->data[0]['is_password_protected'] === false, 'Older WooCommerce may omit the flag only after the real post passes public eligibility');
+        foreach ([true, null, 'false', 0] as $flag) {
+            $GLOBALS['schema_data']['is_password_protected'] = $flag;
+            check_unavailable(run_callback('gpante_support_catalog_products', [], [['posts' => [$post], 'total' => 1]]));
+        }
+        unset($GLOBALS['schema_data']['is_password_protected']);
+        foreach (['post_password' => 'fixture-private', 'post_status' => 'private', 'post_type' => 'product_variation'] as $field => $value) {
+            $ineligible = clone $post;
+            $ineligible->$field = $value;
+            $response = run_callback('gpante_support_catalog_products', [], [['posts' => [$ineligible], 'total' => 1]]);
+            check($response instanceof WP_Error && $response->get_error_code() === 'gpante_support_catalog_changed', 'A missing schema flag never bypasses trusted post eligibility');
+        }
+    };
     foreach (array('array', 'stdClass') as $shape) {
         $cases['products: public nested schema as ' . $shape] = static function () use ($shape) {
             $wrap = static fn($value) => $shape === 'stdClass' ? (object) $value : $value;

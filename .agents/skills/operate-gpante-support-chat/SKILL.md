@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.13.2"
+  version: "0.14.0"
 ---
 
 # Operate GPante Support Chat
@@ -132,7 +132,9 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 
 ## Maintain presentation settings
 
-- Appearance lives under `چت پانته ← ظاهر`, separate from connection and archive controls. Preserve the nonautoloaded `gpante_support_appearance` option and its independent schema=2 (migrated idempotently from schema=1 without losing text/colors); changing/resetting it must never alter `gpante_support_runtime`, central policy or n8n.
+- Appearance lives under `چت پانته ← ظاهر`, separate from connection and archive controls. Preserve the nonautoloaded `gpante_support_appearance` option and its independent schema=3. Migrate schema1/2 idempotently, preserving texts and links: exact former factory colors select site mode; existing custom palettes select custom mode. Connection schema2 and public appearance v1 stay fixed; changing/resetting appearance must never alter `gpante_support_runtime`, central policy or n8n.
+- Plugin 0.11.0 adds one site/custom selector for the whole palette. In site mode resolve public semantic WordPress theme/custom colors, then the active Elementor kit and finally valid `woodmart_get_opt()` values; never read an obsolete raw WoodMart option instead of its getter. Accept only 3/6-digit hex from those sources, expand to safe 6-digit RGB and derive readable foreground/user-bubble values with the existing 4.5 contrast floor. Resolve on read without copying colors into saved overrides. Editing a color selects custom mode; choosing site mode reconnects all colors. Preserve manual backing values on site-mode saves. Full appearance reset restores site mode along with existing text/link defaults. See [site palette and menu verification](../../../docs/site-palette-and-menus.md); refresh its actual rollout status before operations.
+- Verify the plugin's admin destinations, legacy Settings link, form actions, capability/nonce boundaries and frontend controls on an owned local fixture. Keep menu verification scoped to this plugin. Production read-only checks can inspect registration and render Appearance/Connection without saving, new users or auth cookies; avoid copying customer archive bodies. Check configured public shortcut destinations separately. A local mock pass does not establish live backend execution or every storefront menu.
 - Accept only the existing bounded plain-text fields and six-digit RGB colors. Preserve native capability/nonce checks, output escaping and the minimum 4.5 text/background contrast checks. Do not accept arbitrary HTML, CSS or scripts.
 - The user explicitly removed the permanent scope/retention notice from the widget in 0.4.0. Preserve the central retention/clear policy and accurate clear confirmation. The input label remains accessible but visually hidden; send is an icon inside the composer; its legacy accessible name/tooltip is preserved but its redundant Appearance form field was removed at the user’s explicit request in 0.4.1. Custom welcome copy is presentation only, never model instructions or a stored conversation turn.
 - The public no-store GET `/appearance` returns only allowlisted presentation fields. Build its actual URL with `rest_url` for plain permalinks too. Preserve one background read per page, safe initial fallback and scoped CSS variables so cached HTML can pick up current settings without model calls.

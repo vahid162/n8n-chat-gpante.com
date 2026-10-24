@@ -8,7 +8,7 @@ $writes = 0;
 $autoload_checks = 0;
 $errors = array();
 $routes = array();
-function get_option($name, $default = false) { if ('gpante_support_appearance' !== $name) throw new RuntimeException('Private option read'); return false === $GLOBALS['config'] ? $default : $GLOBALS['config']; }
+function get_option($name, $default = false) { if ('elementor_active_kit' === $name) return 777; if ('gpante_support_appearance' !== $name) throw new RuntimeException('Private option read'); return false === $GLOBALS['config'] ? $default : $GLOBALS['config']; }
 function add_option($name, $value, $unused, $autoload) { $GLOBALS['config']=$value; $GLOBALS['autoload']=$autoload; ++$GLOBALS['writes']; }
 function update_option($name,$value,$autoload) { $GLOBALS['config']=$value; $GLOBALS['autoload']=$autoload; ++$GLOBALS['writes']; }
 function wp_parse_url($url) { return parse_url($url); }
@@ -33,11 +33,12 @@ check($autoload_checks===0,'ordinary initialization performs no autoload query')
 $autoload=true;gpante_support_appearance_upgrade(false);check($autoload===false,'activation repairs appearance autoload');
 check(gpante_support_valid_appearance($defaults), 'default palette readable');
 $config['schema_version']=1;unset($config['links']);$legacy=$config;gpante_support_appearance_upgrade();
-check($config['schema_version']===2 && count($config['links'])===4 && $config['texts']===$legacy['texts'] && $config['colors']===$legacy['colors'],'legacy appearance migrates without losing custom texts or colors');
+check($config['schema_version']===3 && $config['color_mode']==='site' && count($config['links'])===4 && $config['texts']===$legacy['texts'] && $config['colors']===$legacy['colors'],'legacy appearance migrates without losing custom texts or colors');
 $before=$writes;gpante_support_appearance_upgrade();check($writes===$before,'appearance migration idempotent');
 check(abs(gpante_support_color_contrast('#000000','#ffffff')-21)<0.00001, 'known contrast 21:1');
 check(gpante_support_color_contrast('#777777','#ffffff')<4.5 && gpante_support_color_contrast('#767676','#ffffff')>=4.5, 'contrast threshold not rounded');
 $custom=$defaults;
+$custom['color_mode']='custom';
 $custom['texts']['title']='راهنمای فروشگاه';
 $custom['colors']['primary']='#123456';
 check(gpante_support_sanitize_appearance($custom)===$custom,'valid custom settings');
@@ -79,6 +80,7 @@ check(!str_contains(json_encode($public),'must-never-be-public') && !isset($publ
 echo "Appearance: migration, validation, contrast, capability, reset and public allowlist passed.\n";
 
 $custom=$defaults;
+$custom['color_mode']='custom';
 $custom['links'][0]=array('label'=>'طرح‌ها','url'=>'/shop/');
 $custom['links'][1]=array('label'=>'راهنما','url'=>'https://example.com/help/');
 $config=$defaults;
@@ -103,3 +105,59 @@ $config['texts']['send']='نام دسترس‌پذیر قبلی';
 $submission=$config;unset($submission['texts']['send']);
 check(gpante_support_sanitize_appearance($submission)===$config,'hidden send field preserves its prior accessible name during native settings saves');
 echo "Hidden send setting compatibility passed.\n";
+
+// Public theme sources are the only additional reads permitted by this fixture.
+function woodmart_get_opt($name) {
+ check(in_array($name,['primary-color','secondary-color','text-font','body-background','pages-background'],true),'bounded theme getter');
+ return $GLOBALS['theme_colors'][$name]??null;
+}
+function wp_get_global_settings($path) {
+ check($path===['color','palette'],'only the public WordPress palette is read');
+ return $GLOBALS['wp_palette']??[];
+}
+function get_post_meta($id,$key,$single) {
+ check($id===777 && $key==='_elementor_page_settings' && $single===true,'only active Elementor kit palette');
+ return $GLOBALS['kit_palette']??[];
+}
+$config=$defaults;
+$config['texts']['title']='عنوان قبلی';
+$config['links'][0]=['label'=>'راهنما','url'=>'/help/'];
+$legacy=$config;unset($config['color_mode']);$config['schema_version']=2;
+gpante_support_appearance_upgrade();
+check($config['color_mode']==='site' && $config['texts']===$legacy['texts'] && $config['links']===$legacy['links'],'factory colors migrate automatically without resetting texts or links');
+$legacy=$config;$legacy['schema_version']=2;unset($legacy['color_mode']);$legacy['colors']['primary']='#123456';$config=$legacy;
+gpante_support_appearance_upgrade();
+check($config['color_mode']==='custom' && $config['colors']===$legacy['colors'] && $config['links']===$legacy['links'],'legacy manual colors remain manual');
+$GLOBALS['theme_colors']=['primary-color'=>['idle'=>'#285846'],'secondary-color'=>['idle'=>'#E4B23C'],'text-font'=>[['color'=>'#1D2E29']],'pages-background'=>['color'=>'#F5F7F2']];
+$manual=gpante_support_get_appearance();check($manual['colors']===$legacy['colors'],'site palette cannot overwrite existing manual colors');
+$auto=$config;$auto['color_mode']='site';$config=gpante_support_sanitize_appearance($auto);
+$stored=$config;$before=$writes;$resolved=gpante_support_get_appearance();
+check($resolved['colors']['primary']==='#285846' && $resolved['colors']['accent']==='#e4b23c' && $resolved['colors']['text']==='#1d2e29' && $resolved['colors']['messages']==='#f5f7f2','active WoodMart values supply default palette');
+check($resolved['colors']['on_primary']==='#ffffff' && gpante_support_valid_appearance($resolved),'derived palette satisfies every contrast check');
+check($resolved['texts']===$stored['texts'] && $resolved['links']===$stored['links'] && $config===$stored && $writes===$before,'theme resolution preserves saved data and performs no writes');
+$GLOBALS['theme_colors']['primary-color']['idle']='#173f53';
+check(gpante_support_get_appearance()['colors']['primary']==='#173f53' && $config===$stored,'theme changes apply on the next read without copying colors');
+$old_form=$stored;unset($old_form['color_mode']);$old_form['colors']['primary']='#123456';
+check(gpante_support_sanitize_appearance($old_form)['color_mode']==='custom','older settings forms retain manual color edits');
+$auto=$stored;unset($auto['colors']);check(gpante_support_sanitize_appearance($auto)===$stored,'automatic mode retains backing manual values even when fields are omitted');
+$bad=$stored;$bad['color_mode']='unknown';check(gpante_support_sanitize_appearance($bad)===$stored,'unknown color modes fail without partial changes');
+$GLOBALS['wp_palette']=['theme'=>[['slug'=>'primary','color'=>'#345'],['slug'=>'contrast','color'=>'#111']],'custom'=>[['slug'=>'primary','color'=>'#123456']]];
+$GLOBALS['theme_colors']=[];
+check(gpante_support_site_colors()['primary']==='#123456','WordPress custom palette overrides theme palette');
+define('ELEMENTOR_VERSION','fixture-only');
+$GLOBALS['kit_palette']=['system_colors'=>[['_id'=>'primary','color'=>'#654321'],['_id'=>'secondary','color'=>'#abcdef'],['_id'=>'text','color'=>'#111111']]];
+check(gpante_support_site_colors()['primary']==='#654321','active Elementor palette supplies semantic colors when theme getter has no value');
+$GLOBALS['theme_colors']=['primary-color'=>['idle'=>'#285846']];
+check(gpante_support_site_colors()['primary']==='#285846','active WoodMart palette has precedence over builder defaults');
+foreach(['red','#fff;display:none','rgba(0,0,0,0)',[],new stdClass()] as $invalid) {
+ $GLOBALS['theme_colors']['primary-color']['idle']=$invalid;
+ check(gpante_support_site_colors()['primary']==='#654321','invalid theme values cannot replace a valid lower-priority palette');
+}
+check(gpante_support_theme_color('#AbC')==='#aabbcc','short theme hex expands to safe RGB');
+$GLOBALS['theme_colors']=['primary-color'=>['idle'=>'#e4b23c'],'text-font'=>[['color'=>'#ffffff']],'pages-background'=>['color'=>'#000000']];
+$readable=gpante_support_site_colors();
+check($readable['on_primary']==='#000000' && $readable['messages']===$readable['surface'],'automatic low-contrast values use readable text and neutral backgrounds');
+$resolved['colors']=$readable;check(gpante_support_valid_appearance($resolved),'extreme theme palette stays readable');
+$config=$stored;$public=$routes['/appearance']['callback']();
+check(array_keys($public)===['version','texts','colors','links'] && !isset($public['color_mode']) && $public['colors']===$readable,'public contract exposes only resolved color values');
+echo "Site palette: source precedence, dynamic refresh, migration, manual override, safe RGB and contrast passed.\n";

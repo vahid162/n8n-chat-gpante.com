@@ -39,7 +39,9 @@ try:
     run('fill', '#gpante-appearance-launcher', 'پرسش دارید؟')
     run('fill', '#gpante-appearance-welcome', 'سلام؛ چطور کمک کنم؟')
     run('fill', '#gpante-appearance-placeholder', 'موضوع را بنویسید')
-    js("document.querySelector('#gpante-color-primary').value='#123456'")
+    assert js("document.querySelector('#gpante-color-mode').value") == 'site'
+    js("const color=document.querySelector('#gpante-color-primary');color.value='#123456';color.dispatchEvent(new Event('input',{bubbles:true}))")
+    assert js("document.querySelector('#gpante-color-mode').value") == 'custom'
     run('click', '#submit')
     run('wait', '--load', 'networkidle')
     run('snapshot', '-i')
@@ -81,6 +83,7 @@ try:
     run('snapshot', '-i')
     assert js("document.querySelector('#gpante-appearance-title').value") == 'دستیار پانته'
     assert js("document.querySelector('#gpante-color-primary').value") == '#365e28'
+    assert js("document.querySelector('#gpante-color-mode').value") == 'site'
     assert runtime_hash() == before
     print('PASS native restore defaults in Chrome preserves runtime settings')
 finally:

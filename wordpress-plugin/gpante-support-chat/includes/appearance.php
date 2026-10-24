@@ -46,13 +46,120 @@ function gpante_support_appearance_colors() {
 }
 
 /**
+ * Read a bounded RGB value from public theme settings.
+ *
+ * @param mixed $value Theme color.
+ * @return string Empty when the setting is not a solid RGB color.
+ */
+function gpante_support_theme_color( $value ) {
+	if ( ! is_string( $value ) || ! preg_match( '/^#([0-9a-f]{3}|[0-9a-f]{6})$/iD', $value, $match ) ) {
+		return '';
+	}
+	$hex = strtolower( $match[1] );
+	return '#' . ( 3 === strlen( $hex ) ? $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2] : $hex );
+}
+
+/**
+ * Resolve the active site's palette without copying it into saved overrides.
+ *
+ * @return array Eight readable presentation colors.
+ */
+function gpante_support_site_colors() {
+	$colors = array_column( gpante_support_appearance_colors(), 1 );
+	$colors = array_combine( array_keys( gpante_support_appearance_colors() ), $colors );
+	$source = array();
+	if ( function_exists( 'wp_get_global_settings' ) ) {
+		$palettes = (array) wp_get_global_settings( array( 'color', 'palette' ) );
+		$roles    = array(
+			'primary'    => 'primary',
+			'secondary'  => 'accent',
+			'accent'     => 'accent',
+			'text'       => 'text',
+			'foreground' => 'text',
+			'contrast'   => 'text',
+			'background' => 'surface',
+			'base'       => 'surface',
+		);
+		foreach ( array( 'theme', 'custom' ) as $origin ) {
+			foreach ( is_array( $palettes[ $origin ] ?? null ) ? $palettes[ $origin ] : array() as $entry ) {
+				if ( is_array( $entry ) && is_string( $entry['slug'] ?? null ) && isset( $roles[ $entry['slug'] ] ) ) {
+					$color = gpante_support_theme_color( $entry['color'] ?? null );
+					if ( '' !== $color ) {
+						$source[ $roles[ $entry['slug'] ] ] = $color;
+					}
+				}
+			}
+		}
+	}
+	if ( defined( 'ELEMENTOR_VERSION' ) ) {
+		$kit = (array) get_post_meta( (int) get_option( 'elementor_active_kit', 0 ), '_elementor_page_settings', true );
+		foreach ( is_array( $kit['system_colors'] ?? null ) ? $kit['system_colors'] : array() as $entry ) {
+			$roles = array(
+				'primary'   => 'primary',
+				'secondary' => 'accent',
+				'text'      => 'text',
+			);
+			if ( is_array( $entry ) && is_string( $entry['_id'] ?? null ) && isset( $roles[ $entry['_id'] ] ) ) {
+				$color = gpante_support_theme_color( $entry['color'] ?? null );
+				if ( '' !== $color ) {
+					$source[ $roles[ $entry['_id'] ] ] = $color;
+				}
+			}
+		}
+	}
+	if ( function_exists( 'woodmart_get_opt' ) ) {
+		$primary    = (array) woodmart_get_opt( 'primary-color' );
+		$secondary  = (array) woodmart_get_opt( 'secondary-color' );
+		$text       = (array) woodmart_get_opt( 'text-font' );
+		$background = (array) woodmart_get_opt( 'body-background' );
+		$pages      = (array) woodmart_get_opt( 'pages-background' );
+		$text       = (array) ( $text[0] ?? $text );
+		$theme      = array(
+			'primary'  => $primary['idle'] ?? null,
+			'accent'   => $secondary['idle'] ?? null,
+			'text'     => $text['color'] ?? null,
+			'surface'  => $background['color'] ?? null,
+			'messages' => $pages['color'] ?? null,
+		);
+		foreach ( $theme as $role => $value ) {
+			$color = gpante_support_theme_color( $value );
+			if ( '' !== $color ) {
+				$source[ $role ] = $color;
+			}
+		}
+	}
+	if ( ! $source ) {
+		return $colors;
+	}
+	$colors               = array_replace( $colors, $source );
+	$colors['on_primary'] = gpante_support_color_contrast( $colors['primary'], '#ffffff' ) >= gpante_support_color_contrast( $colors['primary'], '#000000' ) ? '#ffffff' : '#000000';
+	$colors['assistant']  = $colors['surface'];
+	$colors['messages']   = $source['messages'] ?? $colors['surface'];
+	if ( gpante_support_color_contrast( $colors['text'], $colors['surface'] ) < 4.5 ) {
+		$colors['text'] = gpante_support_color_contrast( '#ffffff', $colors['surface'] ) >= gpante_support_color_contrast( '#000000', $colors['surface'] ) ? '#ffffff' : '#000000';
+	}
+	$colors['user'] = '#';
+	foreach ( array( 1, 3, 5 ) as $offset ) {
+		$channel         = (int) round( 0.1 * hexdec( substr( $colors['primary'], $offset, 2 ) ) + 0.9 * hexdec( substr( $colors['surface'], $offset, 2 ) ) );
+		$colors['user'] .= str_pad( dechex( $channel ), 2, '0', STR_PAD_LEFT );
+	}
+	foreach ( array( 'messages', 'user' ) as $background ) {
+		if ( gpante_support_color_contrast( $colors['text'], $colors[ $background ] ) < 4.5 ) {
+			$colors[ $background ] = $colors['surface'];
+		}
+	}
+	return $colors;
+}
+
+/**
  * Build safe defaults with an independent presentation schema.
  *
  * @return array
  */
 function gpante_support_appearance_defaults() {
 	$config = array(
-		'schema_version' => 2,
+		'schema_version' => 3,
+		'color_mode'     => 'site',
 		'texts'          => array(),
 		'colors'         => array(),
 		'links'          => array_fill(
@@ -83,15 +190,18 @@ function gpante_support_appearance_upgrade( $network_wide = null ) {
 	if ( false === $config ) {
 		add_option( 'gpante_support_appearance', gpante_support_appearance_defaults(), '', false );
 	}
-	if ( is_array( $config ) && 1 === ( $config['schema_version'] ?? null ) ) {
+	if ( is_array( $config ) && in_array( $config['schema_version'] ?? null, array( 1, 2 ), true ) ) {
 		$next                   = $config;
-		$next['schema_version'] = 2;
-		$next['links']          = gpante_support_appearance_defaults()['links'];
+		$next['schema_version'] = 3;
+		$next['color_mode']     = ( $next['colors'] ?? null ) === gpante_support_appearance_defaults()['colors'] ? 'site' : 'custom';
+		if ( 1 === $config['schema_version'] ) {
+			$next['links'] = gpante_support_appearance_defaults()['links'];
+		}
 		if ( gpante_support_valid_appearance( $next ) ) {
 			update_option( 'gpante_support_appearance', $next, false );
 		}
 	}
-	if ( is_bool( $network_wide ) && is_array( $config ) && (int) ( $config['schema_version'] ?? 0 ) <= 2 ) {
+	if ( is_bool( $network_wide ) && is_array( $config ) && (int) ( $config['schema_version'] ?? 0 ) <= 3 ) {
 		wp_set_option_autoload( 'gpante_support_appearance', false );
 	}
 }
@@ -141,7 +251,7 @@ function gpante_support_valid_shortcut_url( $url ) {
  * @return bool
  */
 function gpante_support_valid_appearance( $config ) {
-	if ( ! is_array( $config ) || 2 !== ( $config['schema_version'] ?? null ) || ! is_array( $config['texts'] ?? null ) || ! is_array( $config['colors'] ?? null ) ) {
+	if ( ! is_array( $config ) || 3 !== ( $config['schema_version'] ?? null ) || ! in_array( $config['color_mode'] ?? null, array( 'site', 'custom' ), true ) || ! is_array( $config['texts'] ?? null ) || ! is_array( $config['colors'] ?? null ) ) {
 		return false;
 	}
 	foreach ( gpante_support_appearance_texts() as $key => $field ) {
@@ -189,6 +299,7 @@ function gpante_support_get_appearance() {
 	$defaults = gpante_support_appearance_defaults();
 	$stored   = get_option( 'gpante_support_appearance', $defaults );
 	if ( ! gpante_support_valid_appearance( $stored ) ) {
+		$defaults['colors'] = gpante_support_site_colors();
 		return $defaults;
 	}
 	foreach ( array( 'texts', 'colors' ) as $group ) {
@@ -201,6 +312,10 @@ function gpante_support_get_appearance() {
 			'label' => $link['label'],
 			'url'   => $link['url'],
 		);
+	}
+	$defaults['color_mode'] = $stored['color_mode'];
+	if ( 'site' === $stored['color_mode'] ) {
+		$defaults['colors'] = gpante_support_site_colors();
 	}
 	return $defaults;
 }
@@ -216,7 +331,7 @@ function gpante_support_sanitize_appearance( $input ) {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return $old;
 	}
-	if ( ! is_array( $input ) || ! is_array( $old ) || (int) ( $old['schema_version'] ?? 0 ) > 2 ) {
+	if ( ! is_array( $input ) || ! is_array( $old ) || (int) ( $old['schema_version'] ?? 0 ) > 3 ) {
 		add_settings_error( 'gpante_support_appearance', 'invalid_version', __( 'ظاهر ذخیره نشد. نسخهٔ افزونه و دادهٔ ورودی را بررسی کنید.', 'gpante-support-chat' ) );
 		return $old;
 	}
@@ -224,7 +339,8 @@ function gpante_support_sanitize_appearance( $input ) {
 		wp_set_option_autoload( 'gpante_support_appearance', false );
 		return gpante_support_appearance_defaults();
 	}
-	$next = gpante_support_appearance_defaults();
+	$next               = gpante_support_appearance_defaults();
+	$next['color_mode'] = $input['color_mode'] ?? 'custom';
 	foreach ( gpante_support_appearance_texts() as $key => $field ) {
 		$value = $input['texts'][ $key ] ?? ( 'send' === $key ? ( $old['texts']['send'] ?? $field[1] ) : null );
 		if ( ! is_string( $value ) ) {
@@ -236,6 +352,9 @@ function gpante_support_sanitize_appearance( $input ) {
 	foreach ( gpante_support_appearance_colors() as $key => $field ) {
 		$value                  = $input['colors'][ $key ] ?? null;
 		$next['colors'][ $key ] = is_string( $value ) ? strtolower( $value ) : '';
+	}
+	if ( 'site' === $next['color_mode'] ) {
+		$next['colors'] = gpante_support_valid_appearance( $old ) ? $old['colors'] : gpante_support_appearance_defaults()['colors'];
 	}
 	$links = $input['links'] ?? ( $old['links'] ?? $next['links'] );
 	if ( ! is_array( $links ) || array_keys( $links ) !== array( 0, 1, 2, 3 ) ) {
@@ -282,6 +401,23 @@ function gpante_support_appearance_menu() {
 }
 add_action( 'admin_menu', 'gpante_support_appearance_menu', 20 );
 
+/**
+ * Keep native color controls and their source selector in sync.
+ *
+ * @param string $hook Current administration page.
+ */
+function gpante_support_appearance_assets( $hook ) {
+	if ( ! str_ends_with( $hook, '_page_gpante-support-appearance' ) ) {
+		return;
+	}
+	wp_enqueue_script( 'common' );
+	wp_add_inline_script(
+		'common',
+		'document.addEventListener("DOMContentLoaded",function(){const mode=document.getElementById("gpante-color-mode"),table=document.getElementById("gpante-appearance-colors");if(!mode||!table)return;const colors=JSON.parse(table.dataset.siteColors);table.querySelectorAll("input[type=color]").forEach(input=>input.addEventListener("input",()=>{mode.value="custom";}));mode.addEventListener("change",()=>{if(mode.value==="site")for(const [key,value] of Object.entries(colors)){const input=document.getElementById("gpante-color-"+key);if(input)input.value=value;}});});'
+	);
+}
+add_action( 'admin_enqueue_scripts', 'gpante_support_appearance_assets' );
+
 /** Render plain-text and native color inputs; never render private runtime values. */
 function gpante_support_appearance_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
@@ -311,8 +447,14 @@ function gpante_support_appearance_page() {
 				<?php endforeach; ?>
 			</table>
 			<h2><?php esc_html_e( 'رنگ‌ها', 'gpante-support-chat' ); ?></h2>
-			<p><?php esc_html_e( 'برای حفظ خوانایی، رنگ متن و پس‌زمینه را با اختلاف کافی انتخاب کنید؛ ترکیب ناخوانا ذخیره نمی‌شود.', 'gpante-support-chat' ); ?></p>
-			<table class="form-table" role="presentation">
+			<p><label for="gpante-color-mode"><?php esc_html_e( 'منبع رنگ‌ها', 'gpante-support-chat' ); ?></label>
+				<select id="gpante-color-mode" name="gpante_support_appearance[color_mode]">
+					<option value="site" <?php selected( $config['color_mode'], 'site' ); ?>><?php esc_html_e( 'رنگ‌های سایت (پیش‌فرض)', 'gpante-support-chat' ); ?></option>
+					<option value="custom" <?php selected( $config['color_mode'], 'custom' ); ?>><?php esc_html_e( 'رنگ‌های دستی', 'gpante-support-chat' ); ?></option>
+				</select>
+			</p>
+			<p><?php esc_html_e( 'حالت پیش‌فرض از پالت فعال سایت پیروی می‌کند. با تغییر هر رنگ، حالت دستی انتخاب می‌شود؛ برای اتصال دوباره به پالت سایت، حالت پیش‌فرض را انتخاب و ذخیره کنید. ترکیب ناخوانا ذخیره نمی‌شود.', 'gpante-support-chat' ); ?></p>
+			<table id="gpante-appearance-colors" class="form-table" role="presentation" data-site-colors="<?php echo esc_attr( wp_json_encode( gpante_support_site_colors() ) ); ?>">
 				<?php foreach ( gpante_support_appearance_colors() as $key => $field ) : ?>
 				<tr><th scope="row"><label for="gpante-color-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label></th><td><input type="color" id="gpante-color-<?php echo esc_attr( $key ); ?>" name="gpante_support_appearance[colors][<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $config['colors'][ $key ] ); ?>"></td></tr>
 				<?php endforeach; ?>

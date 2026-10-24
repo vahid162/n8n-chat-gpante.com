@@ -21,7 +21,16 @@ def js(code):
 def runtime_hash():
     return subprocess.check_output(['php', str(root / 'wp-cli.phar'), '--path=' + str(root / 'wordpress'), 'eval', 'echo hash("sha256",serialize(get_option("gpante_support_runtime")));'], text=True)
 
+def wp(code):
+    return subprocess.check_output(['php', str(root / 'wp-cli.phar'), '--path=' + str(root / 'wordpress'), 'eval', code], text=True)
+
+def color_values():
+    return js("Object.fromEntries([...document.querySelectorAll('#gpante-appearance-colors input[type=color]')].map(input=>[input.id.replace('gpante-color-',''),input.value]))")
+
 before = runtime_hash()
+assert (root / '.gpante-test-owner').read_text() == 'gpante-isolated-wordpress-v1\n'
+provider = root / 'wordpress/wp-content/mu-plugins/gptest-browser-site-palette.php'
+provider_created = False
 cached = root / 'wordpress' / 'appearance-cached.html'
 with urllib.request.urlopen(base, context=ssl._create_unverified_context()) as response:
     cached.write_bytes(response.read())
@@ -39,7 +48,9 @@ try:
     run('fill', '#gpante-appearance-launcher', 'پرسش دارید؟')
     run('fill', '#gpante-appearance-welcome', 'سلام؛ چطور کمک کنم؟')
     run('fill', '#gpante-appearance-placeholder', 'موضوع را بنویسید')
-    js("document.querySelector('#gpante-color-primary').value='#123456'")
+    assert js("document.querySelector('#gpante-color-mode').value") == 'site'
+    js("const color=document.querySelector('#gpante-color-primary');color.value='#123456';color.dispatchEvent(new Event('input',{bubbles:true}))")
+    assert js("document.querySelector('#gpante-color-mode').value") == 'custom'
     run('click', '#submit')
     run('wait', '--load', 'networkidle')
     run('snapshot', '-i')
@@ -76,13 +87,48 @@ try:
     print('Saved scoped accessibility audit for inspection')
     run('open', base + '/wp-admin/admin.php?page=gpante-support-appearance')
     run('snapshot', '-i')
+    assert not provider.exists(), 'Never overwrite an existing palette provider'
+    provider.write_text("<?php\nfunction woodmart_get_opt($key){return get_option('gptest_browser_site_palette',[])[$key]??null;}\n")
+    provider_created = True
+    wp('update_option("gptest_browser_site_palette",array("primary-color"=>array("idle"=>"#285846"),"secondary-color"=>array("idle"=>"#e4b23c"),"text-font"=>array(array("color"=>"#1d2e29")),"pages-background"=>array("color"=>"#f5f7f2")),false);')
+    manual = dict(primary='#123456', on_primary='#ffffff', surface='#f8f9fa', text='#101820',
+                  messages='#eef2f5', user='#dce6ed', assistant='#ffffff', accent='#b34d00')
+    js("for(const [key,value] of Object.entries(" + json.dumps(manual) + ")){const input=document.getElementById('gpante-color-'+key);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));}")
+    run('click', '#submit'); run('wait', '--load', 'networkidle')
+    assert color_values() == manual
+    run('select', '#gpante-color-mode', 'site')
+    assert color_values() == js("JSON.parse(document.getElementById('gpante-appearance-colors').dataset.siteColors)")
+    run('click', '#submit'); run('wait', '--load', 'networkidle')
+    assert json.loads(wp('echo wp_json_encode(get_option("gpante_support_appearance")["colors"]);')) == manual
+    wp('$p=get_option("gptest_browser_site_palette");$p["primary-color"]["idle"]="#381b56";$p["text-font"][0]["color"]="#1b1420";$p["pages-background"]["color"]="#f1eef4";update_option("gptest_browser_site_palette",$p,false);$a=get_option("gpante_support_appearance");$a["colors"]["unowned"]="fixture-only-unowned-color";update_option("gpante_support_appearance",$a,false);')
+    run('reload'); run('wait', '--load', 'networkidle')
+    assert color_values()['primary'] == '#381b56'
+    run('select', '#gpante-color-mode', 'custom')
+    assert color_values() == manual, 'Selecting manual after saving site mode must restore all eight saved manual colors, even after the site palette changes'
+    assert js("JSON.parse(document.getElementById('gpante-appearance-colors').dataset.manualColors)") == manual
+    run('click', '#submit'); run('wait', '--load', 'networkidle')
+    assert color_values() == manual
+    draft = {**manual, 'primary': '#223344', 'user': '#cce0ef'}
+    js("for(const [key,value] of Object.entries(" + json.dumps(draft) + ")){const input=document.getElementById('gpante-color-'+key);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));}")
+    for _ in range(2):
+        run('select', '#gpante-color-mode', 'site')
+        run('select', '#gpante-color-mode', 'custom')
+        assert color_values() == draft, 'Same-page source toggles must retain the whole manual draft'
+    run('click', '#submit'); run('wait', '--load', 'networkidle')
+    assert json.loads(wp('echo wp_json_encode(get_option("gpante_support_appearance")["colors"]);')) == draft
+    assert runtime_hash() == before
+    print('PASS all eight manual colors survive saved site mode, source changes and repeated draft toggles')
     run('click', 'button[name="gpante_support_appearance[restore_defaults]"]')
     run('wait', '--load', 'networkidle')
     run('snapshot', '-i')
     assert js("document.querySelector('#gpante-appearance-title').value") == 'دستیار پانته'
-    assert js("document.querySelector('#gpante-color-primary').value") == '#365e28'
+    assert color_values() == js("JSON.parse(document.getElementById('gpante-appearance-colors').dataset.siteColors)")
+    assert js("document.querySelector('#gpante-color-mode').value") == 'site'
     assert runtime_hash() == before
     print('PASS native restore defaults in Chrome preserves runtime settings')
 finally:
+    if provider_created:
+        provider.unlink()
+        wp('delete_option("gptest_browser_site_palette");')
     cached.unlink(missing_ok=True)
     run('close')

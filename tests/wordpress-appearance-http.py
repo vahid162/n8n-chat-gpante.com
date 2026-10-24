@@ -1,4 +1,5 @@
 """Native Settings API checks on the isolated HTTPS WordPress fixture only."""
+import base64
 import http.cookiejar
 import json
 import re
@@ -39,6 +40,7 @@ def submit(op, nonce, config=None, reset=False):
     if reset:
         fields['gpante_support_appearance[restore_defaults]'] = '1'
     else:
+        fields['gpante_support_appearance[color_mode]'] = config.get('color_mode', 'custom')
         for index, link in enumerate(config['links']):
             fields.update({f'gpante_support_appearance[links][{index}][{key}]': value for key, value in link.items()})
         for group in ('texts', 'colors'):
@@ -112,3 +114,43 @@ submit(admin,nonce,links);assert public()==links
 assert submit(admin,nonce,reset=True)[0]==200
 assert public()==defaults and runtime_hash()==before
 print('PASS native four-link settings, hidden-label preservation, unsafe/missing destinations and fifth-link rejection')
+
+# Use a public palette provider only inside this script's owned loopback fixture.
+assert (root / '.gpante-test-owner').read_text() == 'gpante-isolated-wordpress-v1\n'
+provider = root / 'wordpress/wp-content/mu-plugins/gptest-site-palette.php'
+assert not provider.exists(), 'Never overwrite an existing palette provider'
+wp = ['php', str(root / 'wp-cli.phar'), '--path=' + str(root / 'wordpress'), 'eval']
+def option_value(name):
+    return json.loads(subprocess.check_output(wp + ['echo wp_json_encode(get_option("' + name + '"));'], text=True))
+def set_option(name, value):
+    encoded = base64.b64encode(json.dumps(value).encode()).decode()
+    subprocess.run(wp + ['update_option("' + name + '",json_decode(base64_decode("' + encoded + '"),true),false);'], check=True, capture_output=True)
+saved = option_value('gpante_support_appearance')
+try:
+    provider.write_text("<?php\nfunction woodmart_get_opt($key){return get_option('gptest_site_palette',[])[$key]??null;}\n")
+    theme = {'primary-color': {'idle': '#285846'}, 'secondary-color': {'idle': '#e4b23c'}, 'text-font': [{'color': '#1d2e29'}], 'pages-background': {'color': '#f5f7f2'}}
+    set_option('gptest_site_palette', theme)
+    inherited = public()
+    assert inherited['colors']['primary'] == '#285846' and inherited['colors']['accent'] == '#e4b23c'
+    assert inherited['colors']['messages'] == '#f5f7f2'
+    original_option = option_value('gpante_support_appearance')
+    theme['primary-color']['idle'] = '#173f53'
+    set_option('gptest_site_palette', theme)
+    changed = public()
+    assert changed['colors']['primary'] == '#173f53' and option_value('gpante_support_appearance') == original_option
+    manual = json.loads(json.dumps(changed)); manual['color_mode'] = 'custom'; manual['colors']['primary'] = '#123456'
+    assert submit(admin, nonce, manual)[0] == 200
+    theme['primary-color']['idle'] = '#381b56'
+    set_option('gptest_site_palette', theme)
+    assert public()['colors']['primary'] == '#123456'
+    automatic = public(); automatic['color_mode'] = 'site'
+    assert submit(admin, nonce, automatic)[0] == 200
+    assert public()['colors']['primary'] == '#381b56'
+    assert option_value('gpante_support_appearance')['colors']['primary'] == '#123456'
+    assert runtime_hash() == before
+    print('PASS native public palette: theme changes refresh defaults, manual override persists, switching back restores inheritance without altering runtime')
+finally:
+    set_option('gpante_support_appearance', saved)
+    subprocess.run(wp + ["delete_option('gptest_site_palette');"], check=True, capture_output=True)
+    provider.unlink()
+assert public() == defaults and runtime_hash() == before

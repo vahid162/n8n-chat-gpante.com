@@ -413,7 +413,7 @@ function gpante_support_appearance_assets( $hook ) {
 	wp_enqueue_script( 'common' );
 	wp_add_inline_script(
 		'common',
-		'document.addEventListener("DOMContentLoaded",function(){const mode=document.getElementById("gpante-color-mode"),table=document.getElementById("gpante-appearance-colors");if(!mode||!table)return;const colors=JSON.parse(table.dataset.siteColors);table.querySelectorAll("input[type=color]").forEach(input=>input.addEventListener("input",()=>{mode.value="custom";}));mode.addEventListener("change",()=>{if(mode.value==="site")for(const [key,value] of Object.entries(colors)){const input=document.getElementById("gpante-color-"+key);if(input)input.value=value;}});});'
+		'document.addEventListener("DOMContentLoaded",function(){const mode=document.getElementById("gpante-color-mode"),table=document.getElementById("gpante-appearance-colors");if(!mode||!table)return;const colors=JSON.parse(table.dataset.siteColors),inputs=[...table.querySelectorAll("input[type=color]")];let manual=JSON.parse(table.dataset.manualColors);inputs.forEach(input=>input.addEventListener("input",()=>{mode.value="custom";manual=Object.fromEntries(inputs.map(input=>[input.id.replace("gpante-color-",""),input.value]));}));mode.addEventListener("change",()=>{for(const [key,value] of Object.entries(mode.value==="site"?colors:manual)){const input=document.getElementById("gpante-color-"+key);if(input)input.value=value;}});});'
 	);
 }
 add_action( 'admin_enqueue_scripts', 'gpante_support_appearance_assets' );
@@ -423,8 +423,10 @@ function gpante_support_appearance_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
-	$config = gpante_support_get_appearance();
-	$fields = gpante_support_appearance_texts();
+	$config        = gpante_support_get_appearance();
+	$stored        = get_option( 'gpante_support_appearance', array() );
+	$manual_colors = gpante_support_valid_appearance( $stored ) ? array_intersect_key( $stored['colors'], gpante_support_appearance_colors() ) : gpante_support_appearance_defaults()['colors'];
+	$fields        = gpante_support_appearance_texts();
 	unset( $fields['send'] );
 	?>
 	<div class="wrap">
@@ -454,7 +456,7 @@ function gpante_support_appearance_page() {
 				</select>
 			</p>
 			<p><?php esc_html_e( 'حالت پیش‌فرض از پالت فعال سایت پیروی می‌کند. با تغییر هر رنگ، حالت دستی انتخاب می‌شود؛ برای اتصال دوباره به پالت سایت، حالت پیش‌فرض را انتخاب و ذخیره کنید. ترکیب ناخوانا ذخیره نمی‌شود.', 'gpante-support-chat' ); ?></p>
-			<table id="gpante-appearance-colors" class="form-table" role="presentation" data-site-colors="<?php echo esc_attr( wp_json_encode( gpante_support_site_colors() ) ); ?>">
+			<table id="gpante-appearance-colors" class="form-table" role="presentation" data-site-colors="<?php echo esc_attr( wp_json_encode( gpante_support_site_colors() ) ); ?>" data-manual-colors="<?php echo esc_attr( wp_json_encode( $manual_colors ) ); ?>">
 				<?php foreach ( gpante_support_appearance_colors() as $key => $field ) : ?>
 				<tr><th scope="row"><label for="gpante-color-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label></th><td><input type="color" id="gpante-color-<?php echo esc_attr( $key ); ?>" name="gpante_support_appearance[colors][<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $config['colors'][ $key ] ); ?>"></td></tr>
 				<?php endforeach; ?>

@@ -59,3 +59,27 @@ gpante_support_upgrade();
 check($config === $future && gpante_support_sanitize_settings(array('enabled' => '1')) === $future, 'future schema cannot be downgraded');
 check(!str_contains(json_encode($errors), str_repeat('fixture-only-', 4)), 'errors never include the secret');
 echo "Plugin settings and schema checks passed.\n";
+
+// The administrator can inspect configuration without revealing or replacing either key.
+function esc_html($text) { return htmlspecialchars((string)$text,ENT_QUOTES,'UTF-8'); }
+function esc_html_e($text,$domain) { echo esc_html($text); }
+function checked($expected,$actual) { if ($expected===$actual) echo 'checked'; }
+function settings_errors($name) {}
+function settings_fields($name) { echo '<input type="hidden" name="_wpnonce" value="fixture-nonce">'; }
+function submit_button() { echo '<button type="submit">Save</button>'; }
+$config=$defaults;
+$config['shared_key']=str_repeat('fixture-only-',4);
+$before=$config;$before_writes=$writes;
+ob_start();gpante_support_settings_page();$page=ob_get_clean();
+check($config===$before && $writes===$before_writes,'rendering connection settings never writes values');
+check(!str_contains($page,$config['shared_key']),'stored connection key is never rendered');
+check(substr_count($page,'type="password"')===2 && substr_count($page,'value=""')===2,'both replacement keys remain blank');
+check(str_contains($page,'_wpnonce') && str_contains($page,'action="options.php"'),'native form and nonce are preserved');
+check(str_contains($page,'gpante-admin-badge is-configured') && str_contains($page,'gpante-admin-badge is-unconfigured'),'each key reports its own configured state');
+$details=strstr($page,'<details');
+check(false!==$details && !str_contains(strstr($details,'>',true),'open') && str_contains($details,'id="gpante-chat-key"') && str_contains($details,'id="gpante-admin-key"'),'sensitive replacement fields are collapsed and retain their IDs');
+$config['admin_key']=str_repeat('fixture-admin-',4);$config['shared_key']='';
+ob_start();gpante_support_settings_page();$page=ob_get_clean();
+check(str_contains($page,'gpante-admin-badge is-configured') && str_contains($page,'gpante-admin-badge is-unconfigured') && !str_contains($page,$config['admin_key']),'administrator key status is independent and its secret is absent');
+$admin=false;ob_start();gpante_support_settings_page();$page=ob_get_clean();check($page==='','unauthorized viewer receives no settings markup');
+echo "Connection presentation: independent statuses, collapsed blank replacements, nonce, no writes or secrets passed.\n";

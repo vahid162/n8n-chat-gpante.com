@@ -100,8 +100,10 @@ BEGIN
   data:=gpante_chat.admin_api('{"operation":"getDiagnostics"}');
   ASSERT data->>'windowDays'='7' AND jsonb_array_length(data->'turns')=20,'bounded administrator diagnostic window';
   ASSERT data->'summary'->>'synthetic'='0' AND (data->'summary'->>'helpful')::integer>=1,'feedback counts and no inferred synthetic labels';
-  ASSERT data::text NOT LIKE '%private%' AND data::text NOT LIKE '%transcript%' AND data::text NOT LIKE '%sessionId%'
-    AND data::text NOT LIKE '%messages%' AND data::text NOT LIKE '%admin_key%','diagnostic DTO excludes transcript and session credentials';
+  ASSERT data::text NOT LIKE '%private%' AND data::text NOT LIKE '%transcript%'
+    AND data::text NOT LIKE '%messages%' AND data::text NOT LIKE '%admin_key%'
+    AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(data->'turns') t WHERE coalesce(t->>'sessionId','') !~ '^[a-f0-9]{64}$'),
+    'diagnostic DTO exposes only admin session links without transcript or credentials';
   ASSERT data->'budget' ?& ARRAY['enabled','monthlyBudgetNano','pricingValidUntil','usedNano','activeLeases'],'budget state read-only DTO';
   ASSERT gpante_chat.admin_api('{"operation":"markSynthetic","requestId":"bad"}')->>'error'='invalid_input','label identifier validation';
   ASSERT gpante_chat.admin_api(jsonb_build_object('operation','markSynthetic','requestId',repeat('f',32)))->>'error'='turn_unavailable','label requires existing archived turn';

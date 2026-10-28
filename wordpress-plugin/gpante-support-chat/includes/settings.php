@@ -119,14 +119,54 @@ function gpante_support_settings_page() {
 	$config = get_option( 'gpante_support_runtime', array() );
 	$config = is_array( $config ) ? $config : array();
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'چت پشتیبان جی‌پانته', 'gpante-support-chat' ); ?></h1>
-		<p><?php esc_html_e( 'پیش از روشن‌کردن چت، اتصال n8n و سقف هزینهٔ آن را آماده کنید. نمایش برای همهٔ بازدیدکنندگان است.', 'gpante-support-chat' ); ?></p>
+	<div class="wrap gpante-admin">
+		<header class="gpante-admin-header">
+			<h1><?php esc_html_e( 'اتصال چت پانته', 'gpante-support-chat' ); ?></h1>
+			<p class="gpante-admin-description"><?php esc_html_e( 'نمایش عمومی و کلیدهای خصوصی اتصال را مدیریت کنید. پیش از روشن‌کردن چت، سرویس و سقف هزینهٔ آن باید آماده باشند.', 'gpante-support-chat' ); ?></p>
+		</header>
 		<?php settings_errors( 'gpante_support_runtime' ); ?>
+		<section class="gpante-admin-card" aria-labelledby="gpante-connection-status-heading">
+			<h2 id="gpante-connection-status-heading"><?php esc_html_e( 'وضعیت تنظیم کلیدها', 'gpante-support-chat' ); ?></h2>
+			<dl class="gpante-admin-key-status">
+				<div class="gpante-admin-key-status__item">
+					<dt><?php esc_html_e( 'کلید اتصال سرور', 'gpante-support-chat' ); ?></dt>
+					<dd>
+					<?php
+					if ( gpante_support_valid_key( $config['shared_key'] ?? '' ) ) :
+						?>
+						<span class="gpante-admin-badge is-configured"><?php esc_html_e( 'تنظیم شده', 'gpante-support-chat' ); ?></span>
+						<?php
+else :
+	?>
+						<span class="gpante-admin-badge is-unconfigured"><?php esc_html_e( 'تنظیم نشده', 'gpante-support-chat' ); ?></span><?php endif; ?></dd>
+				</div>
+				<div class="gpante-admin-key-status__item">
+					<dt><?php esc_html_e( 'کلید خصوصی مدیریت گفتگو', 'gpante-support-chat' ); ?></dt>
+					<dd>
+					<?php
+					if ( gpante_support_valid_key( $config['admin_key'] ?? '' ) ) :
+						?>
+						<span class="gpante-admin-badge is-configured"><?php esc_html_e( 'تنظیم شده', 'gpante-support-chat' ); ?></span>
+						<?php
+else :
+	?>
+						<span class="gpante-admin-badge is-unconfigured"><?php esc_html_e( 'تنظیم نشده', 'gpante-support-chat' ); ?></span><?php endif; ?></dd>
+				</div>
+			</dl>
+			<p class="description"><?php esc_html_e( 'این وضعیت فقط وجود کلید معتبر ذخیره‌شده را نشان می‌دهد. پاسخ موفق سرویس، سلامت اتصال را مشخص می‌کند.', 'gpante-support-chat' ); ?></p>
+		</section>
 		<form method="post" action="options.php">
 			<?php settings_fields( 'gpante_support' ); ?>
+			<section class="gpante-admin-card">
+				<h2><?php esc_html_e( 'نمایش چت', 'gpante-support-chat' ); ?></h2>
 			<table class="form-table" role="presentation">
 				<tr><th scope="row"><?php esc_html_e( 'نمایش عمومی', 'gpante-support-chat' ); ?></th><td><label><input type="checkbox" name="gpante_support_runtime[enabled]" value="1" <?php checked( true, ( $config['enabled'] ?? false ) ); ?>> <?php esc_html_e( 'چت در همهٔ صفحات نمایش داده شود', 'gpante-support-chat' ); ?></label></td></tr>
+			</table>
+			</section>
+			<details class="gpante-admin-card gpante-admin-key-fields">
+				<summary><?php esc_html_e( 'تنظیم یا جایگزینی کلیدهای خصوصی', 'gpante-support-chat' ); ?></summary>
+				<p><?php esc_html_e( 'برای حفظ هر کلید ذخیره‌شده، ورودی همان کلید را خالی بگذارید. مقدارهای ذخیره‌شده نمایش داده نمی‌شوند؛ فقط هنگام جایگزینی، کلید تازه را از مسیر خصوصی وارد و ذخیره کنید.', 'gpante-support-chat' ); ?></p>
+			<table class="form-table" role="presentation">
 				<tr><th scope="row"><label for="gpante-chat-key"><?php esc_html_e( 'کلید اتصال سرور', 'gpante-support-chat' ); ?></label></th><td>
 					<input id="gpante-chat-key" type="password" name="gpante_support_runtime[shared_key]" value="" autocomplete="new-password" minlength="32" maxlength="256" class="regular-text" dir="ltr">
 					<p class="description"><?php echo esc_html( gpante_support_valid_key( $config['shared_key'] ?? '' ) ? __( 'کلید ذخیره شده است؛ برای حفظ آن، این ورودی را خالی بگذارید.', 'gpante-support-chat' ) : __( 'کلید هنوز تنظیم نشده است. کلید را فقط از مسیر خصوصی دریافت کنید.', 'gpante-support-chat' ) ); ?></p>
@@ -136,6 +176,7 @@ function gpante_support_settings_page() {
 					<p class="description"><?php esc_html_e( 'این کلید مستقل از اتصال عمومی است. خالی‌گذاشتن، کلید قبلی را حفظ می‌کند؛ مقدار ذخیره‌شده نمایش داده نمی‌شود.', 'gpante-support-chat' ); ?></p>
 				</td></tr>
 			</table>
+			</details>
 			<?php submit_button(); ?>
 		</form>
 	</div>

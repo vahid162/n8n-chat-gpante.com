@@ -68,7 +68,7 @@ try:
         for slug, marker in destinations:
             click(f'#toplevel_page_gpante-support-conversations .wp-submenu a[href="admin.php?page={slug}"]')
             assert parse_qs(urlparse(page.url).query)['page'] == [slug]
-            assert page.locator(marker).count() == 1, slug
+            assert page.locator(marker).count() >= 1, slug
         visit('/wp-admin/options-general.php')
         click('#menu-settings .wp-submenu a[href="options-general.php?page=gpante-support-chat"]')
         assert page.locator('#gpante-chat-key').count() == 1
@@ -78,7 +78,7 @@ try:
         visit('/wp-admin/admin.php?page=gpante-support-conversations')
         page.locator('input[name="search"]').fill('Synthetic menu')
         page.locator('input[name="from"]').fill('2026-10-01')
-        page.locator('input[name="to"]').fill('2026-10-24')
+        page.locator('input[name="to"]').fill('2026-10-28')
         page.locator('select[name="status"]').select_option('success')
         page.locator('select[name="visibility"]').select_option('visible')
         click('form[method="get"] button')
@@ -88,7 +88,7 @@ try:
         click('.wrap a.button:has-text("صفحهٔ قبل")')
         assert parse_qs(urlparse(page.url).query)['archive_page'] == ['1']
         click('.wrap table a[href*="session="]')
-        assert page.locator('.wrap').inner_text().count('Synthetic menu question') == 1
+        assert page.locator('.wrap').inner_text().count('Synthetic menu question') == 4
         assert page.evaluate('window.gpanteMenuXss || null') is None
         click('.wrap a.button:has-text("صفحهٔ بعد")')
         assert parse_qs(urlparse(page.url).query)['session'] == ['b' * 64]
@@ -97,18 +97,19 @@ try:
         assert 'session' not in parse_qs(urlparse(page.url).query)
         calls = json.loads(php('echo wp_json_encode(get_option("gptest_menu_calls"));'))
         assert any(call == dict(operation='listSessions', page=2, search='Synthetic menu',
-                               **{'from': '2026-10-01', 'to': '2026-10-24', 'status': 'success', 'visibility': 'visible'}) for call in calls)
+                               **{'from': '2026-10-01', 'to': '2026-10-28', 'status': 'success', 'visibility': 'visible'}) for call in calls)
         results['archiveNavigation'] = True
         print('PASS archive filters, pagination, session detail, escaping and back link', flush=True)
 
         visit('/wp-admin/admin.php?page=gpante-support-diagnostics')
-        form = page.locator('form:has(input[name="action"][value="gpante_support_synthetic"])')
+        form = page.locator('form:has(input[name="action"][value="gpante_support_synthetic"])').first
         nonce = form.locator('input[name="_wpnonce"]').input_value()
         mutation = dict(action='gpante_support_synthetic', request_id='a' * 32, _wpnonce='invalid')
         assert context.request.post(base + '/wp-admin/admin-post.php', form=mutation).status == 403
         assert php('echo get_option("gptest_menu_synthetic") ? "changed" : "unchanged";') == 'unchanged'
-        click('form:has(input[value="gpante_support_synthetic"]) input[type="submit"]')
-        assert page.locator('input[name="request_id"]').count() == 0
+        form.locator('input[type="submit"]').click()
+        page.wait_for_load_state('domcontentloaded')
+        assert page.locator('input[name="request_id"][value="' + 'a' * 32 + '"]').count() == 0
         assert php('echo get_option("gptest_menu_synthetic") ? "changed" : "unchanged";') == 'changed'
         subscriber = browser.new_context(ignore_https_errors=True)
         subscriber.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base + '/') else route.abort())

@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.14.0"
+  version: "0.15.0"
 ---
 
 # Operate GPante Support Chat
@@ -157,6 +157,16 @@ Report to the user in Persian: result, actual changes, checks performed, materia
 - Accepted input is stored before model dispatch; final success/error closes the request once. Distinguish signed-session sendId replay from duplicate final persistence (rejected); legacy clients without sendId retain their prior behavior. No transcript is stored in WordPress; the administrator key and SQL role are independent from the public chat connection.
 - Keep Main and Admin raw execution storage off. Retention returns counts only, closes archive access at 30 days and physically cleans hourly without changing the text-free monetary ledger. Do not create permanent transcript backups; separately check any external backup retention.
 - Clear requires the new policy contract acknowledgement and current server authorization, even for a stale tab. Increasing duration cannot resurrect expired/cleared history. Widget known deadlines are local; changed central policy is reloaded on open/focus and each minute while open.
+
+## Maintain the native administration experience
+
+- Read [admin-experience.md](../../../docs/admin-experience.md) for candidate plugin0.12.0/Admin1.4.0, function-only migration007 and actual verification status. Refresh live state before operations: the 2026-10-28 preflight still found plugin0.11.0/Admin1.3.0/Main1.7.1/Retention1.2.0. Unrelated plugins, theme options and workflows changed since the prior baseline; preserve the freshly read state rather than restoring an old global snapshot.
+- Improve the existing four native WordPress pages in place. Preserve capability/nonce, secret boundaries, central retention policy and separation from public chat. No new framework, service, transcript storage or broad administration scope is needed. Candidate0.12.0 has19 runtime files; rebuild its package after source changes and distinguish the candidate from a released/installed version.
+- Separate management connection, public-index health, unfiltered seven-day counts/feedback and conservative current UTC calendar-month budget. A valid management HTTP response proves neither continuous model health nor generated-answer accuracy. Unclassified traffic is not verified human traffic. Filter only the diagnostic rows; do not change overview totals or query transcripts through diagnostics. Missing metadata stays unknown; bounded recorded result IDs are not a total count.
+- Keep `getDiagnostics` bounded to search<=100characters, real UTC from/to dates, fixed status/traffic/source values and page1..1000,20rows/page with page/hasMore. Only authenticated administration receives the existing sessionId for archive navigation. Display the recorded source/tool/query/filters/results<=5/outcome/coverage structurally, with allowlisted JSON behind details; preserve the seven-day/2000-row metadata limit and exclude source bodies, URLs, provider payloads and copied transcripts.
+- Put archive question/answer first, retain original technical fields behind details, format explicit UTC dates/duration seconds/exact USD without rounding small charges to zero, and distinguish absent values from actual zero. Copy only anonymous references. Preserve filters and page on list→session→back and diagnostics→session→back; a return destination must stay inside this plugin's fixed administrator pages.
+- Appearance preview uses unsaved valid fields locally and never starts chat, reads history, calls a model or sends network requests. Preserve site/manual palettes, stored manual backing values and the same-page manual draft. Full appearance reset requires native confirmation and affects appearance defaults only. Connection shows the configured state of both independent keys without revealing them, keeps replacement fields collapsed and preserves a stored key on blank input.
+- Deploy007, then validated/exported Admin1.4.0, then plugin0.12.0.007 replaces only the private administration function; preserve006, history, financial ledger, budget, policy and restricted function grants. Do not rerun006 or change Main1.7.1/Retention1.2.0 for this administration upgrade. Verify the fresh unrelated baseline after deployment; record real test/release/install evidence before marking the candidate live.
 
 ## Publish WordPress releases
 

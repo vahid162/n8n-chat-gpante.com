@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'wordpress-plugin/gpante-support-chat'
 FILES = ('gpante-support-chat.php', 'includes/settings.php', 'includes/appearance.php', 'includes/bridge.php',
          'includes/catalog.php', 'includes/faq.php', 'includes/site.php', 'includes/search-index.php', 'includes/admin.php', 'includes/diagnostics.php', 'templates/widget.php', 'assets/chat.js',
-         'assets/chat.css', 'readme.txt', 'uninstall.php', 'LICENSE.txt')
+         'assets/chat.css', 'includes/admin-ui.php', 'assets/admin.js', 'assets/admin.css', 'readme.txt', 'uninstall.php', 'LICENSE.txt')
 
 
 def plugin_version():

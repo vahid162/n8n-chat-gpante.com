@@ -1,0 +1,59 @@
+/* Native WordPress controls, scoped to GPante administration. */
+.gpante-admin {max-width:1440px;color:#1d2327}
+.gpante-admin-header {margin-bottom:8px!important}
+.gpante-admin-description {max-width:95ch;line-height:1.9;color:#50575e}
+.gpante-admin-card {background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:20px;margin:18px 0;min-width:0;box-sizing:border-box}
+.gpante-admin-card__header {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.gpante-admin-card__header h2,.gpante-admin-card__header h3 {margin:0}
+.gpante-admin-card summary,.gpante-admin details summary {cursor:pointer;font-weight:600;padding:8px 0}
+.gpante-admin details[open]>summary {margin-bottom:12px}
+.gpante-admin-overview {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:20px 0}
+.gpante-admin-overview .gpante-admin-card {margin:0}
+.gpante-admin-metric {font-size:24px;line-height:1.6;overflow-wrap:anywhere;margin:8px 0}
+.gpante-admin-badge {display:inline-block;border-radius:20px;padding:4px 12px;background:#f0f0f1;color:#2c3338;font-size:13px;line-height:1.6}
+.gpante-admin-badge.is-success,.gpante-admin-badge.is-configured {background:#edfaef;color:#175427}
+.gpante-admin-badge.is-error,.gpante-admin-badge.is-unconfigured {background:#fcf0f1;color:#8a2424}
+.gpante-admin-warning {border-inline-start:4px solid #dba617;background:#fcf9e8;padding:12px;line-height:1.9}
+.gpante-admin-summary,.gpante-admin-details {display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0}
+.gpante-admin-summary dt,.gpante-admin-details dt {color:#50575e;font-size:12px;margin-bottom:4px}
+.gpante-admin-summary dd,.gpante-admin-details dd {margin:0;overflow-wrap:anywhere}
+.gpante-admin-summary dd {font-weight:600}
+.gpante-admin-details {padding:12px;background:#f6f7f7;border-radius:4px}
+.gpante-admin-message {border:1px solid #dcdcde;border-radius:8px;padding:16px;margin:12px 0;max-width:100%;box-sizing:border-box}
+.gpante-admin-message.is-user {background:#f0f6fc;margin-inline-end:6%}
+.gpante-admin-message.is-assistant {background:#fff;margin-inline-start:6%}
+.gpante-admin-message h3 {margin:0 0 10px;font-size:13px}
+.gpante-admin-message__content {white-space:pre-wrap;overflow-wrap:anywhere;line-height:2;unicode-bidi:plaintext}
+.gpante-admin-table-wrap {max-width:100%;overflow:auto;margin:18px 0}
+.gpante-admin table.widefat th,.gpante-admin table.widefat td {padding:12px;vertical-align:top;overflow-wrap:anywhere}
+.gpante-admin table.widefat th {white-space:nowrap}
+.gpante-admin-reference {display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:100%;margin:6px 0}
+.gpante-admin code {overflow-wrap:anywhere;white-space:normal}
+.gpante-admin-filters {display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px}
+.gpante-admin-filters label {display:flex;flex-direction:column;gap:6px;max-width:100%}
+.gpante-admin-filters input,.gpante-admin-filters select {max-width:100%}
+.gpante-admin-pager {display:flex;align-items:center;gap:10px;margin:20px 0}
+.gpante-admin-key-status {display:flex;gap:16px;flex-wrap:wrap;margin:20px 0}
+.gpante-admin-key-status__item {display:flex;gap:10px;align-items:center}
+.gpante-admin pre {overflow:auto;max-height:350px;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;background:#f6f7f7}
+.gpante-admin-appearance-layout {display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);align-items:start;gap:24px}
+.gpante-admin-preview-panel {position:sticky;top:45px;min-width:0;padding-top:12px}
+.gpante-admin-preview-panel>p {line-height:1.8;color:#50575e}
+.gpante-admin-preview {border:1px solid #c3c4c7;border-top:4px solid var(--gpante-preview-accent,#e4b23c);border-radius:12px;overflow:hidden;background:var(--gpante-preview-surface,#fff);color:var(--gpante-preview-text,#263023);box-shadow:0 3px 12px #0000000d;pointer-events:none}
+.gpante-admin-preview__header {background:var(--gpante-preview-primary,#365e28);color:var(--gpante-preview-on-primary,#fff);padding:18px}
+.gpante-admin-preview__title {font-size:18px;font-weight:600;overflow-wrap:anywhere;color:var(--gpante-preview-on-primary,#fff)}
+.gpante-admin-preview__subtitle {font-size:12px;margin-top:8px;overflow-wrap:anywhere}
+.gpante-admin-preview__messages {background:var(--gpante-preview-messages,#f7f9f4);padding:16px;min-height:180px}
+.gpante-admin-preview__bubble {border-radius:12px;padding:14px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px;background:var(--gpante-preview-assistant,#fff)}
+.gpante-admin-preview__bubble--user {background:var(--gpante-preview-user,#e9f0e2);margin-inline-end:12%}
+.gpante-admin-preview__bubble--assistant {background:var(--gpante-preview-assistant,#fff)}
+.gpante-admin-preview__shortcuts {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gpante-admin-preview__shortcut {border:1px solid #c3c4c7;background:var(--gpante-preview-surface,#fff);padding:10px;border-radius:10px;font-size:12px;text-align:center;overflow-wrap:anywhere}
+.gpante-admin-preview [hidden] {display:none!important}
+.gpante-admin-preview__composer {padding:14px;border-top:1px solid #dcdcde;display:flex;gap:8px;align-items:center}
+.gpante-admin-preview__input {flex:1;min-width:0;border:1px solid #c3c4c7;border-radius:10px;padding:12px;font-size:12px;overflow-wrap:anywhere}
+.gpante-admin-preview__send,.gpante-admin-preview__launcher {background:var(--gpante-preview-primary,#365e28);color:var(--gpante-preview-on-primary,#fff);padding:10px;border-radius:20px;font-size:12px}
+.gpante-admin-preview__launcher {margin:12px;display:inline-block}
+.gpante-admin-preview__clear {font-size:11px;color:var(--gpante-preview-on-primary,#fff);padding:0 12px 12px}
+@media(max-width:1100px){.gpante-admin-appearance-layout{grid-template-columns:minmax(0,1fr)}.gpante-admin-preview-panel{position:static;max-width:420px}.gpante-admin .form-table th{width:180px}}
+@media(max-width:600px){.gpante-admin-card{padding:14px}.gpante-admin-filters label{width:100%}.gpante-admin-filters input,.gpante-admin-filters select{width:100%}.gpante-admin-overview{grid-template-columns:minmax(0,1fr)}.gpante-admin-message.is-user,.gpante-admin-message.is-assistant{margin-inline:0}.gpante-admin-summary,.gpante-admin-details{grid-template-columns:minmax(0,1fr)}.gpante-admin .form-table input.regular-text,.gpante-admin .form-table textarea{max-width:100%}}

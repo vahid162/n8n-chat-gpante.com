@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 from wordpress_test_config import root, base, browser
 
-session = 'gpante-appearance-ui'
+session = os.environ.get('GPANTE_BROWSER_SESSION', 'gpante-appearance-ui')
 
 def run(*args):
     result = subprocess.run([browser, '--session', session, '--ignore-https-errors', '--json', *args], text=True, capture_output=True, check=True)
@@ -119,6 +119,8 @@ try:
     assert runtime_hash() == before
     print('PASS all eight manual colors survive saved site mode, source changes and repeated draft toggles')
     run('click', 'button[name="gpante_support_appearance[restore_defaults]"]')
+    assert run('dialog', 'status')['type'] == 'confirm'
+    run('dialog', 'accept')
     run('wait', '--load', 'networkidle')
     run('snapshot', '-i')
     assert js("document.querySelector('#gpante-appearance-title').value") == 'دستیار پانته'

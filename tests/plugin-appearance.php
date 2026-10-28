@@ -161,3 +161,31 @@ $resolved['colors']=$readable;check(gpante_support_valid_appearance($resolved),'
 $config=$stored;$public=$routes['/appearance']['callback']();
 check(array_keys($public)===['version','texts','colors','links'] && !isset($public['color_mode']) && $public['colors']===$readable,'public contract exposes only resolved color values');
 echo "Site palette: source precedence, dynamic refresh, migration, manual override, safe RGB and contrast passed.\n";
+
+// Rendering the local sample must not mount the public chat or change saved appearance.
+function esc_html($text) { return htmlspecialchars((string)$text,ENT_QUOTES,'UTF-8'); }
+function esc_attr($text) { return esc_html($text); }
+function esc_textarea($text) { return esc_html($text); }
+function esc_html_e($text,$domain) { echo esc_html($text); }
+function esc_attr_e($text,$domain) { echo esc_attr($text); }
+function wp_json_encode($value) { return json_encode($value); }
+function selected($expected,$actual) { if ($expected===$actual) echo 'selected'; }
+function settings_errors($name) {}
+function settings_fields($name) { echo '<input type="hidden" name="_wpnonce" value="fixture-nonce">'; }
+function submit_button() { echo '<button type="submit">Save</button>'; }
+$config=$defaults;
+$config['texts']['title']='عنوان <unsafe> نمایشی';
+// Stored invalid data falls back to the already validated public defaults.
+$before=$config;$before_writes=$writes;
+ob_start();gpante_support_appearance_page();$page=ob_get_clean();
+check($config===$before && $writes===$before_writes,'appearance page rendering never writes settings');
+check(!str_contains($page,'<unsafe>'),'unsafe stored text is never rendered as HTML');
+$sample=strstr($page,'<div class="gpante-admin-preview"');
+$sample=strstr($sample,'</aside>',true);
+check(false!==$sample && !preg_match('/<(?:input|button|textarea|a)\b/i',$sample),'sample is inert without real controls or navigable anchors');
+check(!str_contains($sample,'id="gpante-support"') && !str_contains($sample,'data-endpoint') && !str_contains($sample,'wp-json'),'sample does not mount a chat controller or endpoint');
+check(str_contains($page,'_wpnonce') && str_contains($page,'action="options.php"'),'native appearance form and nonce remain');
+check(str_contains($page,'data-gpante-confirm=') && str_contains($page,'هر چهار دکمهٔ راهنما و لینک'),'full reset clearly requires confirmation of all four links');
+check(substr_count($sample,'data-gpante-preview-link=')===4,'all four sample slots are available for unsaved link edits');
+$admin=false;ob_start();gpante_support_appearance_page();$page=ob_get_clean();check($page==='','unauthorized viewer receives no appearance markup');
+echo "Appearance presentation: inert local preview, safe fallback, nonce, capability and no settings writes passed.\n";

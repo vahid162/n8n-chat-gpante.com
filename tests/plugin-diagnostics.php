@@ -26,6 +26,14 @@ function __($text, $domain) { return $text; }
 function esc_html($text) { return htmlspecialchars((string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 function esc_html__($text, $domain) { return esc_html($text); }
 function esc_attr($text) { return esc_html($text); }
+function esc_attr__($text,$domain) { return esc_attr($text); }
+function esc_html_e($text,$domain) { echo esc_html($text); }
+function number_format_i18n($value,$decimals=0) { return number_format($value,$decimals,'.',','); }
+function wp_date($format,$timestamp,$zone=null) { return (new DateTimeImmutable('@'.$timestamp))->setTimezone($zone??new DateTimeZone('UTC'))->format($format); }
+function sanitize_text_field($value) { return strip_tags($value); }
+function absint($value) { return abs((int)$value); }
+function selected($left,$right) { if ($left===$right) echo 'selected'; }
+function add_query_arg($query,$url) { return $url.'?'.http_build_query($query); }
 function esc_url($text) { return esc_html($text); }
 function wp_json_encode($value) { return json_encode($value, JSON_UNESCAPED_UNICODE); }
 function admin_url($path) { return 'https://example.invalid/wp-admin/' . $path; }
@@ -84,7 +92,7 @@ $_GET = array('operation' => 'markSynthetic', 'request_id' => str_repeat('b', 32
 $html = render_page();
 check($calls === array(array('operation' => 'getDiagnostics')), 'GET ignores mutation filters and only calls fixed read');
 check($no_cache === 1, 'administrator diagnostics are not cacheable');
-check(substr_count($html, 'class="postbox"') === 20 && substr_count($html, 'name="action" value="gpante_support_synthetic"') === 19, 'twenty turns and only unclassified labels');
+check(substr_count($html, 'class="postbox gpante-admin-card"') === 20 && substr_count($html, 'name="action" value="gpante_support_synthetic"') === 19, 'twenty turns and only unclassified labels');
 check(!str_contains($html, '<script>') && !str_contains($html, '<img ')
     && str_contains($html, '&lt;script&gt;') && str_contains($html, '&lt;img '), 'all technical/JSON values escaped');
 foreach (array('private-summary', 'private-key', 'private-transcript', 'private-session', 'private-body', 'private-url', 'private-filter', 'private-title', 'private-rejection') as $secret) {
@@ -118,8 +126,20 @@ $result = array('ok' => true);
 try { gpante_support_mark_synthetic(); throw new RuntimeException('missing success redirect'); }
 catch (DiagnosticRedirect $redirect) { check($redirect->getMessage() === admin_url('admin.php?page=gpante-support-diagnostics'), 'success redirects only to fixed diagnostics page'); }
 $result = new WP_Error('unavailable', '<script>service failure</script>');
+$saved_get=$_GET;$_GET=array('search'=>'preserve this filter','status'=>'error');
 $html = render_page();
 check(!str_contains($html, '<script>') && str_contains($html, '&lt;script&gt;'), 'service errors escaped');
+check(str_contains($html,'name="search" maxlength="100" value="preserve this filter"') && str_contains($html,'فیلتر گزارش'), 'backend failures retain editable filter controls');
+$_GET=$saved_get;
 $result = array('summary' => array(), 'budget' => array(), 'turns' => 'invalid');
-check(!str_contains(render_page(), 'class="postbox"'), 'malformed read payload does not render turns');
+check(!str_contains(render_page(), 'class="postbox gpante-admin-card"'), 'malformed read payload does not render turns');
+$result=array('summary'=>array(),'budget'=>array(),'turns'=>array(),'hasMore'=>false);
+foreach (array(1,2) as $page) {
+    $_GET=array('search'=>'0','diagnostic_page'=>$page);$result['page']=$page;
+    $html=render_page();$sent=end($calls);
+    check(($sent['search']??null)==='0' && ($sent['page']??null)===$page,'zero search is sent consistently on both diagnostic pages');
+    check(str_contains($html,'name="search" maxlength="100" value="0"'),'zero search remains visible');
+}
+unset($result['page']);$_GET=array('search'=>'0');
+check(str_contains(render_page(),'بک‌اند، صفحه و فیلترهای گزارش را تأیید نکرد'),'zero search requires backend filter acknowledgement too');
 echo "Administrator diagnostics: $checks capability, nonce, POST, escaping, allowlist, bounds and read-only checks passed.\n";

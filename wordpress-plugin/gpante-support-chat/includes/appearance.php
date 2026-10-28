@@ -428,13 +428,21 @@ function gpante_support_appearance_page() {
 	$manual_colors = gpante_support_valid_appearance( $stored ) ? array_intersect_key( $stored['colors'], gpante_support_appearance_colors() ) : gpante_support_appearance_defaults()['colors'];
 	$fields        = gpante_support_appearance_texts();
 	unset( $fields['send'] );
+	$preview_style = '';
+	foreach ( $config['colors'] as $key => $color ) {
+		$preview_style .= '--gpante-preview-' . str_replace( '_', '-', $key ) . ':' . $color . ';';
+	}
 	?>
-	<div class="wrap">
-		<h1><?php esc_html_e( 'ظاهر چت پانته', 'gpante-support-chat' ); ?></h1>
-		<p><?php esc_html_e( 'متن‌ها و رنگ‌های چت عمومی را تغییر دهید. تغییرات پس از ذخیره و بازخوانی صفحهٔ سایت نمایش داده می‌شوند. این بخش تنظیمات اتصال و تاریخچه را تغییر نمی‌دهد.', 'gpante-support-chat' ); ?></p>
+	<div class="wrap gpante-admin">
+		<header class="gpante-admin-header">
+			<h1><?php esc_html_e( 'ظاهر چت پانته', 'gpante-support-chat' ); ?></h1>
+			<p class="gpante-admin-description"><?php esc_html_e( 'متن‌ها، رنگ‌ها و دکمه‌های راهنمای چت را تنظیم کنید. نمونهٔ کنار فرم، ویرایش‌های ذخیره‌نشده را نشان می‌دهد. تغییرات پس از ذخیره و بازخوانی صفحهٔ سایت برای بازدیدکنندگان اعمال می‌شوند.', 'gpante-support-chat' ); ?></p>
+		</header>
 		<?php settings_errors( 'gpante_support_appearance' ); ?>
-		<form method="post" action="options.php">
+		<form class="gpante-admin-appearance-layout" method="post" action="options.php">
+			<div class="gpante-admin-appearance-fields">
 			<?php settings_fields( 'gpante_support_appearance' ); ?>
+			<section class="gpante-admin-card">
 			<h2><?php esc_html_e( 'متن‌ها', 'gpante-support-chat' ); ?></h2>
 			<p><?php esc_html_e( 'فقط متن ساده وارد کنید. خوشامدگویی در گفتگوی خالی نمایش داده می‌شود؛ دستور مدل را تغییر نمی‌دهد. نام کادر پرسش فقط برای صفحه‌خوان است. مدت تاریخچه و امکان پاک‌کردن در بخش گفتگوها تنظیم می‌شوند.', 'gpante-support-chat' ); ?></p>
 			<table class="form-table" role="presentation">
@@ -448,6 +456,8 @@ function gpante_support_appearance_page() {
 				</td></tr>
 				<?php endforeach; ?>
 			</table>
+			</section>
+			<section class="gpante-admin-card">
 			<h2><?php esc_html_e( 'رنگ‌ها', 'gpante-support-chat' ); ?></h2>
 			<p><label for="gpante-color-mode"><?php esc_html_e( 'منبع رنگ‌ها', 'gpante-support-chat' ); ?></label>
 				<select id="gpante-color-mode" name="gpante_support_appearance[color_mode]">
@@ -461,6 +471,8 @@ function gpante_support_appearance_page() {
 				<tr><th scope="row"><label for="gpante-color-<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $field[0] ); ?></label></th><td><input type="color" id="gpante-color-<?php echo esc_attr( $key ); ?>" name="gpante_support_appearance[colors][<?php echo esc_attr( $key ); ?>]" value="<?php echo esc_attr( $config['colors'][ $key ] ); ?>"></td></tr>
 				<?php endforeach; ?>
 			</table>
+			</section>
+			<section class="gpante-admin-card">
 			<h2><?php esc_html_e( 'دکمه‌های راهنما (حداکثر چهار مورد)', 'gpante-support-chat' ); ?></h2>
 			<p><?php esc_html_e( 'با خالی‌گذاشتن متن، آن دکمه نمایش داده نمی‌شود. برای متنِ واردشده، نشانی HTTPS کامل یا مسیر داخلی مانند /shop/ لازم است. این دکمه‌ها صفحهٔ مقصد را باز می‌کنند.', 'gpante-support-chat' ); ?></p>
 			<table class="form-table" role="presentation">
@@ -476,8 +488,39 @@ function gpante_support_appearance_page() {
 				</td></tr>
 				<?php endforeach; ?>
 			</table>
+			</section>
 			<?php submit_button(); ?>
-			<p><button class="button" type="submit" name="gpante_support_appearance[restore_defaults]" value="1" formnovalidate><?php esc_html_e( 'بازگرداندن ظاهر پیش‌فرض (متن، رنگ و دکمه‌ها)', 'gpante-support-chat' ); ?></button></p>
+			<p><button class="button" type="submit" name="gpante_support_appearance[restore_defaults]" value="1" formnovalidate data-gpante-confirm="<?php esc_attr_e( 'همهٔ متن‌ها، رنگ‌ها و هر چهار دکمهٔ راهنما و لینک آن‌ها به پیش‌فرض برمی‌گردند و ذخیره می‌شوند. ادامه می‌دهید؟', 'gpante-support-chat' ); ?>"><?php esc_html_e( 'بازگرداندن ظاهر پیش‌فرض (متن، رنگ و دکمه‌ها)', 'gpante-support-chat' ); ?></button></p>
+			</div>
+			<aside class="gpante-admin-preview-panel gpante-admin-card" aria-labelledby="gpante-preview-heading">
+				<h2 id="gpante-preview-heading"><?php esc_html_e( 'پیش‌نمایش ظاهر', 'gpante-support-chat' ); ?></h2>
+				<p id="gpante-preview-note" class="description"><?php esc_html_e( 'این نمونه فقط ظاهر را نشان می‌دهد؛ پیامی ارسال نمی‌کند و دکمه‌ها و لینک‌های آن غیرفعال‌اند. متن یا لینک نامعتبر تا اصلاح در نمونه اعمال نمی‌شود.', 'gpante-support-chat' ); ?></p>
+				<div class="gpante-admin-preview" dir="rtl" aria-describedby="gpante-preview-note" data-colors="<?php echo esc_attr( wp_json_encode( $config['colors'] ) ); ?>" style="<?php echo esc_attr( $preview_style ); ?>">
+					<div class="gpante-admin-preview__header">
+						<h3 class="gpante-admin-preview__title" data-gpante-preview-text="title"><?php echo esc_html( $config['texts']['title'] ); ?></h3>
+						<p class="gpante-admin-preview__subtitle" data-gpante-preview-text="subtitle"><?php echo esc_html( $config['texts']['subtitle'] ); ?></p>
+						<span class="gpante-admin-preview__clear" data-gpante-preview-text="clear"><?php echo esc_html( $config['texts']['clear'] ); ?></span>
+					</div>
+					<div class="gpante-admin-preview__messages">
+						<p class="gpante-admin-preview__bubble gpante-admin-preview__bubble--assistant" data-gpante-preview-text="welcome"><?php echo esc_html( $config['texts']['welcome'] ); ?></p>
+						<p class="gpante-admin-preview__bubble gpante-admin-preview__bubble--user"><?php esc_html_e( 'یک فایل برای برش لیزری می‌خواهم.', 'gpante-support-chat' ); ?></p>
+						<div class="gpante-admin-preview__shortcuts">
+							<?php foreach ( $config['links'] as $index => $link ) : ?>
+							<span class="gpante-admin-preview__shortcut" data-gpante-preview-link="<?php echo esc_attr( $index ); ?>" title="<?php echo esc_attr( $link['url'] ); ?>"
+								<?php
+								if ( '' === $link['label'] ) :
+									?>
+								hidden<?php endif; ?>><?php echo esc_html( $link['label'] ); ?></span>
+							<?php endforeach; ?>
+						</div>
+					</div>
+					<div class="gpante-admin-preview__composer">
+						<span class="gpante-admin-preview__input" role="group" aria-label="<?php echo esc_attr( $config['texts']['input_label'] ); ?>" data-gpante-preview-input data-gpante-preview-text="placeholder"><?php echo esc_html( $config['texts']['placeholder'] ); ?></span>
+						<span class="gpante-admin-preview__send" aria-hidden="true">↑</span>
+					</div>
+					<span class="gpante-admin-preview__launcher" data-gpante-preview-text="launcher"><?php echo esc_html( $config['texts']['launcher'] ); ?></span>
+				</div>
+			</aside>
 		</form>
 	</div>
 	<?php

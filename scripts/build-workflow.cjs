@@ -108,7 +108,7 @@ function cleanup() {
 function admin() {
   const source = library('src/admin.cjs');
   return { name: 'gpante.com — AI Support — Admin', active: false,
-    description: 'نسخهٔ ۱٫۳٫۰: آرشیو و سیاست خصوصی، گزارش محدود منابع/خطا و بودجه، بازخورد و برچسب آزمون مصنوعی؛ بدون تماس مدل.',
+    description: 'نسخهٔ ۱٫۴٫۰: آرشیو و سیاست خصوصی، گزارش صفحه‌بندی‌شدهٔ منابع/خطا با فیلتر و پیوند نشست، بودجه، بازخورد و برچسب آزمون مصنوعی؛ بدون تماس مدل.',
     nodes: [
       node('Admin Entry','n8n-nodes-base.webhook',2.2,{httpMethod:'POST',path:'gpante-ai-support-admin-v1',authentication:'headerAuth',responseMode:'responseNode',options:{}},[0,0],{webhookId:stableId('Admin Entry')}),
       node('Validate Admin Input','n8n-nodes-base.code',2,{jsCode:source+'\nreturn [{json:adminInput($input.first().json.body)}];'},[250,0]),

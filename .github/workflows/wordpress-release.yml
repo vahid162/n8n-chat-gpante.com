@@ -34,6 +34,7 @@ jobs:
           node --test tests/*.test.cjs
           php tests/plugin-settings.php
           php tests/plugin-appearance.php
+          php tests/admin-presentation.php
           php tests/widget-bridge.php
           php tests/product-previews.php
           php tests/catalog-query.php
@@ -137,11 +138,13 @@ jobs:
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/004-conversation-reliability.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/005-search-diagnostics.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/006-expired-send-guards.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/007-admin-experience.sql
           psql -v ON_ERROR_STOP=1 -f tests/legacy-migration-after.sql
           psql -v ON_ERROR_STOP=1 -f tests/archive-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/database.sql
           psql -v ON_ERROR_STOP=1 -f tests/conversation-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/diagnostics-database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/admin-experience-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/retry-retention-database.sql
           python3 tests/money-concurrency.py --direct --database gpante_chat_archive_test --user postgres
 

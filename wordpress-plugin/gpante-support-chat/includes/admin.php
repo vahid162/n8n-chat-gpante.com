@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once __DIR__ . '/admin-ui.php';
+
 /**
  * Call the separate, fixed administrative service; independent of public enabled state.
  *
@@ -42,6 +44,9 @@ function gpante_support_admin_request( $payload ) {
 	$data = json_decode( wp_remote_retrieve_body( $result ), true );
 	if ( 409 === (int) wp_remote_retrieve_response_code( $result ) ) {
 		return new WP_Error( 'policy_conflict', __( 'سیاست هم‌زمان تغییر کرده است. صفحه را تازه و دوباره ذخیره کنید.', 'gpante-support-chat' ) );
+	}
+	if ( is_array( $data ) && 'invalid_input' === ( $data['error'] ?? null ) ) {
+		return new WP_Error( 'invalid_input', __( 'فیلتر یا مقدار واردشده معتبر نیست؛ تاریخ‌ها و ترتیب بازه را بررسی کنید.', 'gpante-support-chat' ) );
 	}
 	if ( 200 !== (int) wp_remote_retrieve_response_code( $result ) || ! is_array( $data ) || isset( $data['error'] ) ) {
 		return new WP_Error( 'admin_unavailable', __( 'آرشیو پاسخ معتبر نداد؛ تغییری تأیید نشد.', 'gpante-support-chat' ) );
@@ -84,150 +89,235 @@ function gpante_support_archive_pager( $query, $has_more ) {
 	}
 }
 
-/** Render escaped transcript and policy. Cookie-authenticated wp-admin enforces access. */
+/**
+ * Read only the bounded list filters used by the existing archive contract.
+ *
+ * @param array $input Query values.
+ * @return array
+ */
+function gpante_support_archive_filters( $input ) {
+	$filters = array();
+	foreach ( array( 'search', 'from', 'to', 'status', 'visibility' ) as $key ) {
+		$filters[ $key ] = isset( $input[ $key ] ) && is_string( $input[ $key ] ) ? sanitize_text_field( wp_unslash( $input[ $key ] ) ) : '';
+	}
+	$filters['search'] = mb_substr( $filters['search'], 0, 100 );
+	return $filters;
+}
+
+/** Render the escaped exchange first, with technical metadata available on demand. */
 function gpante_support_archive_page() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
 	nocache_headers();
-	$policy = gpante_support_admin_request( array( 'operation' => 'getPolicy' ) );
-	?>
-	<div class="wrap" dir="rtl">
-	<h1><?php esc_html_e( 'گفتگوهای چت پانته', 'gpante-support-chat' ); ?></h1>
-	<p><?php esc_html_e( 'آرشیو نشست‌های ناشناس تا ۳۰ روز از زمان اصلی هر پرسش قابل بررسی است؛ این شناسه‌ها نام یا حساب مشتری نیستند. تاریخ‌ها UTC هستند. خواندن این صفحه هزینهٔ مدل ندارد.', 'gpante-support-chat' ); ?></p>
-	<?php
-	if ( is_wp_error( $policy ) || ! gpante_support_valid_policy( $policy['policy'] ?? null ) ) {
-		echo '<div class="notice notice-error"><p>' . esc_html( is_wp_error( $policy ) ? $policy->get_error_message() : __( 'سیاست معتبر دریافت نشد.', 'gpante-support-chat' ) ) . '</p></div></div>';
-		return;
-	}
-	$cfg = $policy['policy'];
-	?>
-	<details><summary><?php esc_html_e( 'سیاست تاریخچه و پاک‌کردن کاربر', 'gpante-support-chat' ); ?></summary>
-	<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-		<input type="hidden" name="action" value="gpante_support_policy">
-		<input type="hidden" name="revision" value="<?php echo esc_attr( $cfg['revision'] ); ?>">
-		<?php wp_nonce_field( 'gpante_support_policy' ); ?>
-		<p><label for="gpante-user-days"><?php esc_html_e( 'مدت نمایش تاریخچه برای همهٔ کاربران', 'gpante-support-chat' ); ?></label>
-		<select id="gpante-user-days" name="user_days">
-		<?php foreach ( array( 3, 7, 15, 30 ) as $days ) : ?>
-			<option value="<?php echo esc_attr( $days ); ?>" <?php selected( $cfg['userDays'], $days ); ?>><?php echo esc_html( number_format_i18n( $days ) . ' ' . __( 'روز', 'gpante-support-chat' ) ); ?></option>
-		<?php endforeach; ?>
-		</select></p>
-		<p><label><input type="checkbox" name="allow_clear" value="1" <?php checked( $cfg['allowClear'] ); ?>> <?php esc_html_e( 'کاربر بتواند تاریخچهٔ قابل مشاهدهٔ خود را پاک کند', 'gpante-support-chat' ); ?></label></p>
-		<p><?php esc_html_e( 'آرشیو مدیریتی همیشه ۳۰ روز است. افزایش مدت، پیام منقضی یا پاک‌شده را بازنمی‌گرداند. پاک‌کردن کاربر روی این آرشیو اثر ندارد.', 'gpante-support-chat' ); ?></p>
-		<?php submit_button( __( 'ذخیرهٔ سیاست مرکزی', 'gpante-support-chat' ) ); ?>
-	</form></details>
-	<?php
-	// GET only selects bounded read filters; no mutation and no arbitrary query/URL forwarding.
-	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Read-only archive navigation under manage_options.
-	$page_no = isset( $_GET['archive_page'] ) ? max( 1, min( 1000, absint( $_GET['archive_page'] ) ) ) : 1;
-	$sid     = isset( $_GET['session'] ) && is_string( $_GET['session'] ) ? sanitize_text_field( wp_unslash( $_GET['session'] ) ) : '';
-	if ( '' !== $sid && ! preg_match( '/^[a-f0-9]{64}$/D', $sid ) ) {
-		echo '<p>' . esc_html__( 'شناسهٔ نشست معتبر نیست.', 'gpante-support-chat' ) . '</p></div>';
-		return;
-	}
-	$query = array(
-		'page'         => 'gpante-support-conversations',
-		'archive_page' => $page_no,
+	// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Bounded read-only navigation under manage_options.
+	$filters   = gpante_support_archive_filters( $_GET );
+	$page_no   = isset( $_GET['archive_page'] ) ? max( 1, min( 1000, absint( $_GET['archive_page'] ) ) ) : 1;
+	$list_page = isset( $_GET['return_page'] ) ? max( 1, min( 1000, absint( $_GET['return_page'] ) ) ) : 1;
+	$sid       = isset( $_GET['session'] ) && is_string( $_GET['session'] ) ? sanitize_text_field( wp_unslash( $_GET['session'] ) ) : '';
+	$query     = array_merge(
+		array(
+			'page'         => 'gpante-support-conversations',
+			'archive_page' => $page_no,
+		),
+		$filters
 	);
-	if ( '' !== $sid ) {
-		$query['session'] = $sid;
-		$data             = gpante_support_admin_request(
-			array(
-				'operation' => 'getSession',
-				'sessionId' => $sid,
-				'page'      => $page_no,
-			)
-		);
-		echo '<p><a href="' . esc_url( admin_url( 'admin.php?page=gpante-support-conversations' ) ) . '">' . esc_html__( 'بازگشت به فهرست', 'gpante-support-chat' ) . '</a></p><h2><code>' . esc_html( $sid ) . '</code></h2>';
-		if ( ! is_wp_error( $data ) && is_array( $data['turns'] ?? null ) ) {
-			foreach ( $data['turns'] as $turn ) {
-				echo '<div class="postbox" style="padding:16px">';
-				echo '<p>' . esc_html__( 'زمان / وضعیت / خطا', 'gpante-support-chat' ) . ': ' . gpante_support_archive_value( $turn['createdAt'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['status'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['errorCode'] ?? null ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Helper escapes each value.
-				foreach ( $turn['messages'] ?? array() as $message ) {
-					echo '<p><strong>' . esc_html( 'user' === ( $message['role'] ?? '' ) ? __( 'کاربر', 'gpante-support-chat' ) : __( 'دستیار', 'gpante-support-chat' ) ) . '</strong></p><div style="white-space:pre-wrap;overflow-wrap:anywhere">' . esc_html( $message['content'] ?? '' ) . '</div>';
-				}
-				echo '<p>' . esc_html__( 'انقضای نمایش / پایان آرشیو / پاک‌شده در', 'gpante-support-chat' ) . ': ' . gpante_support_archive_value( $turn['userExpiresAt'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['archiveExpiresAt'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['clearedAt'] ?? null ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaping helper.
-				echo '<p>' . esc_html__( 'مدت پاسخ (ms) / تماس مدل / توکن ورودی / خروجی / هزینهٔ محافظه‌کارانه (نانودلار)', 'gpante-support-chat' ) . ': ' . gpante_support_archive_value( $turn['durationMs'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['calls'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['promptTokens'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['completionTokens'] ?? null ) . ' / ' . gpante_support_archive_value( $turn['costNano'] ?? null ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaping helper.
-				if ( false === ( $turn['usageComplete'] ?? null ) ) {
-					echo '<p>' . esc_html__( 'usage کامل نیست؛ هزینه شامل رزرو محافظه‌کارانه است.', 'gpante-support-chat' ) . '</p>';
-				}
-				echo '</div>';
-			}
-			if ( empty( $data['turns'] ) ) {
-				echo '<p>' . esc_html__( 'پیامی در بازهٔ نگهداری موجود نیست.', 'gpante-support-chat' ) . '</p>';
-			}
+	$policy    = gpante_support_admin_request( array( 'operation' => 'getPolicy' ) );
+	?>
+	<div class="wrap gpante-admin" dir="rtl">
+		<h1 class="gpante-admin-header"><?php esc_html_e( 'گفتگوهای چت پانته', 'gpante-support-chat' ); ?></h1>
+		<p class="gpante-admin-description"><?php esc_html_e( 'آرشیو مدیریتی: ۳۰ روز از زمان اصلی هر پرسش. نشست‌ها ناشناس‌اند و شناسهٔ آن‌ها حساب مشتری نیست. تاریخ‌ها میلادی و UTC هستند. خواندن این صفحه هزینهٔ مدل ندارد.', 'gpante-support-chat' ); ?></p>
+		<?php if ( is_wp_error( $policy ) || ! gpante_support_valid_policy( $policy['policy'] ?? null ) ) : ?>
+			<div class="notice notice-error"><p><?php echo esc_html( is_wp_error( $policy ) ? $policy->get_error_message() : __( 'سیاست فعلی دریافت نشد؛ فرم تغییر سیاست در دسترس نیست.', 'gpante-support-chat' ) ); ?></p></div>
+		<?php else : ?>
+			<?php $cfg = $policy['policy']; ?>
+			<details class="gpante-admin-card"><summary><?php esc_html_e( 'سیاست تاریخچه و پاک‌کردن کاربر', 'gpante-support-chat' ); ?></summary>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="gpante_support_policy">
+				<input type="hidden" name="revision" value="<?php echo esc_attr( $cfg['revision'] ); ?>">
+				<?php wp_nonce_field( 'gpante_support_policy' ); ?>
+				<p><label for="gpante-user-days"><?php esc_html_e( 'مدت نمایش تاریخچه برای همهٔ کاربران', 'gpante-support-chat' ); ?></label>
+				<select id="gpante-user-days" name="user_days">
+					<?php foreach ( array( 3, 7, 15, 30 ) as $days ) : ?>
+					<option value="<?php echo esc_attr( $days ); ?>" <?php selected( $cfg['userDays'], $days ); ?>><?php echo esc_html( number_format_i18n( $days ) . ' ' . __( 'روز', 'gpante-support-chat' ) ); ?></option>
+					<?php endforeach; ?>
+				</select></p>
+				<p><label><input type="checkbox" name="allow_clear" value="1" <?php checked( $cfg['allowClear'] ); ?>> <?php esc_html_e( 'کاربر بتواند تاریخچهٔ قابل مشاهدهٔ خود را پاک کند', 'gpante-support-chat' ); ?></label></p>
+				<p><?php esc_html_e( 'آرشیو مدیریتی همیشه ۳۰ روز است. پاک‌کردن کاربر آرشیو مدیر را حذف نمی‌کند؛ افزایش مدت، پیام منقضی یا پاک‌شده را برنمی‌گرداند.', 'gpante-support-chat' ); ?></p>
+				<?php submit_button( __( 'ذخیرهٔ سیاست مرکزی', 'gpante-support-chat' ) ); ?>
+			</form></details>
+		<?php endif; ?>
+		<?php
+		if ( '' !== $sid && ! preg_match( '/^[a-f0-9]{64}$/D', $sid ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html__( 'شناسهٔ نشست معتبر نیست.', 'gpante-support-chat' ) . '</p></div></div>';
+			return;
 		}
-	} else {
-		$filters = array();
-		foreach ( array( 'search', 'from', 'to', 'status', 'visibility' ) as $key ) {
-			$filters[ $key ] = isset( $_GET[ $key ] ) && is_string( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
-		}
-		$filters['search'] = mb_substr( $filters['search'], 0, 100 );
-		$query             = array_merge( $query, $filters );
-		?>
-		<form method="get"><input type="hidden" name="page" value="gpante-support-conversations">
-		<p><label><?php esc_html_e( 'جست‌وجوی متن', 'gpante-support-chat' ); ?> <input name="search" maxlength="100" value="<?php echo esc_attr( $filters['search'] ); ?>"></label>
-		<label><?php esc_html_e( 'از', 'gpante-support-chat' ); ?> <input type="date" name="from" value="<?php echo esc_attr( $filters['from'] ); ?>"></label>
-		<label><?php esc_html_e( 'تا', 'gpante-support-chat' ); ?> <input type="date" name="to" value="<?php echo esc_attr( $filters['to'] ); ?>"></label>
-		<label><?php esc_html_e( 'وضعیت', 'gpante-support-chat' ); ?> <select name="status">
-		<?php
-		foreach ( array(
-			''            => 'همه',
-			'success'     => 'موفق',
-			'error'       => 'خطا',
-			'interrupted' => 'قطع‌شده',
-			'pending'     => 'در حال پردازش',
-			'legacy'      => 'قدیمی',
-		) as $value => $label ) :
-			?>
-		<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $filters['status'], $value ); ?>><?php echo esc_html( $label ); ?></option>
-		<?php endforeach; ?></select></label>
-		<label><?php esc_html_e( 'دسترسی کاربر', 'gpante-support-chat' ); ?> <select name="visibility">
-		<?php
-		foreach ( array(
-			''        => 'همه',
-			'visible' => 'قابل مشاهده',
-			'cleared' => 'پاک‌شده',
-			'expired' => 'منقضی',
-		) as $value => $label ) :
-			?>
-		<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $filters['visibility'], $value ); ?>><?php echo esc_html( $label ); ?></option>
-		<?php endforeach; ?></select></label>
-		<button class="button"><?php esc_html_e( 'فیلتر', 'gpante-support-chat' ); ?></button></p></form>
-		<?php
-		$data = gpante_support_admin_request(
-			array_merge(
-				$filters,
+		if ( '' !== $sid ) {
+			$query['session']     = $sid;
+			$query['return_page'] = $list_page;
+			$back                 = array_merge(
 				array(
-					'operation' => 'listSessions',
+					'page'         => 'gpante-support-conversations',
+					'archive_page' => $list_page,
+				),
+				$filters
+			);
+				$return_view      = isset( $_GET['return_view'] ) && is_string( $_GET['return_view'] ) ? sanitize_text_field( wp_unslash( $_GET['return_view'] ) ) : '';
+			if ( 'diagnostics' === $return_view ) {
+				$back                 = array_merge(
+					array(
+						'page'            => 'gpante-support-diagnostics',
+						'diagnostic_page' => $list_page,
+					),
+					array_intersect_key( $filters, array_flip( array( 'search', 'from', 'to', 'status' ) ) )
+				);
+				$query['return_view'] = 'diagnostics';
+				foreach ( array( 'traffic', 'source' ) as $key ) {
+					$value         = isset( $_GET[ $key ] ) && is_string( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+					$back[ $key ]  = $value;
+					$query[ $key ] = $value;
+				}
+			}
+			echo '<p><a class="button" href="' . esc_url( add_query_arg( $back, admin_url( 'admin.php' ) ) ) . '">' . esc_html__( 'بازگشت به فهرست', 'gpante-support-chat' ) . '</a></p>';
+			echo '<h2>' . esc_html__( 'گفتگوی ناشناس', 'gpante-support-chat' ) . '</h2>' . gpante_support_admin_reference( $sid ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Helper emits fixed escaped markup.
+			$data = gpante_support_admin_request(
+				array(
+					'operation' => 'getSession',
+					'sessionId' => $sid,
 					'page'      => $page_no,
 				)
-			)
-		);
-		if ( ! is_wp_error( $data ) && is_array( $data['sessions'] ?? null ) ) {
-			echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'نشست ناشناس', 'gpante-support-chat' ) . '</th><th>' . esc_html__( 'اولین / آخرین تطبیق', 'gpante-support-chat' ) . '</th><th>' . esc_html__( 'رکورد / پیام / خطا', 'gpante-support-chat' ) . '</th></tr></thead><tbody>';
-			foreach ( $data['sessions'] as $session ) {
-				$link = add_query_arg(
-					array(
-						'page'    => 'gpante-support-conversations',
-						'session' => $session['sessionId'],
-					),
-					admin_url( 'admin.php' )
-				);
-				echo '<tr><td><a href="' . esc_url( $link ) . '"><code>' . esc_html( substr( $session['sessionId'], 0, 16 ) ) . '…</code></a></td><td>' . esc_html( $session['firstAt'] . ' / ' . $session['lastAt'] ) . '</td><td>' . esc_html( $session['turns'] . ' / ' . $session['messages'] . ' / ' . $session['errors'] ) . '</td></tr>';
+			);
+			if ( ! is_wp_error( $data ) && is_array( $data['turns'] ?? null ) ) {
+				foreach ( $data['turns'] as $turn ) {
+					if ( ! is_array( $turn ) ) {
+						continue;
+					}
+					echo '<article class="gpante-admin-card gpante-admin-turn">';
+					echo '<div class="gpante-admin-card__header">' . gpante_support_admin_badge( $turn['status'] ?? null ) . '<time>' . esc_html( gpante_support_admin_time( $turn['createdAt'] ?? null ) ) . '</time></div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Badge helper escapes values.
+					foreach ( is_array( $turn['messages'] ?? null ) ? $turn['messages'] : array() as $message ) {
+						if ( ! is_array( $message ) || ! is_string( $message['content'] ?? null ) || ! in_array( $message['role'] ?? null, array( 'user', 'assistant' ), true ) ) {
+							continue;
+						}
+						$role = $message['role'];
+						echo '<section class="gpante-admin-message is-' . esc_attr( $role ) . '"><h3>' . esc_html( 'user' === $role ? __( 'پرسش کاربر', 'gpante-support-chat' ) : __( 'پاسخ دستیار', 'gpante-support-chat' ) ) . '</h3><div class="gpante-admin-message__content">' . esc_html( $message['content'] ) . '</div></section>';
+					}
+					echo '<dl class="gpante-admin-summary"><div><dt>' . esc_html__( 'زمان پاسخ', 'gpante-support-chat' ) . '</dt><dd>' . esc_html( gpante_support_admin_duration( $turn['durationMs'] ?? null ) ) . '</dd></div><div><dt>' . esc_html__( 'مصرف محافظه‌کارانه، USD', 'gpante-support-chat' ) . '</dt><dd dir="ltr">' . esc_html( gpante_support_admin_money( $turn['costNano'] ?? null ) ) . '</dd></div></dl>';
+					if ( false === ( $turn['usageComplete'] ?? null ) ) {
+						echo '<p class="gpante-admin-warning">' . esc_html__( 'مصرف نهایی تأیید نشده؛ مبلغ شامل رزرو محافظه‌کارانه است.', 'gpante-support-chat' ) . '</p>';
+					}
+					if ( ! empty( $turn['errorCode'] ) ) {
+						echo '<p class="gpante-admin-warning">' . esc_html( gpante_support_admin_error_hint( $turn['errorCode'] ) ) . '</p>';
+					}
+					echo '<details><summary>' . esc_html__( 'جزئیات فنی', 'gpante-support-chat' ) . '</summary><dl class="gpante-admin-details">';
+					foreach ( array(
+						'errorCode'        => 'کد خطا',
+						'createdAt'        => 'زمان اصلی UTC',
+						'durationMs'       => 'مدت پاسخ، میلی‌ثانیه',
+						'calls'            => 'تماس مدل',
+						'promptTokens'     => 'توکن ورودی',
+						'completionTokens' => 'توکن خروجی',
+						'costNano'         => 'مصرف محافظه‌کارانه، نانودلار',
+						'userExpiresAt'    => 'پایان نمایش کاربر',
+						'archiveExpiresAt' => 'پایان آرشیو مدیر',
+						'clearedAt'        => 'پاک‌شده در',
+					) as $key => $label ) {
+						$value = $turn[ $key ] ?? null;
+						echo '<div><dt>' . esc_html( $label ) . '</dt><dd dir="ltr">' . gpante_support_archive_value( is_scalar( $value ) ? $value : null ) . '</dd></div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Scalar escaping helper.
+					}
+					echo '</dl></details></article>';
+				}
+				if ( empty( $data['turns'] ) ) {
+					echo '<p>' . esc_html__( 'پیامی در بازهٔ نگهداری موجود نیست.', 'gpante-support-chat' ) . '</p>';
+				}
 			}
-			echo '</tbody></table>';
+		} else {
+			?>
+			<form method="get" class="gpante-admin-card gpante-admin-filters"><input type="hidden" name="page" value="gpante-support-conversations">
+				<label><?php esc_html_e( 'جستجوی متن گفتگو', 'gpante-support-chat' ); ?><input name="search" maxlength="100" value="<?php echo esc_attr( $filters['search'] ); ?>"></label>
+				<label><?php esc_html_e( 'از تاریخ، UTC', 'gpante-support-chat' ); ?><input type="date" name="from" value="<?php echo esc_attr( $filters['from'] ); ?>"></label>
+				<label><?php esc_html_e( 'تا تاریخ، UTC', 'gpante-support-chat' ); ?><input type="date" name="to" value="<?php echo esc_attr( $filters['to'] ); ?>"></label>
+				<label><?php esc_html_e( 'وضعیت', 'gpante-support-chat' ); ?><select name="status">
+					<?php
+					foreach ( array(
+						''            => 'همه',
+						'success'     => 'موفق',
+						'error'       => 'خطا',
+						'interrupted' => 'قطع‌شده',
+						'pending'     => 'در حال پردازش',
+						'legacy'      => 'قدیمی',
+					) as $value => $label ) :
+						?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $filters['status'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?></select></label>
+				<label><?php esc_html_e( 'دسترسی کاربر', 'gpante-support-chat' ); ?><select name="visibility">
+					<?php
+					foreach ( array(
+						''        => 'همه',
+						'visible' => 'قابل مشاهده',
+						'cleared' => 'پاک‌شده',
+						'expired' => 'منقضی',
+					) as $value => $label ) :
+						?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $filters['visibility'], $value ); ?>><?php echo esc_html( $label ); ?></option>
+					<?php endforeach; ?></select></label>
+				<button class="button button-primary"><?php esc_html_e( 'فیلتر', 'gpante-support-chat' ); ?></button>
+				<a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=gpante-support-conversations' ) ); ?>"><?php esc_html_e( 'پاک‌کردن فیلترها', 'gpante-support-chat' ); ?></a>
+			</form>
+			<?php
+			$data = gpante_support_admin_request(
+				array_merge(
+					$filters,
+					array(
+						'operation' => 'listSessions',
+						'page'      => $page_no,
+					)
+				)
+			);
+			if ( ! is_wp_error( $data ) && is_array( $data['sessions'] ?? null ) ) {
+				echo '<div class="gpante-admin-table-wrap"><table class="widefat striped"><thead><tr>';
+				foreach ( array( 'گفتگوی ناشناس', 'آخرین فعالیت مطابق فیلتر', 'اولین فعالیت مطابق فیلتر', 'نوبت‌ها', 'پیام‌ها', 'خطاها' ) as $label ) {
+					echo '<th scope="col">' . esc_html( $label ) . '</th>';
+				}
+				echo '</tr></thead><tbody>';
+				foreach ( $data['sessions'] as $session ) {
+					if ( ! is_array( $session ) || ! is_string( $session['sessionId'] ?? null ) || ! preg_match( '/^[a-f0-9]{64}$/D', $session['sessionId'] ) ) {
+						continue;
+					}
+					$link = add_query_arg(
+						array_merge(
+							$query,
+							array(
+								'session'      => $session['sessionId'],
+								'archive_page' => 1,
+								'return_page'  => $page_no,
+							)
+						),
+						admin_url( 'admin.php' )
+					);
+					echo '<tr><td><a href="' . esc_url( $link ) . '">' . esc_html__( 'مشاهدهٔ گفتگو', 'gpante-support-chat' ) . '</a><br><code>' . esc_html( substr( $session['sessionId'], 0, 12 ) . '…' ) . '</code></td><td>' . esc_html( gpante_support_admin_time( $session['lastAt'] ?? null ) ) . '</td><td>' . esc_html( gpante_support_admin_time( $session['firstAt'] ?? null ) ) . '</td>';
+					foreach ( array( 'turns', 'messages', 'errors' ) as $key ) {
+						echo '<td>' . esc_html( gpante_support_admin_number( $session[ $key ] ?? null ) ) . '</td>';
+					}
+					echo '</tr>';
+				}
+				if ( empty( $data['sessions'] ) ) {
+					echo '<tr><td colspan="6">' . esc_html__( 'گفتگویی مطابق این فیلترها در بازهٔ آرشیو وجود ندارد.', 'gpante-support-chat' ) . '</td></tr>';
+				}
+				echo '</tbody></table></div>';
+			}
 		}
-	}
-	// phpcs:enable WordPress.Security.NonceVerification.Recommended
-	if ( is_wp_error( $data ) ) {
-		echo '<div class="notice notice-error"><p>' . esc_html( $data->get_error_message() ) . '</p></div>';
-	} else {
-		$more = true === ( $data['hasMore'] ?? false );
-		gpante_support_archive_pager( $query, $more );
-	}
-	echo '</div>';
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		if ( is_wp_error( $data ) || ! is_array( $data ) || ( '' === $sid ? ! is_array( $data['sessions'] ?? null ) : ! is_array( $data['turns'] ?? null ) ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html( is_wp_error( $data ) ? $data->get_error_message() : __( 'آرشیو پاسخ معتبر نداد؛ نتیجهٔ خالی تأیید نشده است.', 'gpante-support-chat' ) ) . '</p></div>';
+		} else {
+				echo '<nav class="gpante-admin-pager" aria-label="' . esc_attr__( 'صفحه‌های آرشیو', 'gpante-support-chat' ) . '">';
+				$more = true === ( $data['hasMore'] ?? false );
+				gpante_support_archive_pager( $query, $more );
+			echo '</nav>';
+		}
+		?>
+	</div>
+	<?php
 }
 
 /** Authorize and persist policy centrally; a transport error never appears as success. */

@@ -95,13 +95,17 @@ test('site records reject private/malformed/operational content and retain title
 
 test('site product records retain verified fresh facts and disallow product ID reads', () => {
   const product = { id: 124, content_type: 'product', status: 'publish', type: 'simple', catalog_visibility: 'visible', is_password_protected: false,
-    name: 'دوره کورل', permalink: 'https://gpante.com/product/corel/', prices: { price: '100', currency_code: 'IRT', currency_minor_unit: 0 }, attributes: [] };
+    name: 'دوره کورل', permalink: 'https://gpante.com/product/corel/', prices: { price: '100', currency_code: 'IRT', currency_minor_unit: 0 }, attributes: [],
+    is_virtual: true, is_downloadable: true, downloads: [{ download_url: 'https://gpante.com/private.zip' }] };
   const output = shape(prepare('knowledge', { source: 'site', search: 'کورل' }).context, response([page(), product]));
   assert.equal(output.ok, true); assert.equal(output.results[1].kind, 'product'); assert.equal(output.results[1].price.amount, '100');
+  assert.equal(output.results[1].virtual, true); assert.equal(output.results[1].downloadable, true);
+  assert.equal(JSON.stringify(output).includes('private.zip'), false);
   assert.equal(shape(prepare('read', { contentId: 124 }).context, response([product])).status, 'invalid_response');
   const s = state('دوره کورل', [site(output.results)]);
-  assert.equal(groundingError(s, 'دوره کورل ۱۰۰ تومان\n[دوره](https://gpante.com/product/corel/)'), null);
-  assert.equal(groundingError(s, 'دوره کورل ۲۰۰ تومان\n[دوره](https://gpante.com/product/corel/)'), 'price_mismatch');
+  assert.equal(groundingError(s, 'دوره کورل ۱۰۰ تومان\n[دوره](https://gpante.com/product/corel/)'), 'product_type_required');
+  assert.equal(groundingError(s, 'فایل قابل دانلود دوره کورل ۱۰۰ تومان\n[دوره](https://gpante.com/product/corel/)'), null);
+  assert.equal(groundingError(s, 'فایل قابل دانلود دوره کورل ۲۰۰ تومان\n[دوره](https://gpante.com/product/corel/)'), 'price_mismatch');
 });
 
 test('site raw and normalized output budgets are measured in bytes and not silently cut', () => {
@@ -157,7 +161,7 @@ test('model exposes read plus typed site search and every workflow tool round ma
   assert(tools.find(t => t.name === 'Knowledge_Search').parameters.properties.source.enum.includes('site'));
   assert.deepEqual(tools.find(t => t.name === 'Knowledge_Read').parameters.required, ['contentId']);
   const workflow = build(); assert.equal(workflow.nodes.length, 69);
-  assert.match(workflow.description, /۱٫۷٫۱/);
+  assert.match(workflow.description, /۱٫۸٫۰/);
   assert(workflow.description.length <= 255, 'workflow metadata fits the connector contract');
   for (let i = 1; i <= 3; i++) assert.match(workflow.nodes.find(n => n.name === 'Prepare Tool ' + i).parameters.jsCode, /Knowledge_Read:'read'/);
 });

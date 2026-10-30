@@ -38,6 +38,36 @@ test('FAQ citation and verified design support render as safe regular navigation
   } finally { delete global.document; }
 });
 
+test('only the approved designer phone renders a native call beside the contact page', () => {
+  const phone = 'tel:+989179509010';
+  const contact = 'https://gpante.com/contact-us/';
+  assert.equal(safeLink(phone), true);
+  const rejected = ['tel:09179509010', 'tel:+989179509011', 'TEL:+989179509010',
+    'tel:+9891795090100', 'tel:+989179509010;ext=1', 'tel:+989179509010?x=1',
+    'tel:+989179509010#x', 'tel:+989179509010/path', 'tel:%2B989179509010',
+    'tel:+989179509010%0a', 'tel:+989179509010\n', 'tel: +989179509010'];
+  for (const value of rejected) assert.equal(safeLink(value), false, value);
+  global.document = { createTextNode: value => node('#text', value), createElement: tag => node(tag) };
+  try {
+    for (const content of [`[09179509010](${phone}) [تماس با ما](${contact})`, `${phone} ${contact}`]) {
+      const target = node('div');
+      appendContent(target, content);
+      const links = all(target).filter(value => value.type === 'a');
+      assert.deepEqual(links.map(value => value.href), [phone, contact]);
+      assert.equal(links[0].textContent, '09179509010');
+      assert.equal(links[0].target, undefined, 'native calls do not open an empty tab');
+      assert.equal(links[0].title, 'تماس مستقیم با طراح');
+      assert.equal(links[1].target, '_blank');
+      assert.equal(target.children.length, 2, 'each standalone destination keeps its own readable bubble');
+    }
+    const target = node('div');
+    appendContent(target, rejected.map(value => `[نامعتبر](${value})`).join('\n'));
+    assert.equal(all(target).filter(value => value.type === 'a').length, 0);
+    const plain = node('div');appendContent(plain, '09179509010');
+    assert.equal(all(plain).filter(value => value.type === 'a').length, 0, 'plain untrusted numbers are not auto-linked');
+  } finally { delete global.document; }
+});
+
 test('exact public account, cart and checkout landing pages render as links without exposing private destinations', () => {
   const urls = ['https://gpante.com/my-account/', 'https://gpante.com/cart/', 'https://gpante.com/checkout/'];
   for (const url of urls) {

@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.15.0"
+  version: "0.16.0"
 ---
 
 # Operate GPante Support Chat
@@ -57,6 +57,12 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - A cryptographic sendId identifies one exact request in one signed session. Successful visible retries replay without a model call; pending stays busy; old failed/expired/cleared requests cannot silently create another paid turn. Cookie renewal retains the same identity and a30day idle lifetime. Do not promise durable retry across navigation.
 - Owned feedback requires an unexpired visible successful turn and trusted SID. Native site-search fallback must remain usable when model/budget/provider is unavailable; it uses no model calls. Preserve response caps, capability/nonce and public allowlists.
 - Bounded diagnostic metadata records source/tool/query/filters/result IDs/ranks/fixed rejection codes, never source bodies, URLs, raw provider payloads or copied transcripts. Redact identifiers at JS and SQL boundaries. Keep at most2000rows for7days; 30day administrator archive and text-free financial ledger stay independent. Only privileged administration can mark synthetic traffic; never label unclassified historical traffic as verified human or fabricate old traces. Main/Admin raw execution storage remains off.
+
+## Product delivery and designer handoff
+
+- Candidate plugin0.13.0/Main1.8.0 adds verified native WooCommerce virtual/downloadable booleans, unknown as null, without exposing protected downloads. Both true require a clear downloadable-design-file introduction; never infer delivery type from names/images/materials. Generic purchase delivery reads FAQ; private order/payment/shipment status remains unavailable.
+- The user explicitly approved designer09179509010. Only exact `tel:+989179509010` is a trusted call destination, shown with `https://gpante.com/contact-us/` after an explicit custom-design request or honest valid-search absence. Preserve safe-link validation, no automatic calls, no new tab for phone, no API-error/incomplete-coverage absence claims, idempotence and the8000-character bound. Do not append referrals inside context-free history sanitizing.
+- Read [delivery and handoff](../../../docs/product-delivery-handoff.md) for actual release/install status. Upgrade compatible plugin first, then Main; no SQL/Admin/Retention change. The proposed FAQ copy is not published. Refresh live state; current verified install remains0.12.0/Main1.7.1 until an actual rollout. Keep customer transcripts/queries/IDs out of public artifacts.
 
 ## Current approved operating policy
 

@@ -339,6 +339,7 @@
   'use strict';
 
   function safeLink(address) {
+    if (address === 'tel:+989179509010') return true;
     if (address === 'https://t.me/gpante_designer' || typeof address === 'string' && !/\s/.test(address) && /^https:\/\/gpante\.com\/faq-ai\/#faq-[a-z0-9][a-z0-9-]{0,79}$/.test(address)) return true;
     if (['https://gpante.com/my-account/', 'https://gpante.com/cart/', 'https://gpante.com/checkout/'].includes(address)) return true;
     if (typeof address !== 'string' || !/^https:\/\/gpante\.com\/[^\s?#\\]*$/u.test(address)) return false;
@@ -376,7 +377,7 @@
   }
 
   function appendInline(container, content) {
-    const pattern = /\[([^\]\n]{1,300})\]\((https:\/\/[^\s)]+)\)|https:\/\/[^\s<>()\[\]]+/gu;
+    const pattern = /\[([^\]\n]{1,300})\]\(([^)]*)\)|(?:https:\/\/|tel:)[^\s<>()\[\]]+/gu;
     let end = 0;
     let previousLink = false;
     for (const match of content.matchAll(pattern)) {
@@ -388,10 +389,15 @@
         const link = document.createElement('a');
         link.href = address;
         link.className = 'gpante-chat-link';
-        link.textContent = match[1]?.replace(/\*\*/g, '') || (address.startsWith('https://gpante.com/product/') ? 'مشاهدهٔ محصول' : 'مشاهدهٔ صفحه');
-        link.title = 'بازکردن در برگهٔ تازه';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
+        if (address === 'tel:+989179509010') {
+          link.textContent = '09179509010';
+          link.title = 'تماس مستقیم با طراح';
+        } else {
+          link.textContent = match[1]?.replace(/\*\*/g, '') || (address.startsWith('https://gpante.com/product/') ? 'مشاهدهٔ محصول' : 'مشاهدهٔ صفحه');
+          link.title = 'بازکردن در برگهٔ تازه';
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
         container.append(link);
         if (!match[2]) container.append(document.createTextNode(match[0].slice(address.length)));
       } else {
@@ -443,7 +449,7 @@
   }
 
   function navigationItems(text) {
-    const pattern = /\[[^\]\n]{1,300}\]\((https:\/\/[^\s)]+)\)|(https:\/\/[^\s<>()\[\]]+)/gu;
+    const pattern = /\[[^\]\n]{1,300}\]\(([^)]*)\)|((?:https:\/\/|tel:)[^\s<>()\[\]]+)/gu;
     const items = [...text.matchAll(pattern)];
     return items.length && !text.replace(pattern, '').trim() && items.every(item => safeLink(item[1] || item[2]))
       ? items.map(item => item[0]) : null;

@@ -112,6 +112,26 @@ test('public shape honors free price, minor units and large integer amounts with
   assert.equal(decimal.results[0].price.amount, '9007199254740993.12');
 });
 
+test('product delivery facts preserve digital, physical and mixed booleans without guessing legacy fields', () => {
+  for (const kind of ['search', 'details']) {
+    const context = prepare(kind, kind === 'search' ? { search: 'فایل' } : { productId: 49304 }).context;
+    for (const [is_virtual, is_downloadable] of [[true, true], [false, false], [false, true], [true, false]]) {
+      const result = shape(context, response([product({ is_virtual, is_downloadable })]));
+      assert.equal(result.ok, true);
+      assert.equal(result.results[0].virtual, is_virtual);
+      assert.equal(result.results[0].downloadable, is_downloadable);
+      assert.equal(JSON.stringify(result).includes('private.zip'), false);
+      assert.equal(result.results[0].downloads, undefined);
+    }
+    for (const changes of [{}, { is_virtual: 'true', is_downloadable: 'false' }, { is_virtual: 1, is_downloadable: 0 }, { is_virtual: null, is_downloadable: null }]) {
+      const result = shape(context, response([product(changes)]));
+      assert.equal(result.ok, true);
+      assert.equal(result.results[0].virtual, null);
+      assert.equal(result.results[0].downloadable, null);
+    }
+  }
+});
+
 test('constraint mismatch or missing attributes cannot become relaxed product matches', () => {
   const context = prepare('search', { search: 'آجیل', format: 'dxf', thickness: '2.7', material: 'mdf' }).context;
   const missing = product({ attributes: [] });

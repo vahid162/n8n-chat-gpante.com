@@ -241,6 +241,8 @@ function publicProduct(item, context) {
   return { id: item.id, name: publicText(item.name, 240).text, url: safeLink(item.permalink, 'product'),
     summary: summary.text, truncated: summary.truncated, price: publicPrice(item.prices), attributes, images,
     categoryIds: categoryIds(item, context), publishedAt,
+    virtual: typeof item.is_virtual === 'boolean' ? item.is_virtual : null,
+    downloadable: typeof item.is_downloadable === 'boolean' ? item.is_downloadable : null,
     inStock: typeof item.is_in_stock === 'boolean' ? item.is_in_stock : null,
     onSale: typeof item.on_sale === 'boolean' ? item.on_sale : null };
 }

@@ -280,6 +280,31 @@ test('restored assistant details render as list bubbles and buttons while user M
   assertControls(widget, false);
 });
 
+test('fresh and restored designer referrals preserve native calling without dispatching chat actions', async () => {
+  const content = '[09179509010](tel:+989179509010)\n\n[تماس با ما](https://gpante.com/contact-us/)';
+  const widget = createWidget(undefined, true);await widget.open([]);
+  widget.type('طراحی اختصاصی می‌خواهم');widget.submit();
+  const id = 'c'.repeat(32);
+  await widget.respond(1, {output:content,requestId:id});
+  const descendants = element => [element, ...element.children.flatMap(descendants)];
+  const check = () => {
+    const links = descendants(widget.elements.messages).filter(element => element.tagName === 'a');
+    assert.deepEqual(links.map(link => link.href), ['tel:+989179509010', 'https://gpante.com/contact-us/']);
+    assert.equal(links[0].textContent, '09179509010');
+    assert.equal(links[0].target, undefined);
+    const before = widget.requests.length;
+    let intercepted = false;
+    links[0].addEventListener('click', event => {event.preventDefault();intercepted = true;});
+    assert.equal(links[0].dispatch('click').defaultPrevented, true, 'the test intercepts the native dialer action');
+    assert(intercepted);
+    assert.equal(widget.requests.length, before, 'phone activation is not a chat request');
+  };
+  check();
+  widget.window.dispatch('focus');
+  await widget.respond(2, {messages:[{role:'user',content:'طراحی اختصاصی می‌خواهم',requestId:id},{role:'assistant',content,requestId:id}]});
+  check();
+});
+
 test('a second script load does not attach duplicate handlers or duplicate a request', async () => {
   const widget = createWidget();
   widget.initializeAgain();
@@ -944,12 +969,17 @@ test('a definitive prior failure permits a deliberate new send instead of an end
 test('feedback targets the returned request ID and a replay does not duplicate restored messages', async () => {
   const widget=createWidget(undefined,true);await widget.open([]);
   const id='b'.repeat(32);
+  const content='[09179509010](tel:+989179509010)\n\n[تماس با ما](https://gpante.com/contact-us/)';
   widget.type('پرسش');widget.submit();
   await widget.respond(1,{error:{code:'backend_unavailable'},output:'قطع شد'},false,502);
-  widget.click('reconnect');await widget.respond(2,{messages:[{role:'user',content:'پرسش',requestId:id},{role:'assistant',content:'پاسخ',requestId:id}],historyResetAt:null,hasMore:false,nextCursor:null});
-  widget.click('retry');await widget.respond(3,{output:'پاسخ',requestId:id});
+  widget.click('reconnect');await widget.respond(2,{messages:[{role:'user',content:'پرسش',requestId:id},{role:'assistant',content,requestId:id}],historyResetAt:null,hasMore:false,nextCursor:null});
+  widget.click('retry');await widget.respond(3,{output:content,requestId:id});
   assert.equal(widget.elements.messages.children.length,2);
   const assistant=widget.elements.messages.children[1];
+  const descendants=element=>[element,...element.children.flatMap(descendants)];
+  const links=descendants(assistant).filter(element=>element.tagName==='a');
+  assert.deepEqual(links.map(link=>link.href),['tel:+989179509010','https://gpante.com/contact-us/']);
+  assert.equal(links[0].target,undefined,'a replay retains native phone navigation');
   const helpful=assistant.children[2].children[0];helpful.dispatch('click');
   assert.equal(widget.requests[4].body.action,'feedback');
   assert.equal(widget.requests[4].body.feedbackRequestId,id);

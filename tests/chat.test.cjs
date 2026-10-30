@@ -4,6 +4,16 @@ const assert = require('node:assert/strict');
 const { validate, budget, finish } = require('../src/chat.cjs');
 const sessionId = 'test_session_12345678';
 
+test('only the approved designer call URI survives reply sanitizing and history replay', () => {
+  const phone = '[تماس با طراح: 09179509010](tel:+989179509010)';
+  assert.equal(finish({ output: phone }), phone);
+  assert.equal(finish({ output: finish({ output: phone }) }), phone);
+  for (const address of ['tel:09179509010', 'tel:+989179509011', 'tel:+989179509010?x=1',
+    'tel:+989179509010;ext=2', 'TEL:+989179509010', 'tel:%2B989179509010']) {
+    assert(!finish({ output: `[تماس](${address})` }).includes(address), address);
+  }
+});
+
 test('rejects invalid sessions, unsupported actions and excessive messages before budget/model', () => {
   for (const input of [
     { sessionId: 'short', chatInput: 'سلام' },

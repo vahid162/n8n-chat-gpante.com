@@ -608,6 +608,8 @@ function gpante_support_catalog_products( $request ) {
 			$item['type']                  = $product->get_type();
 			$item['catalog_visibility']    = $product->get_catalog_visibility();
 			$item['is_password_protected'] = false;
+			$item['is_virtual']            = $product->is_virtual();
+			$item['is_downloadable']       = $product->is_downloadable();
 			$item['category_ids']          = gpante_support_catalog_category_ids( $post->ID, 'product_cat' );
 			$item['published_at']          = get_post_time( 'Y-m-d\TH:i:s\Z', true, $post );
 			$items[]                       = $item;

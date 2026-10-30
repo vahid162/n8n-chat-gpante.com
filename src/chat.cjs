@@ -1,5 +1,8 @@
 'use strict';
 
+const DESIGNER_CALL_URI = 'tel:+989179509010';
+const CONTACT_URL = 'https://gpante.com/contact-us/';
+
 function validate(input) {
   const sessionId = typeof input.sessionId === 'string' ? input.sessionId : '';
   const chatInput = typeof input.chatInput === 'string' ? input.chatInput.trim() : '';
@@ -71,10 +74,17 @@ function replyText(value) {
     .replace(/[\u200b-\u200f]/g, ' ').replace(/٫/g, '.').replace(/\s+/g, ' ').trim();
 }
 
+function customDesignIntent(text) {
+  return /(?:طراحی|طرح)\s*(?:اختصاصی|سفارشی)|سفارش\s*(?:طرح|طراحی)/.test(replyText(text));
+}
+
 // Only high-confidence intents are gated; ambiguous questions still use the normal tool loop.
 function requiredSource(state, text = state.chatInput, followup = true) {
   const q = replyText(text);
-  if (/طراحی اختصاصی|سفارش طرح|طراحی سفارشی/.test(q)) return 'faq';
+  if (customDesignIntent(q)) return 'faq';
+  if (/ارسال|تحویل|مرسوله|پست(?: |$)/.test(q)
+    && /خرید|خریدم|سفارش|پرداخت|کجا|چطور|چگونه|چه (?:روز|وقت|زمان)|(?:^| )کی(?: |[؟?]|$)/.test(q)) return 'faq';
+  if (/این (?:ماکت|محصول|طرح|فایل)/.test(q) && /جنس|متریال|مواد|ساخت.*(?:از|با)|فرمت|دانلودی|فیزیکی/.test(q)) return 'products';
   if (/متن.*(?:قوانین|مقررات|بازپرداخت)|(?:قوانین|مقررات).*بازپرداخت/.test(q)) return 'guides';
   if (/دسته(?: بندی)? ها|دسته بندی|دسته (?:محصول|مقاله|مقالات)/.test(q)
     && !/پرفروش|جدیدترین|تازه ترین|همین دسته|این دسته/.test(q)) return /مقاله|مقالات|آموزش|دوره/.test(q) ? 'article_categories' : 'product_categories';
@@ -140,7 +150,7 @@ function attributeMatches(taxonomy, term, value) {
 
 function limitationOnly(output, discovery = false) {
   // A limitation can excuse only a limitation-only reply, never another positive clause.
-  const clauses = output.replace(/\[[^\]\n]*\]\(https:\/\/[^\s<>()[\]]+\)/g, '')
+  const clauses = output.replace(/\[[^\]\n]*\]\((?:https:\/\/[^\s<>()[\]]+|tel:\+989179509010)\)/g, '')
     .replace(/https:\/\/[^\s<>()[\]]+/g, '').replace(/[*_#>|]/g, '')
     .split(/[.!?؟؛;،\n]+|\s+(?:اما|ولی|با این حال|بنابراین|پس|و)\s+/).map(replyText).filter(Boolean);
   let limitation = false;
@@ -197,9 +207,9 @@ function groundingError(state, output) {
   const abstains = limitationOnly(output);
   const results = evidence.filter(e => e.ok).flatMap(e => e.results || []);
   const allowed = new Set(results.flatMap(r => [r.url, ...(r.links || []).map(l => l.url)]));
-  const links = [...output.matchAll(/https:\/\/[^\s<>()[\]]+/g)];
+  const links = [...output.matchAll(/(?:https:\/\/|tel:)[^\s<>()[\]]+/g)];
   // Static support navigation is permitted without retrieval, never product/FAQ facts.
-  const navigation = new Set(['https://gpante.com/contact-us/', 'https://gpante.com/my-account/']);
+  const navigation = new Set([CONTACT_URL, 'https://gpante.com/my-account/', DESIGNER_CALL_URI]);
   if (links.some(m => !allowed.has(m[0]) && !navigation.has(m[0]))) return 'unverified_reference';
   const reads = required ? relevant : evidence;
   const incomplete = reads.some(e => e.ok && e.source === 'site' && (e.coverage?.complete === false || e.status === 'incomplete_source'));
@@ -255,6 +265,15 @@ function groundingError(state, output) {
     }
     const item = [...products].reverse().find(r => r.url === url);
     if (!item) return 'unverified_reference';
+    if (item.virtual === true && item.downloadable === true) {
+      const text = replyText(section.replace(/\*/g, ''));
+      const digital = /فایل (?:طراحی )?(?:دیجیتال|دانلودی|قابل دانلود)|طرح (?:دانلودی|قابل دانلود)|دانلود (?:فایل|طرح)/;
+      const negated = new RegExp('(?:' + digital.source + ')\\s+(?:نیست|ندارد|نمی\\s*(?:باشد|شود)|وجود ندارد)');
+      // Match a direct physical claim; titles and cost qualifiers do not determine delivery.
+      const physical = [...text.matchAll(/(?:^| )(?:ماکت آماده|کالای فیزیکی|محصول فیزیکی|با پست|به صورت فیزیکی)(?: (?:هم|نیز|را|برای شما|به شما|با پست|به صورت فیزیکی|بدون هزینه|رایگان)){0,3} (?:است|هست|ارسال می ?(?:شود|کنیم)|ارسال خواهد شد|تحویل(?: داده)? می ?شود|دریافت می ?کنید|می ?فرستیم)(?=[ .،؛!?؟]|$)/g)]
+        .some(match => !/(?:^| )نه(?: یک| اینکه)?$/.test(text.slice(0, match.index).trimEnd()));
+      if (!digital.test(text) || negated.test(text) || physical) return 'product_type_required';
+    }
     for (const p of prices(section)) {
       const unit = /تومان|تومن|irt/.test(p[3]) ? 'IRT' : /ریال|irr/.test(p[3]) ? 'IRR' : 'USD';
       const currency = /^(IRT|TMN|TOMAN)$/.test(item.price?.currency) ? 'IRT' : item.price?.currency;
@@ -273,6 +292,31 @@ function groundingError(state, output) {
     }
   }
   return null;
+}
+
+function designReferral(state, output) {
+  const searches = (state.evidence || []).filter(e => e.name === 'Product_Search');
+  const noDesign = requiredSource(state) === 'products' && limitationOnly(output)
+    && /پیدا نشد|پیدا نکردم|یافت نشد|نیافتم|گزینه.*مرتبط.*نیست/.test(replyText(output))
+    && searches.some(e => e.ok && ['ok', 'no_matches', 'partial'].includes(e.status))
+    && !searches.some(e => !e.ok || e.coverage?.complete === false || e.status === 'incomplete_source');
+  if (!customDesignIntent(state.chatInput) && !noDesign && !output.includes(DESIGNER_CALL_URI)) return output;
+  const phone = '[تماس مستقیم با طراح: 09179509010](' + DESIGNER_CALL_URI + ')';
+  const contact = '[صفحهٔ تماس با ما](' + CONTACT_URL + ')';
+  const message = 'برای بررسی امکان طراحی یا پیدا کردن طرح موردنظر، با طراح تماس بگیرید.';
+  const labels = new Map([[DESIGNER_CALL_URI, phone], [CONTACT_URL, contact]]);
+  const seen = new Set();
+  const text = output.replace(/\[[^\]\n]*\]\(([^)]*)\)|(?:https:\/\/|tel:)[^\s<>()[\]]+/g, (match, destination) => {
+    const address = destination || match;
+    if (!labels.has(address)) return match;
+    if (seen.has(address)) return '';
+    seen.add(address);
+    return labels.get(address);
+  }).trim();
+  const links = [...labels].filter(([address]) => !seen.has(address)).map(([, label]) => label);
+  const result = links.length ? text + '\n\n' + message + '\n' + links.join('\n') : text;
+  // Never truncate a source/call link to make room for the trusted referral.
+  return result.length <= 8000 ? result : message + '\n' + phone + '\n' + contact;
 }
 
 const TOOLS = [
@@ -328,12 +372,13 @@ function modelResult(state, response) {
   if (next.usage.prompt === null) return rejected('model_usage_invalid');
   const message = choice.message;
   if (choice.finish_reason === 'stop' && typeof message.content === 'string' && message.content.trim() && !message.tool_calls?.length) {
-    const output = finish({ output: message.content });
+    let output = finish({ output: message.content });
     const error = groundingError(state, output);
     if (error) {
       if (state.callIndex >= 4 || error === 'source_required' && state.toolCount >= 3) return rejected('grounding_' + error);
       return { ...next, done: false, toolsPending: false, groundingError: error, messages: [...state.messages, { role: 'system', content: 'پاسخ هنوز قابل ارسال نیست: ' + error + '. منبع مناسب همین نوبت را بخوان یا پاسخ را اصلاح کن. فقط لینک‌های بازیابی‌شده و قیمت/ویژگی همان محصول را بیاور؛ اگر اطلاعات کافی نیست، صریح اعلام کن. خطای خواندن منبع را با اعلام عدم دسترسی بیان کن، نه نبود نتیجه. متن ردشده را تکرار نکن.' }] };
     }
+    output = designReferral(state, output);
     return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt, requestId: state.requestId } };
   }
   const calls = message.tool_calls;
@@ -390,6 +435,7 @@ function budget(input, result) {
 
 function safeReplyLink(address) {
   try {
+    if (address === DESIGNER_CALL_URI) return true;
     if (address === 'https://t.me/gpante_designer' || typeof address === 'string' && !/\s/.test(address) && /^https:\/\/gpante\.com\/faq-ai\/#faq-[a-z0-9][a-z0-9-]{0,79}$/.test(address)) return true;
     if (!/^https:\/\/gpante\.com\/(?:[^\s?#\\]*)$/.test(address)) return false;
     const pathname = decodeURIComponent(address.slice('https://gpante.com'.length));

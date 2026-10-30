@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { admitted, modelRequest, modelResult, toolResult, requiredSource, groundingError } = require('../src/chat.cjs');
+const { admitted, modelRequest, modelResult, toolResult, requiredSource, groundingError, finish } = require('../src/chat.cjs');
 const product = { id: 1, name: 'باکس', url: 'https://gpante.com/product/box/', price: { amount: '50000', currency: 'IRT' },
   attributes: [{ taxonomy: 'pa_file-format', terms: [{ name: 'DXF', slug: 'dxf' }] },
     { taxonomy: 'pa_thickness', terms: [{ name: '2.7', slug: '2.7' }] },
@@ -9,6 +9,116 @@ const product = { id: 1, name: 'باکس', url: 'https://gpante.com/product/box/
 const faq = { id: 'faq-email', url: 'https://gpante.com/faq-ai/#faq-email', links: [] };
 const facts = (source, results = [faq]) => ({ name: 'Knowledge_Search', source, ok: true, results });
 const state = (chatInput, evidence = []) => ({ chatInput, messages: [{ role: 'user', content: chatInput }], callIndex: 1, toolCount: evidence.length, evidence });
+
+test('purchase delivery questions read FAQ while unrelated product names retain product intent', () => {
+  for (const q of ['خریدم کی ارسال میشه؟', 'امروز خرید کردم چه روزی ارسال میشه؟',
+    'بعد از پرداخت فایل از کجا تحویل میگیرم؟', 'سفارشم با پست ارسال میشه؟']) {
+    assert.equal(requiredSource(state(q)), 'faq', q);
+  }
+  assert.equal(requiredSource(state('طرح پستچی دارید؟')), 'products');
+  assert.equal(requiredSource(state('طرح کامیون حمل بار دارید؟')), 'products');
+  assert.equal(requiredSource(state('جنس این محصول چیست؟')), 'products');
+  assert.equal(requiredSource(state('این ماکت از چه موادی ساخته می‌شود؟')), 'products');
+  assert.equal(requiredSource(state('فایل DXF چیست؟')), 'faq');
+});
+
+test('a linked verified virtual download must be introduced as a downloadable design file', () => {
+  const item = { ...product, virtual: true, downloadable: true };
+  const s = state('ماکت ساختمان دارید؟', [{ name: 'Product_Search', source: 'products', ok: true, status: 'ok', results: [item] }]);
+  const link = '[مشاهدهٔ محصول](' + product.url + ')';
+  assert.equal(groundingError(s, 'بله موجود است.\n' + link), 'product_type_required');
+  assert.equal(groundingError(s, 'این محصول فایل طراحی قابل دانلود است، نه ماکت آماده.\n' + link), null);
+  for (const description of ['این محصول ماکت آماده است و فایل دانلودی نیست.',
+    'این فایل قابل دانلود نیست؛ ماکت آماده دریافت می‌کنید.',
+    'این فایل دیجیتال است و ماکت آماده هم ارسال می‌شود.',
+    'فایل طراحی قابل دانلود است و با پست ارسال می‌شود.',
+    'این محصول فایل طراحی قابل دانلود است و ماکت آماده بدون هزینه ارسال می‌شود.']) {
+    const reply = description + '\n' + link;
+    assert.equal(groundingError(s, reply), 'product_type_required', description);
+    const result = modelResult({ ...s, callIndex: 4 }, { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+      choices: [{ finish_reason: 'stop', message: { content: reply } }] } });
+    assert.equal(result.success, undefined);
+    assert.equal(result.response.error.code, 'grounding_product_type_required');
+  }
+  assert.equal(groundingError(s, 'این محصول فایل طراحی قابل دانلود است و ماکت آماده ارسال نمی‌شود.\n' + link), null);
+  assert.equal(groundingError(s, '**طرح ماکت آماده**\nفایل طراحی قابل دانلود است.\n' + link), null);
+  assert.equal(groundingError(s, 'طرح ماکت آماده یک فایل طراحی قابل دانلود است.\n' + link), null);
+  assert.equal(groundingError(s, 'طرح پستچی یک فایل طراحی قابل دانلود است.\n' + link), null);
+  assert.equal(groundingError(s, 'فایل طراحی قابل دانلود است و ماکت آماده بدون هزینه ارسال نمی‌شود.\n' + link), null);
+  assert.equal(groundingError(s, 'این محصول نه ماکت آماده است بلکه یک فایل طراحی قابل دانلود است.\n' + link), null);
+  assert.equal(groundingError(s, 'این محصول نه یک ماکت آماده است و نه کالای فیزیکی است؛ فایل طراحی قابل دانلود است.\n' + link), null);
+  assert.equal(groundingError(s, 'این محصول نه **ماکت آماده است** بلکه یک **فایل طراحی قابل دانلود** است.\n' + link), null);
+  assert.equal(groundingError(s, 'فایل طراحی قابل دانلود است و **ماکت آماده بدون هزینه ارسال می‌شود**.\n' + link), 'product_type_required');
+  for (const flags of [{}, { virtual: null, downloadable: null }, { virtual: false, downloadable: false },
+    { virtual: false, downloadable: true }]) {
+    assert.equal(groundingError({ ...s, evidence: [{ ...s.evidence[0], results: [{ ...product, ...flags }] }] }, 'این گزینه موجود است.\n' + link), null);
+  }
+});
+
+test('normalizing existing referral labels always preserves the response and replay length cap', () => {
+  const s = state('طراحی سفارشی می خواهم', [facts('faq', [])]);
+  const start = 'اطلاعات کافی نیست.';
+  const tail = '\n[x](tel:+989179509010)\n[c](https://gpante.com/contact-us/)';
+  const content = start + ' '.repeat(8000 - start.length - tail.length) + tail;
+  assert.equal(content.length, 8000);
+  const result = modelResult(s, { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+    choices: [{ finish_reason: 'stop', message: { content } }] } });
+  assert.equal(result.success, true);
+  assert(result.output.length <= 8000);
+  assert.equal(result.output.split('tel:+989179509010').length, 2);
+  assert.equal(result.output.split('https://gpante.com/contact-us/').length, 2);
+  const replay = admitted({}, { allowed: true, replay: true, requestId: 'a'.repeat(32), output: result.output });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.response.output, result.output);
+});
+
+test('raw and Markdown approved referral destinations normalize to one phone/contact pair', () => {
+  const s = state('طراحی اختصاصی می خواهم', [facts('faq')]);
+  const phone = 'tel:+989179509010';
+  const contact = 'https://gpante.com/contact-us/';
+  for (const existing of [phone + '\n' + contact, '[x](' + phone + ')\n' + phone + '\n[c](' + contact + ')\n' + contact]) {
+    const content = 'برای بررسی طراحی، این راهنما را ببینید.\n[راهنما](' + faq.url + ')\n' + existing;
+    const result = modelResult(s, { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+      choices: [{ finish_reason: 'stop', message: { content } }] } });
+    assert.equal(result.success, true);
+    assert.equal(result.output.split(phone).length, 2);
+    assert.equal(result.output.split(contact).length, 2);
+    assert(result.output.includes('09179509010'));
+  }
+});
+
+test('custom design and honest product absence return the approved call and contact links together', () => {
+  const done = (s, output) => modelResult(s, { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+    choices: [{ finish_reason: 'stop', message: { content: output } }] } });
+  const phone = '[تماس مستقیم با طراح: 09179509010](tel:+989179509010)';
+  const contact = '[صفحهٔ تماس با ما](https://gpante.com/contact-us/)';
+  const absence = 'طرح مرتبطی پیدا نکردم.';
+  const custom = state('طراحی سفارشی می خواهم', [facts('faq', [])]);
+  const missing = state('طرح صندوق دارید؟', [{ name: 'Product_Search', source: 'products', ok: true, status: 'no_matches', results: [] }]);
+  for (const s of [custom, missing]) {
+    const result = done(s, absence);
+    assert.equal(result.success, true);
+    assert(result.output.includes(phone));
+    assert(result.output.includes(contact));
+    assert.equal(result.response.output, result.output);
+  }
+  const paired = done(custom, absence + '\n' + phone + '\n' + contact);
+  assert.equal(paired.success, true);
+  assert.equal(paired.output.split('tel:+989179509010').length, 2);
+  assert.equal(paired.output.split('https://gpante.com/contact-us/').length, 2);
+  const unavailable = { ...missing, evidence: [{ ...missing.evidence[0], ok: false, status: 'transport_error' }] };
+  assert(!done(unavailable, 'اطلاعات فعلاً در دسترس نیست.').output.includes('tel:'));
+  const incomplete = { ...missing, evidence: [{ ...missing.evidence[0], status: 'incomplete_source', coverage: { complete: false } }] };
+  assert(!done(incomplete, 'اطلاعات فعلاً در دسترس نیست.').output.includes('tel:'));
+  const found = { ...missing, evidence: [{ ...missing.evidence[0], status: 'ok', results: [product] }] };
+  assert(!done(found, 'این گزینه موجود است.\n[محصول](' + product.url + ')').output.includes('tel:'));
+  assert(!finish({ output: absence }).includes('tel:'));
+  const clause = 'اطلاعات کافی نیست.\n';
+  const long = done(custom, clause.repeat(Math.floor(7990 / clause.length)).trim());
+  assert.equal(long.success, true);
+  assert(long.output.length <= 8000);
+  assert(long.output.includes(phone) && long.output.includes(contact));
+});
 
 test('source requirements are narrow, preserve explicit intent, and use context only for follow-ups', () => {
   for (const q of ['ایمیل ندارم می‌توانم خرید کنم؟', 'شماره همراه برای خرید اجباریه؟', 'زبانه تو شیار جا نمیره', 'DXF چیست؟', 'طراحی اختصاصی می‌خواهم']) assert.equal(requiredSource(state(q)), 'faq', q);

@@ -82,6 +82,8 @@ namespace {
             public function get_status() { return 'publish'; }
             public function get_type() { return 'simple'; }
             public function get_catalog_visibility() { return 'visible'; }
+            public function is_virtual() { return $GLOBALS['product_virtual'] ?? false; }
+            public function is_downloadable() { return $GLOBALS['product_downloadable'] ?? false; }
         };
     }
 
@@ -187,6 +189,23 @@ namespace {
             $response = run_callback('gpante_support_catalog_products', [], [['posts' => [$ineligible], 'total' => 1]]);
             check($response instanceof WP_Error && $response->get_error_code() === 'gpante_support_catalog_changed', 'A missing schema flag never bypasses trusted post eligibility');
         }
+    };
+    $cases['products: fulfillment facts come from the eligible WooCommerce product'] = static function () {
+        $post = (object) ['ID' => 42, 'post_type' => 'product', 'post_status' => 'publish', 'post_password' => ''];
+        foreach ([[true, true], [false, false], [false, true], [true, false]] as [$virtual, $downloadable]) {
+            $GLOBALS['product_virtual'] = $virtual;
+            $GLOBALS['product_downloadable'] = $downloadable;
+            // A schema's stale flags and private downloads cannot override trusted product facts.
+            $GLOBALS['schema_data'] = ['id' => 42, 'name' => 'طرح', 'prices' => ['price' => '0'],
+                'is_virtual' => !$virtual, 'is_downloadable' => !$downloadable,
+                'downloads' => [['download_url' => 'https://gpante.com/fixture-private.zip']]];
+            $response = run_callback('gpante_support_catalog_products', [], [['posts' => [$post], 'total' => 1]]);
+            check($response instanceof WP_REST_Response, 'Eligible product delivery facts failed');
+            $item = $response->data[0];
+            check(($item['is_virtual'] ?? null) === $virtual && ($item['is_downloadable'] ?? null) === $downloadable, 'Digital and physical flags must be exact current WooCommerce booleans');
+            check(!isset($item['downloads']) && !str_contains(json_encode($item), 'fixture-private.zip'), 'Public product flags must not expose protected download destinations');
+        }
+        unset($GLOBALS['product_virtual'], $GLOBALS['product_downloadable']);
     };
     foreach (array('array', 'stdClass') as $shape) {
         $cases['products: public nested schema as ' . $shape] = static function () use ($shape) {

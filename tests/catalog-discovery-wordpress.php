@@ -37,6 +37,8 @@ try {
         $p->set_status($i === 9 ? 'private' : 'publish');
         $p->set_catalog_visibility($i === 8 ? 'hidden' : ($i === 6 ? 'catalog' : ($i === 7 ? 'search' : 'visible')));
         $p->set_regular_price($i === 0 ? '0' : (string) ($i + 1));
+        $p->set_virtual($i === 0);
+        $p->set_downloadable($i === 0 || $i === 2);
         $p->set_total_sales($i < 8 ? ($i === 7 ? 0 : 100 - $i) : 1000);
         $p->set_category_ids([$i < 8 ? $terms['product_cat'][1] : $terms['product_cat'][2]]);
         $p->set_date_created(sprintf('2020-01-%02d 10:00:00', $i + 1));
@@ -50,6 +52,16 @@ try {
     $second = discovery_read('products', $scope + ['sort' => 'newest', 'page' => 2]);
     discovery_check(array_merge(array_column($first->get_data(), 'id'), array_column($second->get_data(), 'id')) === array_reverse($public), 'newest filters eligible descendants before pagination with no duplicates');
     discovery_check($first->get_headers()['X-WP-Total'] === 8, 'source totals exclude hidden/private/password products');
+    foreach ([[0, true, true], [1, false, false], [2, false, true]] as [$offset, $virtual, $downloadable]) {
+        $facts = discovery_read('products', ['productId' => $public[$offset]])->get_data()[0];
+        discovery_check($facts['is_virtual'] === $virtual && $facts['is_downloadable'] === $downloadable, 'native digital, physical and mixed product facts survive public serialization');
+        discovery_check(!isset($facts['downloads']), 'native fulfillment facts expose no protected download links');
+    }
+    $changed = wc_get_product($public[0]);
+    $changed->set_virtual(false); $changed->set_downloadable(false); $changed->save();
+    $facts = discovery_read('products', ['productId' => $public[0]])->get_data()[0];
+    discovery_check($facts['is_virtual'] === false && $facts['is_downloadable'] === false, 'delivery flags reflect current WooCommerce data after a previously read product changes');
+
     discovery_check(in_array($terms['product_cat'][0], $first->get_data()[0]['category_ids'], true), 'product facts include the verified ancestor category');
     $first = discovery_read('products', $scope + ['sort' => 'best_selling']);
     $second = discovery_read('products', $scope + ['sort' => 'best_selling', 'page' => 2]);

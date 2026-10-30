@@ -22,6 +22,41 @@ test('purchase delivery questions read FAQ while unrelated product names retain 
   assert.equal(requiredSource(state('فایل DXF چیست؟')), 'faq');
 });
 
+test('practical design purchase and download guidance requires current FAQ evidence', () => {
+  const questions = ['آیا خرید طرح، شامل ماکت آماده است؟', 'بعد از خرید چی دریافت می‌کنم؟',
+    'بعد از خرید فایل از کجا دانلود کنم؟', 'فایل خریدم از کجا دانلودش کنم؟',
+    'فایل خریداری‌شده را از کجا دانلود کنم؟', 'می‌خوام فایل خریدم رو دانلود کنم، چطور؟',
+    'دوره کورل خریدم؛ فایل را از کجا دانلود کنم؟',
+    'خرید فایل CDR شامل ماکت آماده است؟', 'خرید فایل DXF شامل کالای فیزیکی است؟',
+    'طرح را از کجا دانلود کنم؟', 'طرح را چطور بخرم؟', 'این محصول را بخرم ماکت آماده ارسال می‌شود؟'];
+  const delivery = { id: 'faq-design-delivery', url: 'https://gpante.com/faq-ai/#faq-design-delivery', links: [] };
+  for (const question of questions) {
+    assert.equal(requiredSource(state(question)), 'faq', question);
+    assert.equal(groundingError(state(question), 'خرید شامل فایل طراحی قابل دانلود است.'), 'source_required', question);
+    assert.equal(groundingError(state(question, [facts('products', [product])]), 'خرید شامل فایل طراحی قابل دانلود است.'), 'source_required', question);
+    assert.equal(groundingError(state(question, [facts('faq', [delivery])]), 'راهنمای تحویل فایل.\n[راهنما](' + delivery.url + ')'), null, question);
+  }
+  for (const question of ['این محصول فیزیکی است یا دانلودی؟', 'جنس این محصول چیست؟',
+    'قیمت طرح ماکت چقدر است؟', 'چطور قیمت طرح را قبل از خرید ببینم؟',
+    'قیمت خرید طرح شامل هزینه فایل هم هست؟', 'طرح رایگان گل برای دانلود دارید؟',
+    'طرح رایگان برای دانلود از کجا پیدا کنم؟', 'طرح پستچی دارید؟']) {
+    assert.equal(requiredSource(state(question)), 'products', question);
+  }
+  for (const question of ['کورل را از کجا دانلود کنم؟', 'فایل راهنمای نصب کورل را از کجا دانلود کنم؟',
+    'آموزش کورل را از کجا دانلود کنم؟']) assert.equal(requiredSource(state(question)), 'site', question);
+  for (const question of ['خرید طرح ماکت شامل فایل CDR است؟', 'خرید طرح ماکت شامل چه فرمت و ضخامت هایی است؟',
+    'خرید این طرح شامل فایل CDR است؟', 'خرید طرح ماکت آماده شامل چه فرمت هایی است؟',
+    'خرید طرح ماکت شامل قطعات MDF است؟', 'خرید طرح ماکت شامل چه ابعاد و اندازه هایی است؟',
+    'خرید طرح ماکت با ضخامت ۳ میل، چه چیزی دریافت می‌کنم؟']) {
+    assert.equal(requiredSource(state(question)), null, question);
+  }
+  assert.equal(requiredSource(state('خرید این طرح شامل چه متریالی است؟')), 'products');
+  assert.equal(requiredSource(state('متن قوانین خرید و دانلود و بازپرداخت را بگو')), 'guides');
+  const privateStatus = state('سفارش من با پست ارسال شده؟', [facts('faq', [delivery])]);
+  assert.equal(requiredSource(privateStatus), 'faq');
+  assert.equal(groundingError(privateStatus, 'به وضعیت سفارش شما دسترسی ندارم.'), null);
+});
+
 test('a linked verified virtual download must be introduced as a downloadable design file', () => {
   const item = { ...product, virtual: true, downloadable: true };
   const s = state('ماکت ساختمان دارید؟', [{ name: 'Product_Search', source: 'products', ok: true, status: 'ok', results: [item] }]);

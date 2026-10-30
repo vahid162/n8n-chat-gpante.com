@@ -24,6 +24,8 @@ test('purchase delivery questions read FAQ while unrelated product names retain 
 
 test('practical design purchase and download guidance requires current FAQ evidence', () => {
   const questions = ['آیا خرید طرح، شامل ماکت آماده است؟', 'بعد از خرید چی دریافت می‌کنم؟',
+    'پس از پرداخت چه چیزی دریافت می‌کنم؟', 'خریدم؛ چه چیزی دریافت می‌کنم؟',
+    'خرید کردم، چی دریافت می‌کنم؟',
     'بعد از خرید فایل از کجا دانلود کنم؟', 'فایل خریدم از کجا دانلودش کنم؟',
     'فایل خریداری‌شده را از کجا دانلود کنم؟', 'می‌خوام فایل خریدم رو دانلود کنم، چطور؟',
     'دوره کورل خریدم؛ فایل را از کجا دانلود کنم؟',
@@ -55,6 +57,24 @@ test('practical design purchase and download guidance requires current FAQ evide
   const privateStatus = state('سفارش من با پست ارسال شده؟', [facts('faq', [delivery])]);
   assert.equal(requiredSource(privateStatus), 'faq');
   assert.equal(groundingError(privateStatus, 'به وضعیت سفارش شما دسترسی ندارم.'), null);
+});
+
+test('course syllabus and product package contents retain their own current-turn sources', () => {
+  const course = { id: 42, kind: 'page', url: 'https://gpante.com/corel-course/',
+    content: 'دوره شامل رسم شکل و آماده سازی فایل برش است.', truncated: false };
+  const read = { name: 'Knowledge_Read', source: 'site', ok: true, results: [course] };
+  for (const question of ['قبل از خرید، دوره کورل شامل چه مباحثی است؟',
+    'قبل از خرید دوره کورل چه چیزی دریافت می‌کنم؟', 'بعد از خرید دوره کورل چه چیزی یاد می‌گیرم؟']) {
+    assert.equal(requiredSource(state(question)), 'site', question);
+    assert.equal(groundingError(state(question, [read]), course.content + '\n[دوره](' + course.url + ')'), null, question);
+    assert.equal(groundingError(state(question, [facts('faq')]), 'دوره شامل رسم شکل است.'), 'source_required', question);
+  }
+  const details = { name: 'Product_Details', source: 'products', ok: true,
+    results: [{ ...product, description: 'بسته شامل قطعات بدنه و سقف است.' }] };
+  for (const question of ['خرید طرح ماکت شامل چه قطعاتی است؟', 'خرید این طرح شامل چه بخش‌هایی است؟']) {
+    assert.equal(requiredSource(state(question)), null, question);
+    assert.equal(groundingError(state(question, [details]), 'بسته شامل قطعات بدنه و سقف است.\n[محصول](' + product.url + ')'), null, question);
+  }
 });
 
 test('a linked verified virtual download must be introduced as a downloadable design file', () => {

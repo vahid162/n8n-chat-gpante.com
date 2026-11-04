@@ -53,7 +53,9 @@ add_filter('pre_http_request', function ($pre, $args, $url) {
                     'results' => array(array('id' => 'product-' . $index, 'rank' => 1, 'kind' => 'product',
                         'body' => 'FORBIDDEN-RESULT-PAYLOAD', 'url' => 'https://forbidden.invalid/private')),
                     'provider' => 'FORBIDDEN-SOURCE-PAYLOAD', 'content' => '<script>window.gpanteDiagnosticXss=1</script>'),
-                    array('event' => 'rejection', 'code' => 'unsupported_reference', 'body' => 'FORBIDDEN-REJECTION-PAYLOAD')));
+                    array('event' => 'rejection', 'code' => 'unsupported_reference', 'body' => 'FORBIDDEN-REJECTION-PAYLOAD'),
+                    array('event' => 'execution', 'workflowVersion' => '1.9.0', 'sourceRevision' => str_repeat('a',64),
+                        'modelRounds' => 3, 'toolCalls' => 2, 'body' => 'FORBIDDEN-EXECUTION-PAYLOAD')));
         }
         $filtered = array_values(array_filter($turns, static function ($turn) use ($input) {
             foreach (array('status' => 'status', 'traffic' => 'trafficKind') as $key => $field) {
@@ -74,11 +76,16 @@ add_filter('pre_http_request', function ($pre, $args, $url) {
             'unclassified' => 65 - (int)get_option('gptest_menu_synthetic', false), 'errors' => 0, 'helpful' => 33, 'unhelpful' => 0),
             'budget' => array('enabled' => true, 'monthlyBudgetNano' => 2000000000, 'usedNano' => 1234567,
                 'pricingValidUntil' => '2099-01-01T00:00:00Z', 'activeLeases' => 0),
+            'readiness' => array('canAcceptNewTurn' => true, 'reason' => 'ready', 'remainingNano' => 1998765433,
+                'checkedAt' => '2026-11-04T00:00:00Z', 'pricingReviewSoon' => false),
+            'refusals' => array('windowDays' => 7, 'calendarUtc' => true, 'total' => 2,
+                'days' => array(array('date' => '2026-11-04', 'reason' => 'capacity', 'count' => 2))),
             'turns' => array_slice($filtered, ($page - 1) * 20, 20),
             'hasMore' => count($filtered) > $page * 20, 'page' => $page, 'windowDays' => 7);
         if (get_option('gptest_menu_diagnostics_mode') === 'missing') {
             $body['summary'] = array();
             $body['budget'] = array();
+            unset($body['readiness'], $body['refusals']);
         }
         if (get_option('gptest_menu_diagnostics_mode') === 'offline') return new WP_Error('fixture_offline', 'Synthetic local failure');
     }

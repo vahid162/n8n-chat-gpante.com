@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { diagnosticQuery, toolDiagnostic, appendDiagnostic, modelDiagnostic } = require('../src/diagnostics.cjs');
+const { diagnosticQuery, toolDiagnostic, appendDiagnostic, modelDiagnostic, executionDiagnostic } = require('../src/diagnostics.cjs');
 const { adminInput } = require('../src/admin.cjs');
 const { modelResult } = require('../src/chat.cjs');
 
@@ -34,4 +34,26 @@ test('successful correction does not repeat an inherited rejection event', () =>
     { statusCode: 200, body: { usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }, choices: [{ finish_reason: 'stop', message: { content: 'سلام' } }] } });
   assert.equal(parsed.success, true); assert.equal(parsed.groundingError, undefined);
   assert.equal(modelDiagnostic(parsed).diagnostics, undefined);
+});
+test('failed detail lookups retain only valid public target IDs, without arbitrary arguments', () => {
+  for (const [tool, field] of [['Product_Details', 'productId'], ['Knowledge_Read', 'contentId']]) {
+    const state = { pendingTool: { function: { name: tool, arguments: JSON.stringify({ [field]: 456, body: 'private argument' }) } } };
+    const event = toolDiagnostic(state, { status: 'api_error', results: [] });
+    assert.equal(event.targetId, 456); assert.equal(event.query, '');
+    assert(!JSON.stringify(event).includes('private'));
+    for (const id of [-1, 0, '456', 'private@example.invalid', Number.MAX_SAFE_INTEGER + 1]) {
+      state.pendingTool.function.arguments = JSON.stringify({ [field]: id });
+      assert.equal(toolDiagnostic(state, { status: 'api_error' }).targetId, undefined);
+    }
+  }
+});
+test('execution metadata accepts only release/hash and bounded model/tool counts', () => {
+  const revision = { workflowVersion: '1.9.0', sourceRevision: 'a'.repeat(64), secret: 'private' };
+  const state = { callIndex: 4, toolCount: 3, messages: [{ content: 'private transcript' }] };
+  assert.deepEqual(executionDiagnostic(state, revision), { event: 'execution', workflowVersion: '1.9.0', sourceRevision: 'a'.repeat(64), modelRounds: 4, toolCalls: 3 });
+  for (const invalid of [{ callIndex: 5 }, { toolCount: 4 }, { callIndex: '1' }, { toolCount: -1 }]) {
+    assert.equal(executionDiagnostic({ ...state, ...invalid }, revision), null);
+  }
+  assert.equal(executionDiagnostic(state, { ...revision, workflowVersion: 'private-text' }), null);
+  assert.equal(executionDiagnostic(state, { ...revision, sourceRevision: 'https://private.invalid' }), null);
 });

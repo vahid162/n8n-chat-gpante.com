@@ -37,17 +37,25 @@ function createWidget(appearance, withHistory = false) {
       for (const child of children) { child.parent = this; this.children.push(child); }
     }
     replaceChildren(...children) {
+      if (this.contains(document.activeElement)) document.activeElement = document.body;
       for (const child of this.children) child.parent = null;
       this.children = [];
       this.text = '';
       this.append(...children);
     }
     remove() {
+      if (this.contains(document.activeElement)) document.activeElement = document.body;
       if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1);
       this.parent = null;
     }
     get parentElement() { return this.parent; }
     appendChild(child) { child.remove(); this.append(child); return child; }
+    insertBefore(child, next) {
+      child.remove();
+      child.parent = this;
+      this.children.splice(next ? this.children.indexOf(next) : this.children.length, 0, child);
+      return child;
+    }
     setAttribute(name, value) { this.attributes[name] = String(value); }
     contains(element) { return this === element || this.children.some(child => child.contains(element)); }
     focus() { document.activeElement = this; }
@@ -936,6 +944,40 @@ test('older history survives refresh; a server clear marker drops prior pages', 
   widget.window.dispatch('focus');
   await widget.respond(3,{messages:[{role:'assistant',content:'گفتگوی بعد از پاک‌کردن',requestId:b}],hasMore:false,nextCursor:null,historyResetAt:new Date().toISOString()});
   assert.doesNotMatch(widget.elements.messages.textContent,/قدیمی/);
+});
+
+test('quiet history refresh retains unchanged nodes, focus and reading position while applying updates and removals', async () => {
+  const widget = createWidget(undefined, true);widget.click('launcher');
+  const first = {role:'assistant',content:'[محصول](https://gpante.com/product/fixture/)',requestId:'a'.repeat(32)};
+  const second = {role:'assistant',content:'متن قبلی',requestId:'b'.repeat(32)};
+  const history = {historyResetAt:null,hasMore:false,nextCursor:null};
+  await widget.respond(0, {messages:[first, second],...history});
+  const item = widget.elements.messages.children[0];
+  const descendants = element => [element, ...element.children.flatMap(descendants)];
+  const link = descendants(item).find(element => element.tagName === 'a');
+  link.focus();widget.elements.panel.scrollTop = 45;widget.elements.panel.scrollHeight = 900;
+  widget.window.dispatch('focus');
+  await widget.respond(1, {messages:[first, second],...history});
+  assert.equal(widget.elements.messages.children[0], item);
+  assert.equal(widget.document.activeElement, link);
+  assert.equal(widget.elements.panel.scrollTop, 45);
+  widget.window.dispatch('focus');
+  await widget.respond(2, {messages:[first, {...second,content:'متن تازه',feedback:'helpful'}],...history});
+  assert.equal(widget.elements.messages.children[0], item);
+  assert.equal(widget.document.activeElement, link);
+  assert.equal(widget.elements.panel.scrollTop, 45);
+  assert.match(widget.elements.messages.children[1].textContent, /متن تازه/);
+  assert.equal(widget.elements.messages.children[1].children[2].children[0].attributes['aria-pressed'], 'true');
+  widget.window.dispatch('focus');
+  await widget.respond(3, {messages:[first],...history});
+  assert.equal(widget.elements.messages.children.length, 1);
+  assert.equal(widget.elements.messages.children[0], item);
+  assert.equal(widget.document.activeElement, link);
+  widget.window.dispatch('focus');
+  await widget.respond(4, {messages:[],...history,historyResetAt:new Date().toISOString()});
+  assert.equal(widget.elements.messages.children.length, 1);
+  assert.match(widget.elements.messages.children[0].className, /welcome/);
+  assert.equal(item.parentElement, null);
 });
 
 test('AI refusal offers trusted native search without dispatching another request', async () => {

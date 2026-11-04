@@ -77,6 +77,11 @@ try:
         assert cards.count() == 20
         assert page.locator('.gpante-admin-overview').inner_text().find('$0.001234567') >= 0
         assert '$2.00' in page.locator('.gpante-admin-overview').inner_text()
+        overview = page.locator('.gpante-admin-overview').inner_text()
+        assert 'آمادگی پذیرش سؤال جدید' in overview and 'آماده' in overview and '$1.998765433' in overview
+        assert 'سلامت ارائه‌دهنده' in overview
+        page.locator('summary:has-text("درخواست‌های ردشده پیش از پذیرش")').click()
+        assert 'ظرفیت هم‌زمان' in page.locator('details:has(> summary:text-is("درخواست‌های ردشده پیش از پذیرش"))').inner_text()
         description = page.locator('.gpante-admin-description').inner_text()
         assert all(text in description for text in ['۷ روز', 'ماه تقویمی', 'UTC', '۳۰ روز'])
         assert cards.first.locator('time').inner_text() == '2026/10/28 00:00:00 UTC'
@@ -88,12 +93,13 @@ try:
         assert page.evaluate('window.gpanteDiagnosticXss || null') is None
         first = cards.first
         first.locator('summary:has-text("مسیر منابع و تصمیم‌ها")').click()
-        assert first.locator('.gpante-admin-table-wrap table tbody tr').count() == 2
+        assert first.locator('.gpante-admin-table-wrap table tbody tr').count() == 3
         assert all(text in first.locator('.gpante-admin-table-wrap table').inner_text() for text in ['Product_Search', 'DXF', 'wood', 'product-1', 'unsupported_reference'])
         first.locator('summary:has-text("دادهٔ فنی مجاز")').click()
         raw = first.locator('pre').all_text_contents()
         assert json.loads(raw[0])['results'] == [dict(id='product-1', rank=1, kind='product')]
         assert not any('FORBIDDEN-' in text for text in raw)
+        assert json.loads(raw[2])['modelRounds'] == 3 and json.loads(raw[2])['workflowVersion'] == '1.9.0'
         check('readable USD, explicit summary periods, UTC timestamps and allowlisted structured/raw source rows')
 
         reference = first.locator('[data-gpante-copy]').first

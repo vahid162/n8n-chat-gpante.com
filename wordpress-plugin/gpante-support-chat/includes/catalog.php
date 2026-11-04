@@ -391,6 +391,141 @@ function gpante_support_catalog_response( $items, $query, $per_page ) {
 }
 
 /**
+ * Normalize a numeric thickness, including native decimal slugs and unit labels.
+ *
+ * @param string $value Public attribute value.
+ * @return string|null
+ */
+function gpante_support_catalog_thickness( $value ) {
+	$text = gpante_support_catalog_normalize( rawurldecode( $value ) );
+	$text = trim( preg_replace( '/[ -]*(?:mm|میلی\s*متر|میلیمتر)$/u', '', $text ) );
+	if ( ! preg_match( '/^[0-9]{1,3}(?:[.,-][0-9]{1,3})?$/D', $text ) ) {
+		return null;
+	}
+	$amount = (float) str_replace( array( ',', '-' ), '.', $text );
+	return $amount > 0 ? (string) $amount : null;
+}
+
+/**
+ * Resolve equivalent thicknesses and a CDR family from current native terms.
+ *
+ * @param string $key Fixed attribute name.
+ * @param string $value Bounded public filter.
+ * @param string $taxonomy Fixed native taxonomy.
+ * @return array|false
+ */
+function gpante_support_catalog_attribute_terms( $key, $value, $taxonomy ) {
+	$slug   = strtolower( $value );
+	$amount = 'thickness' === $key ? gpante_support_catalog_thickness( $value ) : null;
+	if ( null !== $amount || ( 'format' === $key && 'cdr' === $slug ) ) {
+		$matches = array();
+		$native  = gpante_support_catalog_read_terms(
+			'get_terms',
+			array(
+				'taxonomy'      => $taxonomy,
+				'hide_empty'    => false,
+				'cache_results' => false,
+			)
+		);
+		foreach ( $native as $term ) {
+			if ( 'thickness' === $key ) {
+				$slug_amount = gpante_support_catalog_thickness( $term->slug );
+				$match       = gpante_support_catalog_thickness( $term->name ) === $amount && ( null === $slug_amount || $slug_amount === $amount );
+			} else {
+				$match = preg_match( '/^(?:all-cdr|cdr-v[0-9]+)$/D', $term->slug );
+			}
+			if ( $match ) {
+				$matches[] = $term->slug;
+			}
+		}
+		return $matches ? $matches : false;
+	}
+	if ( ! preg_match( '/^[a-z0-9%_-]+$/Di', $slug ) || ! gpante_support_catalog_read_terms( 'get_term_by', 'slug', $slug, $taxonomy ) ) {
+		return false;
+	}
+	$terms = array( $slug );
+	// A combined-required ("و") material is never an alternative.
+	if ( 'material' === $key && in_array( $slug, array( 'mdf', 'plexiglass' ), true ) ) {
+		$alternative = gpante_support_catalog_read_terms( 'get_term_by', 'slug', 'mdf-plexiglass', $taxonomy );
+		if ( $alternative && 'mdf یا پلکسی' === gpante_support_catalog_normalize( $alternative->name ) ) {
+			$terms[] = 'mdf-plexiglass';
+		}
+	}
+	return $terms;
+}
+
+/**
+ * Summarize only visible, purchasable variations without exposing downloads.
+ *
+ * @param WC_Product $product Eligible public parent.
+ * @param array      $prices Public price fields, updated for variable products.
+ * @return array
+ * @throws RuntimeException When eligible variation prices cannot be verified.
+ */
+function gpante_support_catalog_delivery( $product, &$prices ) {
+	$flags = array(
+		'is_virtual'      => $product->is_virtual(),
+		'is_downloadable' => $product->is_downloadable(),
+	);
+	if ( 'variable' !== $product->get_type() ) {
+		return $flags;
+	}
+	if ( ! class_exists( '\Automattic\WooCommerce\StoreApi\Formatters\MoneyFormatter' )
+		|| ! is_int( $prices['currency_minor_unit'] ?? null ) || $prices['currency_minor_unit'] < 0 || $prices['currency_minor_unit'] > 9 ) {
+		throw new RuntimeException( 'Public variation price unavailable.' );
+	}
+	$formatter = new \Automattic\WooCommerce\StoreApi\Formatters\MoneyFormatter();
+	$flags     = array(
+		'is_virtual'      => null,
+		'is_downloadable' => null,
+	);
+	$values    = array(
+		'is_virtual'      => array(),
+		'is_downloadable' => array(),
+	);
+	$amounts   = array();
+	foreach ( $product->get_children() as $id ) {
+		$child = wc_get_product( $id );
+		$post  = get_post( $id );
+		if ( ! $child || ! $post || 'publish' !== $post->post_status || '' !== $post->post_password
+			|| 'variation' !== $child->get_type() || $child->get_parent_id() !== $product->get_id()
+			|| 'publish' !== $child->get_status() || ! $child->variation_is_visible() || ! $child->is_purchasable() ) {
+			continue;
+		}
+		// Use Store API money formatting and the storefront tax mode, without serializing child media or downloads.
+		$amount = $formatter->format( wc_get_price_to_display( $child ), array( 'decimals' => $prices['currency_minor_unit'] ) );
+		if ( ! is_string( $amount ) || ! preg_match( '/^[0-9]{1,64}$/D', $amount ) ) {
+			throw new RuntimeException( 'Public variation price unavailable.' );
+		}
+		$minor                       = ltrim( $amount, '0' );
+		$amounts[]                   = '' === $minor ? '0' : $minor;
+		$values['is_virtual'][]      = $child->is_virtual();
+		$values['is_downloadable'][] = $child->is_downloadable();
+	}
+	$prices['price']       = '';
+	$prices['price_range'] = null;
+	unset( $prices['regular_price'], $prices['sale_price'] );
+	if ( $amounts ) {
+		usort(
+			$amounts,
+			static function ( $a, $b ) {
+				$length = strlen( $a ) <=> strlen( $b );
+				return 0 === $length ? strcmp( $a, $b ) : $length;
+			}
+		);
+		$prices['price']       = $amounts[0];
+		$prices['price_range'] = array(
+			'min_amount' => $amounts[0],
+			'max_amount' => end( $amounts ),
+		);
+		foreach ( $values as $key => $entries ) {
+			$flags[ $key ] = count( array_unique( $entries, SORT_REGULAR ) ) === 1 ? $entries[0] : null;
+		}
+	}
+	return $flags;
+}
+
+/**
  * Validate the fixed public page or image path before URL normalization.
  *
  * @param mixed  $url Public URL.
@@ -502,20 +637,12 @@ function gpante_support_catalog_products( $request ) {
 			if ( ! isset( $params[ $key ] ) ) {
 				continue;
 			}
-			if ( ! is_string( $params[ $key ] ) || strlen( $params[ $key ] ) > 200 || ! preg_match( '/^[a-z0-9%_-]+$/Di', $params[ $key ] ) ) {
+			if ( ! is_string( $params[ $key ] ) || strlen( $params[ $key ] ) > 200 ) {
 				return gpante_support_catalog_error();
 			}
-			$slug = strtolower( $params[ $key ] );
-			if ( ! taxonomy_exists( $taxonomy ) || ! get_term_by( 'slug', $slug, $taxonomy ) ) {
+			$terms = taxonomy_exists( $taxonomy ) ? gpante_support_catalog_attribute_terms( $key, $params[ $key ], $taxonomy ) : false;
+			if ( false === $terms ) {
 				return gpante_support_catalog_error( 'unsupported_attribute', 400 );
-			}
-			$terms = array( $slug );
-			// Expand only a verified OR term. A combined-required ("و") material is never equivalent.
-			if ( 'material' === $key && in_array( $slug, array( 'mdf', 'plexiglass' ), true ) ) {
-				$alternative = get_term_by( 'slug', 'mdf-plexiglass', $taxonomy );
-				if ( $alternative && 'mdf یا پلکسی' === gpante_support_catalog_normalize( $alternative->name ) ) {
-					$terms[] = 'mdf-plexiglass';
-				}
 			}
 			$tax_query[] = array(
 				'taxonomy'         => $taxonomy,
@@ -608,8 +735,8 @@ function gpante_support_catalog_products( $request ) {
 			$item['type']                  = $product->get_type();
 			$item['catalog_visibility']    = $product->get_catalog_visibility();
 			$item['is_password_protected'] = false;
-			$item['is_virtual']            = $product->is_virtual();
-			$item['is_downloadable']       = $product->is_downloadable();
+			$delivery                      = gpante_support_catalog_delivery( $product, $item['prices'] );
+			$item                          = array_merge( $item, $delivery );
 			$item['category_ids']          = gpante_support_catalog_category_ids( $post->ID, 'product_cat' );
 			$item['published_at']          = get_post_time( 'Y-m-d\TH:i:s\Z', true, $post );
 			$items[]                       = $item;

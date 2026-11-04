@@ -724,6 +724,7 @@
       if (existing) return existing;
     }
     const item = document.createElement('div');
+    item.gpanteMessage = JSON.stringify([role, text, expiresAt, products, requestId, feedback]);
     item.dataset.role = role;
     if (expiresAt) item.dataset.expiresAt = expiresAt;
     item.className = 'gpante-chat-message gpante-chat-message--' + role;
@@ -886,9 +887,22 @@
   }
 
   function renderHistory(showWelcome = true) {
-    messages.replaceChildren();
-    for (const message of loadedHistory) addMessage(message.role, message.content, false, message.expiresAt, message.products, message.requestId, message.feedback);
-    if (!loadedHistory.length && showWelcome) welcome();
+    const wanted = loadedHistory.map(message => ({message, signature:JSON.stringify([
+      message.role, message.content, message.expiresAt, message.products, message.requestId, message.feedback
+    ])}));
+    const signatures = new Set(wanted.map(entry => entry.signature));
+    const existing = new Map();
+    for (const item of [...messages.children]) {
+      if (signatures.has(item.gpanteMessage)) existing.set(item.gpanteMessage, item);
+      else if (item !== welcomeItem || loadedHistory.length || !showWelcome) item.remove();
+    }
+    const focused = document.activeElement;
+    for (const [index, {message, signature}] of wanted.entries()) {
+      const item = existing.get(signature) || addMessage(message.role, message.content, false, message.expiresAt, message.products, message.requestId, message.feedback);
+      if (messages.children[index] !== item) messages.insertBefore(item, messages.children[index] || null);
+    }
+    if (messages.contains(focused) && document.activeElement !== focused) focused.focus({preventScroll:true});
+    if (!loadedHistory.length && showWelcome && !messages.contains(welcomeItem)) welcome();
     if (older) older.hidden = !historyCursor;
   }
 
@@ -923,8 +937,10 @@
       if (cursor || !olderLoaded || reset) historyCursor = data.hasMore ? data.nextCursor : null;
       if (cursor) olderLoaded = true;
       const previousHeight = scrollArea.scrollHeight || 0, previousTop = scrollArea.scrollTop || 0;
+      const preservePosition = quiet && messages.children.length > 0;
       renderHistory(!data.messages.length);
-      scrollArea.scrollTop = cursor ? previousTop + (scrollArea.scrollHeight || 0) - previousHeight : scrollArea.scrollHeight;
+      scrollArea.scrollTop = cursor ? previousTop + (scrollArea.scrollHeight || 0) - previousHeight
+        : preservePosition ? previousTop : scrollArea.scrollHeight;
       if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession'
         && (previousFailure.action !== 'resetSession' || policy.allowClear)) {
         previousFailure.checked = true;

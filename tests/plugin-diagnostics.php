@@ -142,4 +142,28 @@ foreach (array(1,2) as $page) {
 }
 unset($result['page']);$_GET=array('search'=>'0');
 check(str_contains(render_page(),'بک‌اند، صفحه و فیلترهای گزارش را تأیید نکرد'),'zero search requires backend filter acknowledgement too');
+$_GET=array();
+$result=array('summary'=>array(),'budget'=>array('pricingValidUntil'=>'2026-11-18T00:00:00Z'),'turns'=>array(),
+    'readiness'=>array('canAcceptNewTurn'=>false,'reason'=>'monthly_budget','remainingNano'=>0,'checkedAt'=>'2026-11-04T00:00:00Z','pricingReviewSoon'=>true),
+    'refusals'=>array('windowDays'=>7,'calendarUtc'=>true,'total'=>3,'days'=>array(
+        array('date'=>'2026-11-04','reason'=>'capacity','count'=>3,'message'=>'private-refusal'),
+        array('date'=>'2026-11-04','reason'=>array('malformed'),'count'=>1),
+        array('date'=>'<script>','reason'=>'capacity','count'=>1))));
+$html=render_page();
+check(str_contains($html,'آمادگی پذیرش سؤال جدید') && str_contains($html,'فعلاً متوقف')
+    && str_contains($html,'برای رزرو نخستین تماس کافی نیست'),'backend admission snapshot distinct from management connectivity');
+check(str_contains($html,'اعتبار تعرفه در هفت روز آینده') && str_contains($html,'بودجهٔ باقی‌مانده'),'pricing lead-time and remaining budget visible outside collapsed details');
+check(str_contains($html,'درخواست‌های ردشده پیش از پذیرش') && str_contains($html,'ظرفیت هم‌زمان')
+    && !str_contains($html,'private-refusal'),'separate bounded refusal counters contain no transcript');
+unset($result['readiness'],$result['refusals']);
+$html=render_page();
+check(str_contains($html,'وضعیت آمادگی توسط بک‌اند تأیید نشده است') && !str_contains($html,'فعلاً متوقف'),'old backend metadata stays unknown');
+$execution=array('event'=>'execution','workflowVersion'=>'1.9.0','sourceRevision'=>str_repeat('a',64),'modelRounds'=>4,'toolCalls'=>3,'body'=>'private-execution');
+check(count(gpante_support_diagnostic_metadata($execution))===5,'execution metadata fixed allowlist');
+$execution['modelRounds']=5;
+check(gpante_support_diagnostic_metadata($execution)===array(),'invalid execution counts rejected');
+$target=array('event'=>'source','tool'=>'Knowledge_Read','targetId'=>456,'status'=>'api_error');
+check((gpante_support_diagnostic_metadata($target)['targetId']??null)===456,'failed detail target remains readable');
+$target['targetId']='private@example.invalid';
+check(!isset(gpante_support_diagnostic_metadata($target)['targetId']),'invalid target excluded');
 echo "Administrator diagnostics: $checks capability, nonce, POST, escaping, allowlist, bounds and read-only checks passed.\n";

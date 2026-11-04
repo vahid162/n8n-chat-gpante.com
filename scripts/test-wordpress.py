@@ -95,7 +95,7 @@ def serve(root, url, wp):
     context.load_cert_chain(cert, key)
     server.socket = context.wrap_socket(server.socket, server_side=True)
     with (root / 'php-server.log').open('a') as log:
-        php = subprocess.Popen(['php', '-S', f'127.0.0.1:{port + 1}', '-t', str(root / 'wordpress'), str(router)],
+        php = subprocess.Popen(['php', '-d', 'memory_limit=512M', '-S', f'127.0.0.1:{port + 1}', '-t', str(root / 'wordpress'), str(router)],
                                stdout=log, stderr=log)
         try:
             print('Isolated HTTPS fixture:', url, '(Ctrl-C stops both servers)', flush=True)
@@ -139,7 +139,7 @@ def main():
         if hashlib.sha256(payload).hexdigest() != CLI_SHA256:
             raise ValueError('WP-CLI checksum mismatch')
         phar.write_bytes(payload)
-        wp = ['php', str(phar), '--path=' + str(root / 'wordpress')]
+        wp = ['php', '-d', 'memory_limit=512M', str(phar), '--path=' + str(root / 'wordpress')]
         command(wp + ['core', 'download', '--version=' + WP_VERSION, '--locale=en_US'])
         command(wp + ['config', 'create', '--dbname=' + name,
                       '--dbuser=' + os.environ.get('GPANTE_TEST_DB_USER', 'gpante_test'), '--dbhost=' + host,
@@ -165,7 +165,7 @@ def main():
         command(wp + ['user', 'create', 'gpante_subscriber', 'subscriber@example.invalid',
                       '--role=subscriber', '--user_pass=local-fixture-subscriber-only'])
         (root / 'evidence').mkdir()
-    wp = ['php', str(root / 'wp-cli.phar'), '--path=' + str(root / 'wordpress')]
+    wp = ['php', '-d', 'memory_limit=512M', str(root / 'wp-cli.phar'), '--path=' + str(root / 'wordpress')]
     if not args.setup_only:
         command(wp + ['eval', "if (!defined('GPANTE_SUPPORT_LOCAL_TEST') || !GPANTE_SUPPORT_LOCAL_TEST || home_url() !== GPANTE_SUPPORT_TEST_URL) throw new RuntimeException('Isolated fixture required'); delete_option('gpante_support_runtime');"])
         for fixture in NATIVE_TESTS:

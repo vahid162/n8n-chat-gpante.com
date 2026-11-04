@@ -37,21 +37,31 @@ function searchText(value) {
   return result;
 }
 
+function thicknessValue(value) {
+  if (typeof value !== 'string') return null;
+  let text;
+  try { text = normalize(decodeURIComponent(value)); } catch { return null; }
+  text = text.replace(/(?:[ -]*(?:mm|میلی\s*متر|میلیمتر))$/, '').trim();
+  if (!/^\d{1,3}(?:[.,-]\d{1,3})?$/.test(text)) return null;
+  const amount = Number(text.replace(/[,-]/, '.'));
+  return amount > 0 ? String(amount) : null;
+}
+
 function attributeTerm(kind, value) {
   const raw = typeof value === 'number' && Number.isFinite(value) ? String(value) : value;
   let key = inputText(raw, kind);
   const formats = {
-    ai: 'ai', bmp: 'bmp', dwg: 'dwg', dxf: 'dxf', eps: 'eps', pdf: 'pdf', plt: 'plt', png: 'png', svg: 'svg',
+    ai: 'ai', bmp: 'bmp', dwg: 'dwg', dxf: 'dxf', eps: 'eps', pdf: 'pdf', plt: 'plt', png: 'png', svg: 'svg', cdr: 'cdr',
     'all-cdr': 'all-cdr', 'cdr-v3': 'cdr-v3', 'کورل 13': 'cdr-v3',
     'cdr-v15': 'cdr-v15', 'cdr15': 'cdr-v15', 'cdr 15': 'cdr-v15', 'cdr v15': 'cdr-v15', 'کورل 15': 'cdr-v15',
     'cdr-v20': 'cdr-v20', 'cdr20': 'cdr-v20', 'cdr 20': 'cdr-v20', 'cdr v20': 'cdr-v20', 'کورل 20': 'cdr-v20',
   };
-  const thicknesses = {
-    '13': '13-mm', '16': '16-mm', '2.3': '2-3-mm', '2.45': '2-45-mm', '2.5': '2-5',
-    '2.6': '2-6-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1', '2.7': '2-7', '2.8': '2-8',
-    '3': '3-mm', '4': '4-mm', '5.4': '5-4', '5.5': '5-5-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1',
-    '5.6': '5-6', '6': '6-mm', '8': '8-mm', 'آزاد': 'free', free: 'free',
-  };
+  if (kind === 'thickness') {
+    if (['free', 'آزاد'].includes(key)) return 'free';
+    const amount = thicknessValue(key);
+    if (amount !== null) return amount;
+    throw new Error('Unsupported thickness; use a numeric catalog thickness.');
+  }
   const materials = {
     mdf: 'mdf', 'ام دی اف': 'mdf', 'ام دی آف': 'mdf', 'پلکسی': 'plexiglass', plexiglass: 'plexiglass',
     'mdf-plexiglass': 'mdf-plexiglass', 'mdf یا پلکسی': 'mdf-plexiglass', 'mdf-plxi': 'mdf-plxi',
@@ -61,12 +71,8 @@ function attributeTerm(kind, value) {
     strip: 'strip', 'طلق': 'strip', 'strip-or-plexiglass': 'strip-or-plexiglass',
     'multi-style': 'multi-style', 'مولتی استایل': 'multi-style', 'metal-bar': 'metal-bar', 'میله فلزی': 'metal-bar',
   };
-  const terms = { format: formats, thickness: thicknesses, material: materials }[kind];
+  const terms = { format: formats, material: materials }[kind];
   if (Object.values(terms).includes(key)) return key;
-  if (kind === 'thickness') {
-    key = key.replace(/\s*(?:mm|میلی\s*متر|میلیمتر)$/, '').trim().replace(/[,-]/g, '.');
-    if (/^\d+(?:\.\d+)?$/.test(key)) key = String(Number(key));
-  }
   if (!Object.hasOwn(terms, key)) throw new Error(`Unsupported ${kind}; use a verified catalog term.`);
   return terms[key];
 }
@@ -224,6 +230,9 @@ function publicProduct(item, context) {
   for (const [key, slug] of Object.entries(context.constraints)) {
     if (!attributes.some((attribute) => attribute.taxonomy === ATTRIBUTE_TAXONOMY[key]
       && attribute.terms.some((term) => normalize(term.slug) === normalize(slug)
+        || key === 'thickness' && thicknessValue(slug) !== null && thicknessValue(term.name) === thicknessValue(slug)
+          && (thicknessValue(term.slug) === null || thicknessValue(term.slug) === thicknessValue(slug))
+        || key === 'format' && slug === 'cdr' && /^(?:all-cdr|cdr-v\d+)$/.test(term.slug)
         // The provider verifies the actual OR-term name before expanding compatibility.
         || key === 'material' && ['mdf', 'plexiglass'].includes(slug)
           && term.slug === 'mdf-plexiglass' && normalize(term.name) === 'mdf یا پلکسی'))) {
@@ -238,11 +247,26 @@ function publicProduct(item, context) {
   const summary = publicText(item.short_description || '', 800);
   const publishedAt = typeof item.published_at === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(item.published_at)
     && Number.isFinite(Date.parse(item.published_at)) && new Date(item.published_at).toISOString().replace('.000Z', 'Z') === item.published_at ? item.published_at : null;
+  let price = publicPrice(item.prices), priceRange = null;
+  if (item.type === 'variable') {
+    const range = item.prices?.price_range;
+    if (range !== undefined && range !== null) {
+      if (!plainObject(range)) throw new Error('Invalid price range.');
+      const min = publicPrice({ ...item.prices, price: range.min_amount });
+      const max = publicPrice({ ...item.prices, price: range.max_amount });
+      if (!min || !max || min.minorAmount.length > max.minorAmount.length
+        || min.minorAmount.length === max.minorAmount.length && min.minorAmount > max.minorAmount
+        || price && price.minorAmount !== min.minorAmount) throw new Error('Invalid price range.');
+      price = min;
+      priceRange = { min, max };
+    } else price = null;
+  }
+  const verifiedDelivery = item.type !== 'variable' || priceRange !== null;
   return { id: item.id, name: publicText(item.name, 240).text, url: safeLink(item.permalink, 'product'),
-    summary: summary.text, truncated: summary.truncated, price: publicPrice(item.prices), attributes, images,
+    type: item.type, summary: summary.text, truncated: summary.truncated, price, ...(priceRange ? { priceRange } : {}), attributes, images,
     categoryIds: categoryIds(item, context), publishedAt,
-    virtual: typeof item.is_virtual === 'boolean' ? item.is_virtual : null,
-    downloadable: typeof item.is_downloadable === 'boolean' ? item.is_downloadable : null,
+    virtual: verifiedDelivery && typeof item.is_virtual === 'boolean' ? item.is_virtual : null,
+    downloadable: verifiedDelivery && typeof item.is_downloadable === 'boolean' ? item.is_downloadable : null,
     inStock: typeof item.is_in_stock === 'boolean' ? item.is_in_stock : null,
     onSale: typeof item.on_sale === 'boolean' ? item.on_sale : null };
 }

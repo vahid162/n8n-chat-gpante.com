@@ -6,6 +6,11 @@ namespace Automattic\WooCommerce\StoreApi\Schemas\V1 {
         public function get_item_response($product) { return $GLOBALS['schema_data']; }
     }
 }
+namespace Automattic\WooCommerce\StoreApi\Formatters {
+    class MoneyFormatter {
+        public function format($value, $options = []) { return (string) round((float) $value * (10 ** $options['decimals'])); }
+    }
+}
 namespace Automattic\WooCommerce\StoreApi {
     class SchemaController {
         public function get($name) {
@@ -53,7 +58,7 @@ namespace {
         return $count;
     }
     function is_wp_error($value) { return $value instanceof WP_Error; }
-    function taxonomy_exists($name) { return in_array($name, ['product_visibility', 'product_cat', 'category'], true); }
+    function taxonomy_exists($name) { return in_array($name, ['product_visibility', 'product_cat', 'category', 'pa_thickness', 'pa_file-format', 'pa_materials-required'], true); }
     function term_read($name, $result, $args) {
         $GLOBALS['term_calls'][] = ['name' => $name, 'args' => $args];
         $GLOBALS['wpdb']->last_error = $GLOBALS['term_errors'][$name] ?? '';
@@ -64,6 +69,10 @@ namespace {
     function get_ancestors($id, $taxonomy, $type) { return term_read(__FUNCTION__, $id === 12 ? [10] : [], func_get_args()); }
     function get_post_time($format, $gmt, $post) { return '2026-10-21T10:00:00Z'; }
     function get_terms($args) { return term_read(__FUNCTION__, $GLOBALS['term_records'] ?? [], func_get_args()); }
+    function get_term_by($field, $value, $taxonomy) {
+        foreach ($GLOBALS['term_records'] ?? [] as $term) if ($term->$field === $value) return term_read(__FUNCTION__, $term, func_get_args());
+        return term_read(__FUNCTION__, false, func_get_args());
+    }
     function get_term_link($term) { return 'https://gpante.com/product-category/cat-' . $term->term_id . '/'; }
     function WC() {
         return (object) ['query' => new class {
@@ -78,6 +87,7 @@ namespace {
         return $value;
     }
     function wc_get_product($id) {
+        if (isset($GLOBALS['variant_records'])) return $GLOBALS['variant_records'][$id] ?? false;
         return new class {
             public function get_status() { return 'publish'; }
             public function get_type() { return 'simple'; }
@@ -86,6 +96,8 @@ namespace {
             public function is_downloadable() { return $GLOBALS['product_downloadable'] ?? false; }
         };
     }
+    function get_post($id) { return $GLOBALS['variant_posts'][$id] ?? null; }
+    function wc_get_price_to_display($product) { return $product->price; }
 
     class WP_Error {
         public function __construct(public $code, public $message, public $data) {}
@@ -206,6 +218,52 @@ namespace {
             check(!isset($item['downloads']) && !str_contains(json_encode($item), 'fixture-private.zip'), 'Public product flags must not expose protected download destinations');
         }
         unset($GLOBALS['product_virtual'], $GLOBALS['product_downloadable']);
+    };
+    $cases['products: variation summaries exclude private hidden and unpurchasable choices'] = static function () {
+        $parent = new class {
+            public function get_type() { return 'variable'; }
+            public function get_id() { return 42; }
+            public function get_children() { return [101, 102, 103, 104, 105, 106]; }
+            public function is_virtual() { return false; }
+            public function is_downloadable() { return false; }
+        };
+        foreach ([101 => ['0', true, true], 102 => ['70000', true, true], 103 => ['999999', false, true], 104 => ['999999', true, false], 105 => ['999999', true, true], 106 => ['999999', true, true]] as $id => [$price, $visible, $purchasable]) {
+            $GLOBALS['variant_records'][$id] = new class($price, $visible, $purchasable) {
+                public function __construct(public $price, private $visible, private $purchasable) {}
+                public function get_type() { return 'variation'; }
+                public function get_parent_id() { return 42; }
+                public function get_status() { return 'publish'; }
+                public function variation_is_visible() { return $this->visible; }
+                public function is_purchasable() { return $this->purchasable; }
+                public function is_virtual() { return true; }
+                public function is_downloadable() { return true; }
+            };
+            $GLOBALS['variant_posts'][$id] = (object) ['post_status' => $id === 105 ? 'private' : 'publish', 'post_password' => $id === 106 ? 'protected' : ''];
+        }
+        $prices = ['price' => '999999', 'regular_price' => '999999', 'sale_price' => '0', 'currency_code' => 'IRT', 'currency_minor_unit' => 0];
+        $flags = gpante_support_catalog_delivery($parent, $prices);
+        check($flags === ['is_virtual' => true, 'is_downloadable' => true], 'Eligible variation flags must override false parent defaults');
+        check($prices['price'] === '0' && $prices['price_range'] === ['min_amount' => '0', 'max_amount' => '70000'], 'Only verified visible purchasable public choices may contribute to the price range');
+        check(!isset($prices['regular_price'], $prices['sale_price']), 'Ambiguous parent sale prices must not remain beside a verified range');
+        unset($GLOBALS['variant_records'], $GLOBALS['variant_posts']);
+    };
+    $cases['products: numeric thickness and CDR filters use current native terms and retain AND filters'] = static function () {
+        $GLOBALS['term_records'] = [(object) ['name' => '۸ میلی متر', 'slug' => '8-mm'], (object) ['name' => '۸ میلیمتر', 'slug' => '8-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1']];
+        run_callback('gpante_support_catalog_products', ['thickness' => '8', 'categoryId' => 12], [[]]);
+        $tax = $GLOBALS['query_calls'][0]['args']['tax_query'];
+        check($tax['relation'] === 'AND' && $tax[1]['terms'] === array_column($GLOBALS['term_records'], 'slug') && $tax[2]['terms'] === [12], 'Equivalent thicknesses must stay inside an AND category intersection');
+        $GLOBALS['term_records'] = [(object) ['name' => '۹٫۲۸ میلیمتر', 'slug' => '9-28-mm']];
+        run_callback('gpante_support_catalog_products', ['thickness' => '9.28'], [[]]);
+        check($GLOBALS['query_calls'][0]['args']['tax_query'][1]['terms'] === ['9-28-mm'], 'A newly added numeric thickness must not need a hard-coded mapping');
+        $GLOBALS['term_records'] = [(object) ['name' => 'CDR 13', 'slug' => 'cdr-v3'], (object) ['name' => 'CDR 20', 'slug' => 'cdr-v20'], (object) ['name' => 'DXF', 'slug' => 'dxf']];
+        run_callback('gpante_support_catalog_products', ['format' => 'cdr'], [[]]);
+        check($GLOBALS['query_calls'][0]['args']['tax_query'][1]['terms'] === ['cdr-v3', 'cdr-v20'], 'Generic CDR must include verified native family terms only');
+        unset($GLOBALS['term_records']);
+    };
+    $cases['products: failed dynamic taxonomy reads never become no matches'] = static function () {
+        $GLOBALS['term_errors'] = ['get_terms' => 'fixture-private-sql term read'];
+        check_unavailable(run_callback('gpante_support_catalog_products', ['thickness' => '9.28'], []));
+        unset($GLOBALS['term_errors']);
     };
     foreach (array('array', 'stdClass') as $shape) {
         $cases['products: public nested schema as ' . $shape] = static function () use ($shape) {

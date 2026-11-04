@@ -1,6 +1,6 @@
 # اتصال وردپرس و وودمارت
 
-**کاندید منبع۴نوامبر۲۰۲۶:** نسخه0.14.0 با Main1.9.0/Admin1.5.0 و migration008؛ [ترتیب ارتقا و شواهد](../../docs/assistant-reliability.md). نسخهٔ نصب‌شدهٔ قبلی در ادامه ثبت است.
+**کاندید منبع۴نوامبر۲۰۲۶:** نسخه0.14.0 با Main1.9.1/Admin1.5.0 و migration008؛ [ترتیب ارتقا و شواهد](../../docs/assistant-reliability.md). نسخهٔ نصب‌شدهٔ قبلی در ادامه ثبت است.
 
 منبع اصلی اتصال [افزونهٔ GPante Support Chat](../../wordpress-plugin/gpante-support-chat/readme.txt)، نسخهٔ **۰٫۱۳٫۰** است؛ بستهٔ رسمی در۳۰اکتبر۲۰۲۶ نصب و هر۱۹فایل و asset عمومی با منبع و Release تطبیق داده شد. Main1.8.2 منتشر است؛ بررسی انتشار اولیهٔ0.13.0، تاریخچهٔ واقعی، پرچم محصول و تماس بومیِ intercept‌شده موفق است؛ آزمون پولی پاسخ مدل انجام نشد. PHP، کاتالوگ، template و assetها فقط در پوشهٔ افزونه نگهداری می‌شوند. [وضعیت جاری](../../.agents/skills/operate-gpante-support-chat/references/project-state.md) و [گزارش تحویل و طراحی](../../docs/product-delivery-handoff.md) شواهد را ثبت می‌کنند.
 

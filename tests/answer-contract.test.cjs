@@ -128,12 +128,22 @@ test('conditional free-download procedure stays usable with separate FAQ and con
   const s = state('چطور طرح رایگان را دانلود کنم؟', [evidence('faq', [faq])]);
   const links = '\n\n[راهنمای دریافت فایل](' + faq.url + ')\n\n[تماس](https://gpante.com/contact-us/)';
   for (const procedure of ['برای طرحی که در صفحه محصول رایگان معرفی شده، پس از تکمیل سفارش بخش دریافت فایل را بررسی کنید.',
-    'اگر فایل رایگان باشد، پس از تکمیل سفارش جزئیات سفارش را بررسی کنید.']) {
+    'اگر فایل رایگان باشد، پس از تکمیل سفارش جزئیات سفارش را بررسی کنید.',
+    'اگر همان فایل در صفحهٔ محصول رایگان معرفی شده است، مراحل ثبت سفارش را ادامه دهید.',
+    'اگر گزینهٔ انتخابی در صفحهٔ محصول رایگان اعلام شده باشد، راهنمای دریافت همان صفحه را دنبال کنید.',
+    'اگر همان فایل یا گزینه در صفحهٔ محصول رایگان معرفی شده باشد، راهنمای دریافت را دنبال کنید.',
+    'اگر فایل رایگان باشد، جزئیات سفارش را بررسی کنید. رایگان‌بودن یک گزینه به معنی رایگان‌بودن همهٔ گزینه‌های محصول نیست.']) {
     assert.equal(groundingError(s, procedure + links), null, procedure);
     assert.equal(groundingError(s, procedure + '\nاین محصول رایگان است.' + links), 'unverified_price');
   }
   assert.equal(groundingError(s, 'این محصول رایگان است.' + links), 'unverified_price');
   assert.equal(groundingError(s, 'همهٔ فایل‌ها رایگان هستند.' + links), 'unverified_price');
+  for (const assertion of ['اگر فایل را بخرید این محصول رایگان است.', 'برای طرحی که می‌خرید این فایل رایگان است.',
+    'اگر فایل را انتخاب کنید قیمت این محصول رایگان است.']) assert.equal(groundingError(s, assertion + links), 'unverified_price');
+  const qualification = 'رایگان‌بودن یک گزینه به معنی رایگان‌بودن همهٔ گزینه‌های محصول نیست.';
+  assert.equal(groundingError(s, qualification + links), null);
+  assert.equal(groundingError(s, qualification + '\nهمهٔ فایل‌ها رایگان هستند.' + links), 'unverified_price');
+  assert.equal(groundingError(s, qualification.replace('نیست', 'است') + links), 'unverified_price');
   assert.equal(groundingError(s, 'اگر فایل رایگان باشد، قیمت آن ۱۰ تومان است.' + links), 'unverified_price');
   assert.equal(groundingError(state(s.chatInput, []), 'اگر فایل رایگان باشد، جزئیات سفارش را بررسی کنید.'), 'source_required');
   assert.equal(groundingError(state(s.chatInput, [evidence('faq', [], false)]), 'اگر فایل رایگان باشد، جزئیات سفارش را بررسی کنید.'), 'source_read_failed');

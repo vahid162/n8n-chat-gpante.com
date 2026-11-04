@@ -232,7 +232,13 @@ function linkedSections(output) {
 
 function conditionalFreeGuidance(section) {
   // A hypothetical free-file condition is not a claim that a product is free.
-  const text = replyText(section).replace(/(?:برای (?:طرح|فایل|محصول)(?:ی| هایی|هایی)? که|(?:اگر|چنانچه|در صورتی که) (?:این )?(?:طرح|فایل|محصول))[^.!?؟؛،\n]{0,100}?رایگان(?=\s+(?:باشد|بود|است|معرفی|مشخص|اعلام))/g, '');
+  const subject = '(?:(?:این|همان|آن|یک) )?(?:طرح|فایل|محصول|گزینه)(?:ی| هایی|هایی)?\\p{M}*(?: (?:انتخابی|انتخاب شده|مورد نظر|موردنظر|دانلودی))?';
+  const location = '(?:در صفحه\\p{M}*(?: ی)?(?: (?:همان|این|آن))? (?:محصول|فایل|طرح)\\p{M}* )?';
+  const condition = new RegExp('(?:(?:اگر|چنانچه|در صورتی که) ' + subject + '(?: یا ' + subject + ')? |برای ' + subject + ' که )' + location
+    + 'رایگان(?=\\s+(?:باشد|بود|است|معرفی|مشخص|اعلام))', 'gu');
+  const text = replyText(section)
+    .replace(condition, '')
+    .replace(/رایگان\s*بودن (?:یک|همان|این) گزینه به (?:معنی|معنای) رایگان\s*بودن (?:همه|تمام|کل)\p{M}*(?: ی)? (?:گزینه(?: های)?(?: محصول)?|محصول) نیست/gu, '');
   return !/رایگان/.test(text);
 }
 
@@ -328,15 +334,16 @@ function groundingError(state, output) {
       if (!digital.test(text) || negated.test(text) || physical) return 'product_type_required';
     }
     const claims = prices(section);
+    const freeClaim = /رایگان(?!\s+نیست)/.test(section) && !conditionalFreeGuidance(section);
     const variableRange = item.type === 'variable' && (!item.priceRange
       || decimalValue(item.priceRange.min?.amount) !== decimalValue(item.priceRange.max?.amount));
-    if (variableRange && (claims.length && !variablePriceMatches(item, section, claims) || /رایگان(?!\s+نیست)/.test(section))) return 'price_mismatch';
+    if (variableRange && (claims.length && !variablePriceMatches(item, section, claims) || freeClaim)) return 'price_mismatch';
     for (const p of variableRange ? [] : claims) {
       const unit = priceUnit(p[3]);
       const currency = /^(IRT|TMN|TOMAN)$/.test(item.price?.currency) ? 'IRT' : item.price?.currency;
       if (!item.price || currency !== unit || decimalValue(p[1], p[2] === 'هزار' ? 3 : p[2] === 'میلیون' ? 6 : 0) !== decimalValue(item.price.amount)) return 'price_mismatch';
     }
-    if (/رایگان(?!\s+نیست)/.test(section) && (!item.price || decimalValue(item.price.amount) !== '0')) return 'price_mismatch';
+    if (freeClaim && (!item.price || decimalValue(item.price.amount) !== '0')) return 'price_mismatch';
     for (const row of section.split('\n')) {
       const cells = row.split('|').map(c => replyText(c.replace(/\*/g, ''))).filter(Boolean);
       if (cells.length !== 2 || /ذکر نشده|نامشخص/.test(cells[1])) continue;

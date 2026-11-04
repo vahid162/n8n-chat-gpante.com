@@ -340,6 +340,9 @@ test('variable product ranges cannot become an exact price or a blanket free cla
   for (const price of ['از ۰ تومان', 'از ۰ تومان تا ۷۰٬۰۰۰ تومان', '۰ تا ۷۰ هزار تومان']) {
     assert.equal(groundingError(s, reply(price)), null, price);
   }
+  const qualification = 'رایگان‌بودن یک گزینه به معنی رایگان‌بودن همهٔ گزینه‌های محصول نیست.';
+  assert.equal(groundingError(s, reply('از ۰ تومان تا ۷۰٬۰۰۰ تومان\n' + qualification)), null);
+  assert.equal(groundingError(s, reply('از ۰ تومان تا ۷۰٬۰۰۰ تومان\n' + qualification + '\nاین محصول رایگان است.')), 'price_mismatch');
   for (const price of ['رایگان', '۰ تومان', '۷۰٬۰۰۰ تومان', 'از ۱ تومان', '۰ تا ۸۰ هزار تومان', 'از ۰ ریال',
     'از ۰ تومان تا ۷۰٬۰۰۰ تومان؛ قیمت نهایی ۰ تومان']) {
     assert.equal(groundingError(s, reply(price)), 'price_mismatch', price);

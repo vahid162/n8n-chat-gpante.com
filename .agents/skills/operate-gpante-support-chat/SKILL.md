@@ -2,7 +2,7 @@
 name: operate-gpante-support-chat
 description: "Develop, inspect, diagnose, update and maintain the Persian AI support-chat product for gpante.com and its project repository. Use for its n8n workflows, public catalog retrieval, chat widget, sessions, product requirements and release continuity. Covers the full eligible public catalog. Excludes the separate woo2 product-publication system and unrelated WordPress administration."
 metadata:
-  version: "0.16.1"
+  version: "0.17.0"
 ---
 
 # Operate GPante Support Chat
@@ -57,6 +57,12 @@ Maintain the support-chat product at `https://github.com/vahid162/n8n-chat-gpant
 - A cryptographic sendId identifies one exact request in one signed session. Successful visible retries replay without a model call; pending stays busy; old failed/expired/cleared requests cannot silently create another paid turn. Cookie renewal retains the same identity and a30day idle lifetime. Do not promise durable retry across navigation.
 - Owned feedback requires an unexpired visible successful turn and trusted SID. Native site-search fallback must remain usable when model/budget/provider is unavailable; it uses no model calls. Preserve response caps, capability/nonce and public allowlists.
 - Bounded diagnostic metadata records source/tool/query/filters/result IDs/ranks/fixed rejection codes, never source bodies, URLs, raw provider payloads or copied transcripts. Redact identifiers at JS and SQL boundaries. Keep at most2000rows for7days; 30day administrator archive and text-free financial ledger stay independent. Only privileged administration can mark synthetic traffic; never label unclassified historical traffic as verified human or fabricate old traces. Main/Admin raw execution storage remains off.
+
+## Reliability candidate0.14.0 / Main1.9.0 / Admin1.5.0
+
+- Read [assistant-reliability.md](../../../docs/assistant-reliability.md) for the candidate implementation, evidence and rollout order. Never infer production installation from source versions. Variable products require verified eligible-variation delivery summaries and priceRange; minimum zero never means every option is free. Resolve numeric thicknesses against current native terms; preserve AND constraints and explicit CDR versions.
+- Conditional free-download procedure still needs current cited FAQ; retain price/reference validation. Short delivery follow-ups use only recent relevant context and explicit topic changes reset routing. Licence answers come from the approved current FAQ, never invented terms.
+- Migration008 extends optional diagnostics and adds text-free UTC-day refusal aggregates without changing admission arguments/settings/history/accounting. Apply only008after007with Main drained; old migrations remain one-time. Prepared modelRounds are not billed calls. Readiness is a configuration/budget/capacity snapshot, not model health. Preserve unknown metadata and the7day/2000row diagnostic boundary. Quiet history refresh preserves unchanged nodes/focus/scroll while enforcing deletions and expiry.
 
 ## Product delivery and designer handoff
 

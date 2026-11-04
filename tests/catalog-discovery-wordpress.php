@@ -16,7 +16,7 @@ function discovery_read($kind, $params) {
     discovery_check(!is_wp_error($response), "$kind returns a real native response");
     return $response;
 }
-$posts = []; $terms = []; $attribute_id = 0;
+$posts = []; $terms = []; $attribute_id = 0; $extra_attributes = [];
 $tehran = static fn() => 'Asia/Tehran';
 $canonical = static fn($url, $post) => $post->post_type === 'product' ? 'https://gpante.com/product/' . $post->post_name . '/' : $url;
 $output_path = getenv('GPANTE_CATALOG_NATIVE_OUTPUT'); $source_pages = [];
@@ -203,6 +203,66 @@ try {
     discovery_check(array_column($read->get_data(), 'id') === [$article_ids[1]], 'conversion article matches meaningful terms and the controlled change/convert alias');
     $cats = discovery_read('categories', ['source' => 'articles', 'search' => 'gpantefixture', 'parentId' => 0]);
     discovery_check(array_column($cats->get_data(), 'id') === [$terms['category'][0]], 'article categories exclude password-only content independently of products');
+    if (!taxonomy_exists('pa_thickness')) {
+        $attribute = wc_create_attribute(['name' => 'ضخامت', 'slug' => 'thickness', 'type' => 'select']);
+        if (is_wp_error($attribute)) throw new RuntimeException('Thickness attribute fixture failed');
+        $extra_attributes[] = $attribute;
+        register_taxonomy('pa_thickness', ['product'], ['hierarchical' => false]);
+    }
+    $thickness_terms = [];
+    foreach ([['۸ میلی متر', '8-mm'], ['۸ میلیمتر', '8-میلیمتر'], ['۹٫۲۸ میلیمتر', '9-28-میلیمتر']] as [$name, $slug]) {
+        $term = wp_insert_term($name, 'pa_thickness', ['slug' => $slug]);
+        if (is_wp_error($term)) throw new RuntimeException('Thickness term fixture failed');
+        $terms['pa_thickness'][] = $term['term_id']; $thickness_terms[] = $term['term_id'];
+    }
+    $cdr_terms = [];
+    foreach (['cdr-v3', 'cdr-v20', 'all-cdr'] as $slug) {
+        $term = wp_insert_term('gpantefilter ' . $slug, 'pa_file-format', ['slug' => $slug]);
+        if (is_wp_error($term)) throw new RuntimeException('CDR term fixture failed');
+        $terms['pa_file-format'][] = $term['term_id']; $cdr_terms[] = $term['term_id'];
+    }
+    $filtered = [];
+    foreach ([[0, 0], [1, 1], [2, 2], [1, 2]] as $index => [$thickness_index, $format_index]) {
+        $p = new WC_Product_Simple(); $p->set_name('gpantefilter product ' . $index); $p->set_status('publish'); $p->set_regular_price('1');
+        $p->set_category_ids([$index === 3 ? $terms['product_cat'][2] : $terms['product_cat'][1]]);
+        $attributes = [];
+        foreach (['pa_thickness' => $thickness_terms[$thickness_index], 'pa_file-format' => $cdr_terms[$format_index]] as $taxonomy => $term_id) {
+            $a = new WC_Product_Attribute(); $a->set_id(wc_attribute_taxonomy_id_by_name($taxonomy));
+            $a->set_name($taxonomy); $a->set_options([$term_id]); $a->set_visible(true); $attributes[] = $a;
+        }
+        $p->set_attributes($attributes); $filtered[] = $p->save(); $posts[] = end($filtered);
+    }
+    foreach (['8', '۸ میلیمتر', '8-mm', '8-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1'] as $thickness) {
+        $read = discovery_read('products', $scope + ['search' => 'gpantefilter', 'thickness' => $thickness, 'format' => 'cdr']);
+        discovery_check(array_column($read->get_data(), 'id') === [$filtered[1], $filtered[0]], 'equivalent native thicknesses preserve the category and CDR family intersection');
+    }
+    $read = discovery_read('products', $scope + ['search' => 'gpantefilter', 'thickness' => '9.28']);
+    discovery_check(array_column($read->get_data(), 'id') === [$filtered[2]], 'new numeric thickness works without a source slug-map change');
+    $read = discovery_read('products', $scope + ['search' => 'gpantefilter', 'thickness' => '8', 'format' => 'cdr-v20']);
+    discovery_check(array_column($read->get_data(), 'id') === [$filtered[1]], 'an explicit CDR version remains an exact constraint');
+    $request = new WP_REST_Request('GET', '/gpante-support/v1/products'); $request->set_query_params(['thickness' => '7.913']);
+    discovery_check(is_wp_error(gpante_support_catalog_products($request)), 'a numeric thickness without verified native terms is never silently relaxed');
+
+    $parent = new WC_Product_Variable(); $parent->set_name('gpantevariation downloadable choices'); $parent->set_status('publish');
+    $parent_id = $parent->save(); $posts[] = $parent_id; $variants = [];
+    foreach ([['0', 'publish'], ['65', 'publish'], ['70', 'publish'], ['9000', 'private'], ['', 'publish']] as [$price, $status]) {
+        $child = new WC_Product_Variation(); $child->set_parent_id($parent_id); $child->set_status($status);
+        $child->set_regular_price($price); $child->set_virtual(true); $child->set_downloadable(true);
+        $variants[] = $child->save(); $posts[] = end($variants);
+    }
+    WC_Product_Variable::sync($parent_id);
+    $facts = discovery_read('products', ['productId' => $parent_id])->get_data()[0];
+    $maximum = '70' . str_repeat('0', wc_get_price_decimals());
+    discovery_check($facts['type'] === 'variable' && $facts['is_virtual'] === true && $facts['is_downloadable'] === true, 'delivery is aggregated from eligible children instead of false parent flags');
+    discovery_check($facts['prices']['price'] === '0' && $facts['prices']['price_range'] === ['min_amount' => '0', 'max_amount' => $maximum], 'verified variation range keeps the free choice and paid choices in native currency units and excludes hidden/no-price children');
+    discovery_check(!isset($facts['downloads'], $facts['variations']) && !isset($facts['prices']['sale_price']), 'variation summary contains no protected downloads or ambiguous parent sale price');
+    $child = wc_get_product($variants[1]); $child->set_virtual(false); $child->save(); WC_Product_Variable::sync($parent_id);
+    $facts = discovery_read('products', ['productId' => $parent_id])->get_data()[0];
+    discovery_check($facts['is_virtual'] === null && $facts['is_downloadable'] === true, 'mixed variation delivery remains explicitly unknown while a shared downloadable flag survives');
+    foreach (array_slice($variants, 0, 3) as $id) { $child = wc_get_product($id); $child->set_status('private'); $child->save(); }
+    WC_Product_Variable::sync($parent_id);
+    $facts = discovery_read('products', ['productId' => $parent_id])->get_data()[0];
+    discovery_check($facts['is_virtual'] === null && $facts['is_downloadable'] === null && $facts['prices']['price'] === '' && $facts['prices']['price_range'] === null, 'no eligible variation means unknown delivery and price instead of a parent default');
     $request = new WP_REST_Request('GET', '/gpante-support/v1/products');
     $request->set_query_params(['categoryId' => -1]);
     discovery_check(is_wp_error(gpante_support_catalog_products($request)), 'invalid category never relaxes to the whole catalog');
@@ -214,4 +274,5 @@ try {
     foreach ($posts as $id) wp_delete_post($id, true);
     foreach ($terms as $taxonomy => $ids) foreach (array_reverse($ids) as $id) wp_delete_term($id, $taxonomy);
     if ($attribute_id) wc_delete_attribute($attribute_id);
+    foreach ($extra_attributes as $id) wc_delete_attribute($id);
 }

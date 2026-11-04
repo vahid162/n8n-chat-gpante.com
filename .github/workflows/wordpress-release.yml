@@ -105,6 +105,28 @@ jobs:
         env:
           GPANTE_WP_TEST_DIR: ${{ runner.temp }}/gpante-native-wordpress
         run: python3 scripts/test-wordpress.py
+      - name: Run offline browser smoke and native plugin menus
+        env:
+          GPANTE_WP_TEST_DIR: ${{ runner.temp }}/gpante-native-wordpress
+          GPANTE_WP_TEST_URL: https://127.0.0.1:9443
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/gpante-browser-venv"
+          browser_python="$RUNNER_TEMP/gpante-browser-venv/bin/python"
+          "$browser_python" -m pip install playwright==1.64.0
+          "$browser_python" -m playwright install --with-deps chromium
+          "$browser_python" tests/widget-history-browser.py
+          setsid python3 scripts/test-wordpress.py --run-only --serve > "$RUNNER_TEMP/gpante-browser-server.log" 2>&1 &
+          fixture_pid=$!
+          trap 'kill -- -"$fixture_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..120}; do
+            if curl --insecure --silent --fail "$GPANTE_WP_TEST_URL/" > /dev/null; then break; fi
+            if ! kill -0 "$fixture_pid" 2>/dev/null; then cat "$RUNNER_TEMP/gpante-browser-server.log"; exit 1; fi
+            sleep 1
+          done
+          curl --insecure --silent --fail "$GPANTE_WP_TEST_URL/" > /dev/null
+          "$browser_python" tests/wordpress-menu-browser.py
+          "$browser_python" tests/wordpress-admin-experience-browser.py
 
   archive-database:
     runs-on: ubuntu-24.04
@@ -139,12 +161,15 @@ jobs:
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/005-search-diagnostics.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/006-expired-send-guards.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/007-admin-experience.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/008-observability.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/008-observability.sql
           psql -v ON_ERROR_STOP=1 -f tests/legacy-migration-after.sql
           psql -v ON_ERROR_STOP=1 -f tests/archive-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/database.sql
           psql -v ON_ERROR_STOP=1 -f tests/conversation-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/diagnostics-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/admin-experience-database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/observability-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/retry-retention-database.sql
           python3 tests/money-concurrency.py --direct --database gpante_chat_archive_test --user postgres
 

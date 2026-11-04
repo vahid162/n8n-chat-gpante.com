@@ -330,3 +330,25 @@ test('valid free prices, unknown attributes and separate product sections remain
   assert.equal(groundingError(s, '**باکس**\nقیمت: رایگان\n[محصول](' + free.url + ')\n\n**مدل دوم**\nقیمت: ۱۲٫۵۰ دلار\n[محصول](' + second.url + ')'), null);
   assert.equal(groundingError(s, '**باکس**\nقیمت: ۱۲٫۵۰ دلار\n[محصول](' + free.url + ')\n\n**مدل دوم**\nقیمت: رایگان\n[محصول](' + second.url + ')'), 'price_mismatch');
 });
+
+test('variable product ranges cannot become an exact price or a blanket free claim', () => {
+  const variable = { ...product, type: 'variable', virtual: true, downloadable: true,
+    price: { amount: '0', currency: 'IRT' },
+    priceRange: { min: { amount: '0', currency: 'IRT' }, max: { amount: '70000', currency: 'IRT' } } };
+  const s = state('باکس معرفی کن', [{ name: 'Product_Search', ok: true, results: [variable] }]);
+  const reply = price => 'فایل طراحی قابل دانلود است.\nقیمت: ' + price + '\n[محصول](' + variable.url + ')';
+  for (const price of ['از ۰ تومان', 'از ۰ تومان تا ۷۰٬۰۰۰ تومان', '۰ تا ۷۰ هزار تومان']) {
+    assert.equal(groundingError(s, reply(price)), null, price);
+  }
+  for (const price of ['رایگان', '۰ تومان', '۷۰٬۰۰۰ تومان', 'از ۱ تومان', '۰ تا ۸۰ هزار تومان', 'از ۰ ریال',
+    'از ۰ تومان تا ۷۰٬۰۰۰ تومان؛ قیمت نهایی ۰ تومان']) {
+    assert.equal(groundingError(s, reply(price)), 'price_mismatch', price);
+  }
+  assert.equal(groundingError(s, reply('از ۰ تومان').replace('فایل طراحی قابل دانلود است.', 'ماکت آماده است.')), 'product_type_required');
+  const same = { ...variable, priceRange: { min: variable.price, max: variable.price } };
+  assert.equal(groundingError({ ...s, evidence: [{ ...s.evidence[0], results: [same] }] }, reply('رایگان')), null);
+  const unknown = { ...variable, price: null, priceRange: null, virtual: null, downloadable: null };
+  assert.equal(groundingError({ ...s, evidence: [{ ...s.evidence[0], results: [unknown] }] }, reply('از ۰ تومان')), 'price_mismatch');
+  const euros = { ...variable, priceRange: { min: { amount: '0', currency: 'EUR' }, max: { amount: '70000', currency: 'EUR' } } };
+  assert.equal(groundingError({ ...s, evidence: [{ ...s.evidence[0], results: [euros] }] }, reply('از ۰ دلار تا ۷۰٬۰۰۰ دلار')), 'price_mismatch');
+});

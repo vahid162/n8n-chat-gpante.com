@@ -50,6 +50,11 @@ test('generated graph settles and repairs an unsupported final before reading FA
   assert(result.visited.includes('Prepare Tool 2'));
   assert.equal(result.visited.filter(n => n.startsWith('Settle Model')).length, 3);
   assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
+  const execution = result.data.diagnostics.find(event => event.event === 'execution');
+  assert.equal(execution.workflowVersion, '1.9.0');
+  assert.match(execution.sourceRevision, /^[a-f0-9]{64}$/);
+  assert.equal(execution.modelRounds, 3);
+  assert.equal(execution.toolCalls, 1);
   assert(!result.data.response.output.includes('الزامی'));
 });
 

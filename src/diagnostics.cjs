@@ -16,6 +16,8 @@ function toolDiagnostic(state, facts) {
   const result = { event: 'source', tool, source: ['products', 'articles', 'site', 'faq', 'guides', 'categories'].includes(source) ? source : 'unknown',
     status: /^[a-z_]{1,40}$/.test(facts.status || '') ? facts.status : 'unknown', query: diagnosticQuery(args.search),
     filters: {}, results: [] };
+  const targetId = tool === 'Product_Details' ? args.productId : tool === 'Knowledge_Read' ? args.contentId : null;
+  if (Number.isSafeInteger(targetId) && targetId > 0) result.targetId = targetId;
   for (const [key, field] of [['format', 'format'], ['material', 'material'], ['thickness', 'thickness'], ['order', 'sort'], ['category', 'categoryId']]) {
     if (typeof args[field] === 'string' || Number.isSafeInteger(args[field])) result.filters[key] = diagnosticQuery(String(args[field])).slice(0, 40);
   }
@@ -39,4 +41,13 @@ function modelDiagnostic(state) {
     ? appendDiagnostic(state, { event: 'rejection', code }) : state;
 }
 
-module.exports = { diagnosticQuery, toolDiagnostic, appendDiagnostic, modelDiagnostic };
+function executionDiagnostic(state, revision) {
+  if (!/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/.test(revision?.workflowVersion || '')
+    || !/^[a-f0-9]{64}$/.test(revision?.sourceRevision || '')
+    || !Number.isSafeInteger(state.callIndex) || state.callIndex < 0 || state.callIndex > 4
+    || !Number.isSafeInteger(state.toolCount) || state.toolCount < 0 || state.toolCount > 3) return null;
+  return { event: 'execution', workflowVersion: revision.workflowVersion, sourceRevision: revision.sourceRevision,
+    modelRounds: state.callIndex, toolCalls: state.toolCount };
+}
+
+module.exports = { diagnosticQuery, toolDiagnostic, appendDiagnostic, modelDiagnostic, executionDiagnostic };

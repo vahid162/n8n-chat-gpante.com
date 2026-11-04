@@ -78,6 +78,10 @@ function customDesignIntent(text) {
   return /(?:طراحی|طرح)\s*(?:اختصاصی|سفارشی)|سفارش\s*(?:طرح|طراحی)/.test(replyText(text));
 }
 
+function deliveryFollowup(text) {
+  return /^(?:(?:ارسال|تحویل)(?:ش| آن)?\s*(?:چی|چه|چطور)|(?:کی|چه وقت|چه زمانی)\s*(?:به دستم )?می\s*رس[هد]|(?:فایل|طرح)(?: را| رو)?\s+از کجا\s+(?:بگیر|دریافت))/.test(replyText(text));
+}
+
 // Only high-confidence intents are gated; ambiguous questions still use the normal tool loop.
 function requiredSource(state, text = state.chatInput, followup = true) {
   const q = replyText(text);
@@ -86,6 +90,7 @@ function requiredSource(state, text = state.chatInput, followup = true) {
     && /خرید|خریدم|بخر|سفارش|پرداخت|کجا|چطور|چگونه|چه (?:روز|وقت|زمان)|(?:^| )کی(?: |[؟?]|$)/.test(q)) return 'faq';
   if (/این (?:ماکت|محصول|طرح|فایل)/.test(q) && /جنس|متریال|مواد|ساخت.*(?:از|با)|فرمت|دانلودی|فیزیکی/.test(q)) return 'products';
   if (/متن.*(?:قوانین|مقررات|بازپرداخت)|(?:قوانین|مقررات).*بازپرداخت/.test(q)) return 'guides';
+  if (/فایل|طرح/.test(q) && /مجوز|لایسنس|محدودیت زمانی|مدت استفاده|برای همیشه|تا ابد|اشتراک گذاری|در اختیار.*دیگران|فروش مجدد/.test(q)) return 'faq';
   if (/دسته(?: بندی)? ها|دسته بندی|دسته (?:محصول|مقاله|مقالات)/.test(q)
     && !/پرفروش|جدیدترین|تازه ترین|همین دسته|این دسته/.test(q)) return /مقاله|مقالات|آموزش|دوره/.test(q) ? 'article_categories' : 'product_categories';
   if (/ثبت نام/.test(q) && /دوره|کلاس|[آا]موزش/.test(q) && !/حساب|ایمیل|ای میل|email|تلفن|همراه|موبایل|پرداخت|خرید/.test(q)) return 'site';
@@ -99,6 +104,19 @@ function requiredSource(state, text = state.chatInput, followup = true) {
   if (/دانلود/.test(q) && /کجا|چطور|چگونه/.test(q)
     && (/خرید|خریدم|پرداخت|سفارش/.test(q) || /فایل|طرح/.test(q) && !/[آا]موزش|یادگیری|دوره|نصب|فعال سازی|کورل|corel|فتوگراو/.test(q))
     && !/رایگان|معرفی|پیدا|(?:^| )دار(?:ید|ی)(?=[ ؟?]|$)/.test(q)) return 'faq';
+  if (followup && deliveryFollowup(q) && !/[آا]موزش|دوره|نصب|فعال سازی|یادگیری|کورل|corel/.test(q)) {
+    let skippedCurrent = false;
+    for (const message of (state.messages || []).slice(-12).reverse()) {
+      if (message.role !== 'user') continue;
+      if (!skippedCurrent && message.content === text) { skippedCurrent = true; continue; }
+      if (deliveryFollowup(message.content)) continue;
+      const previous = replyText(message.content);
+      if (/خریدم|خرید(?:اری)? کرد|سفارش داد|پرداخت کرد/.test(previous)
+        || /خرید|سفارش|پرداخت|فایل|طرح|محصول|باکس|جعبه|ماکت/.test(previous)
+          && !/[آا]موزش|دوره|نصب|فعال سازی|یادگیری/.test(previous)) return 'faq';
+      break;
+    }
+  }
   if (/ایمیل|ای میل|email|ثبت نام|حساب کاربری|خرید مهمان|بدون حساب/.test(q)
     || /(?:تلفن|شماره همراه|موبایل).*(?:خرید|اجباری|الزام)|خرید.*(?:تلفن|شماره همراه|موبایل)/.test(q)
     || /شیار|زبانه/.test(q)
@@ -132,6 +150,25 @@ function decimalValue(value, zeros = 0) {
   const split = digits.length - fraction.length;
   const decimals = fraction.length ? digits.slice(split).replace(/0+$/, '') : '';
   return digits.slice(0, split).replace(/^0+(?=\d)/, '') + (decimals ? '.' + decimals : '');
+}
+
+function priceUnit(unit) {
+  return /تومان|تومن|irt|tmn|toman/i.test(unit) ? 'IRT' : /ریال|irr/i.test(unit) ? 'IRR'
+    : /دلار|usd/i.test(unit) ? 'USD' : String(unit).toUpperCase();
+}
+
+function variablePriceMatches(item, section, claims) {
+  const range = item.priceRange;
+  if (!range?.min || !range.max) return false;
+  const amount = (value, scale) => decimalValue(value, scale === 'هزار' ? 3 : scale === 'میلیون' ? 6 : 0);
+  const min = decimalValue(range.min.amount), max = decimalValue(range.max.amount);
+  const currency = priceUnit(range.min.currency);
+  const text = replyText(section).replace(/\*/g, '');
+  const ranges = [...text.matchAll(/(\d[\d,٬،.]*)(?:\s*(هزار|میلیون))?\s*(تومان|تومن|ریال|دلار|usd|irr|irt)?\s*(?:تا|الی|–|-)\s*(\d[\d,٬،.]*)(?:\s*(هزار|میلیون))?\s*(تومان|تومن|ریال|دلار|usd|irr|irt)(?=$|[\s،.,؛!؟|)])/g)]
+    .filter(p => amount(p[1], p[2]) === min && amount(p[4], p[5]) === max
+      && priceUnit(p[3] || p[6]) === currency && priceUnit(p[6]) === currency);
+  return claims.every(p => priceUnit(p[3]) === currency && (ranges.some(r => p.index >= r.index && p.index < r.index + r[0].length)
+    || amount(p[1], p[2]) === min && /(?:^|\s)از\s*$/.test(text.slice(0, p.index))));
 }
 
 function cdrVersion(text) {
@@ -193,6 +230,12 @@ function linkedSections(output) {
   });
 }
 
+function conditionalFreeGuidance(section) {
+  // A hypothetical free-file condition is not a claim that a product is free.
+  const text = replyText(section).replace(/(?:برای (?:طرح|فایل|محصول)(?:ی| هایی|هایی)? که|(?:اگر|چنانچه|در صورتی که) (?:این )?(?:طرح|فایل|محصول))[^.!?؟؛،\n]{0,100}?رایگان(?=\s+(?:باشد|بود|است|معرفی|مشخص|اعلام))/g, '');
+  return !/رایگان/.test(text);
+}
+
 function groundingError(state, output) {
   const evidence = state.evidence || [];
   const required = requiredSource(state);
@@ -227,6 +270,8 @@ function groundingError(state, output) {
     && !abstains) return 'reference_required';
   const prices = text => [...replyText(text).replace(/\*/g, '').matchAll(/(\d[\d,٬،.]*)\s*(هزار|میلیون)?\s*(تومان|تومن|ریال|دلار|usd|irr|irt)(?=$|[\s،.,؛!؟|)])/g)];
   const products = results.filter(r => r.price !== undefined && Array.isArray(r.attributes));
+  const citedFaq = evidence.some(e => e.ok && e.source === 'faq'
+    && e.results?.some(r => !r.navigationOnly && links.some(m => m[0] === r.url)));
   if (prices(output).length && !products.length) return 'unverified_price';
   const linkedDiscovery = results.some(r => ['page', 'post'].includes(r.kind) && !r.navigationOnly && links.some(m => m[0] === r.url));
   const limitedRead = limitationOnly(output, linkedDiscovery);
@@ -266,7 +311,8 @@ function groundingError(state, output) {
     if (!url || !/^https:\/\/gpante\.com\/product\//.test(url)) {
       if (prices(section).length) return 'unverified_price';
       if (/رایگان(?!\s+نیست)/.test(section) && !limitationOnly(section)
-        && !results.some(r => r.url === url && r.kind !== 'product' && !r.navigationOnly)) return 'unverified_price';
+        && !results.some(r => r.url === url && r.kind !== 'product' && !r.navigationOnly)
+        && !(citedFaq && conditionalFreeGuidance(section))) return 'unverified_price';
       if (!url && section.split('\n').some(row => /^\|?\s*(?:فرمت|ضخامت|متریال|جنس)\s*\|/.test(replyText(row)) && !/ذکر نشده|نامشخص/.test(row))) return 'attribute_mismatch';
       continue;
     }
@@ -281,8 +327,12 @@ function groundingError(state, output) {
         .some(match => !/(?:^| )نه(?: یک| اینکه)?$/.test(text.slice(0, match.index).trimEnd()));
       if (!digital.test(text) || negated.test(text) || physical) return 'product_type_required';
     }
-    for (const p of prices(section)) {
-      const unit = /تومان|تومن|irt/.test(p[3]) ? 'IRT' : /ریال|irr/.test(p[3]) ? 'IRR' : 'USD';
+    const claims = prices(section);
+    const variableRange = item.type === 'variable' && (!item.priceRange
+      || decimalValue(item.priceRange.min?.amount) !== decimalValue(item.priceRange.max?.amount));
+    if (variableRange && (claims.length && !variablePriceMatches(item, section, claims) || /رایگان(?!\s+نیست)/.test(section))) return 'price_mismatch';
+    for (const p of variableRange ? [] : claims) {
+      const unit = priceUnit(p[3]);
       const currency = /^(IRT|TMN|TOMAN)$/.test(item.price?.currency) ? 'IRT' : item.price?.currency;
       if (!item.price || currency !== unit || decimalValue(p[1], p[2] === 'هزار' ? 3 : p[2] === 'میلیون' ? 6 : 0) !== decimalValue(item.price.amount)) return 'price_mismatch';
     }

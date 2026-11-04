@@ -5,7 +5,7 @@ Requires at least: 6.6
 Tested up to: 7.1
 Requires PHP: 8.1
 Requires Plugins: woocommerce
-Stable tag: 0.13.0
+Stable tag: 0.14.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -69,7 +69,7 @@ GET /gpante-support/v1/appearance فقط تنظیمات عمومی ظاهر را
 
 == Changelog ==
 
-= 0.13.0 =
+= 0.14.0 =
 * نوع مجازی/دانلودی محصول از WooCommerce به دستیار منتقل می‌شود تا فایل طراحی با کالای ساخته‌شده اشتباه نشود.
 * شمارهٔ ثابت طراح 09179509010 با تماس مستقیم و لینک صفحهٔ تماس در ارجاع طراحی نمایش داده می‌شود؛ سایر شماره‌ها مجاز نمی‌شوند.
 * همراه Main 1.8.0: توضیح نوع فایل، اولویت FAQ برای تحویل و ارجاع پس از جست‌وجوی ناموفق، با حفظ سقف‌ها و تنظیمات قبلی.

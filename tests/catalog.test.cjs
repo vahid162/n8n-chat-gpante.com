@@ -51,15 +51,62 @@ test('search keeps all constraints and only the fixed eligible public provider d
   assert.equal(result.url, 'https://gpante.com/wp-json/gpante-support/v1/products');
   assert.equal(result.qs.search, 'باکس آجیل');
   assert.equal(result.qs.format, 'dxf');
-  assert.equal(result.qs.thickness, '2-7');
+  assert.equal(result.qs.thickness, '2.7');
   assert.equal(result.qs.material, 'mdf');
   assert.equal(result.qs.page, 2);
   assert.equal(result.context.perPage, 5);
   assert.equal(prepare('search', { search: 'فایل', material: 'پلکسی' }).context.constraints.material, 'plexiglass');
-  assert.equal(prepare('search', { search: 'فایل', thickness: '۲٫۶ میلی متر' }).context.constraints.thickness, '2-6-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1');
+  assert.equal(prepare('search', { search: 'فایل', thickness: '۲٫۶ میلی متر' }).context.constraints.thickness, '2.6');
   assert.equal(prepare('search', { search: 'فایل', material: 'چوب' }).context.constraints.material, '%da%86%d9%88%d8%a8');
   assert.equal(prepare('search', { search: 'فایل', format: 'کورل ۱۳' }).context.constraints.format, 'cdr-v3');
   assert.throws(() => prepare('search', { search: 'فایل', format: 'cdr-v13' }));
+});
+
+test('numeric thicknesses resolve current native equivalents without a static slug list', () => {
+  const termProduct = (name, slug) => product({ attributes: [{ taxonomy: 'pa_thickness', name: 'ضخامت', terms: [{ name, slug }] }] });
+  for (const input of ['۹٫۲۸ میلیمتر', '9.28', '9-28-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1']) {
+    const request = prepare('search', { thickness: input });
+    assert.equal(request.qs.thickness, '9.28');
+    assert.equal(shape(request.context, response([termProduct('۹٫۲۸ میلیمتر', '9-28-mm')])).ok, true);
+    assert.equal(shape(request.context, response([termProduct('۹٫۲۸ میلیمتر', '8-mm')])).status, 'constraint_mismatch');
+  }
+  const context = prepare('search', { thickness: '8-mm' }).context;
+  for (const slug of ['8-mm', '8-%d9%85%db%8c%d9%84%db%8c%d9%85%d8%aa%d8%b1']) {
+    assert.equal(shape(context, response([termProduct('۸ میلی متر', slug)])).ok, true);
+  }
+  assert.equal(shape(context, response([termProduct('۶ میلی متر', '6-mm')])).status, 'constraint_mismatch');
+});
+
+test('generic CDR family accepts native versions while exact versions remain constrained', () => {
+  const item = slug => product({ attributes: [{ taxonomy: 'pa_file-format', name: 'فرمت', terms: [{ name: 'CDR', slug }] }] });
+  const family = prepare('search', { format: 'CDR' }).context;
+  for (const slug of ['all-cdr', 'cdr-v3', 'cdr-v20']) assert.equal(shape(family, response([item(slug)])).ok, true);
+  assert.equal(shape(family, response([item('dxf')])).status, 'constraint_mismatch');
+  const exact = prepare('search', { format: 'cdr-v20' }).context;
+  assert.equal(shape(exact, response([item('cdr-v3')])).status, 'constraint_mismatch');
+});
+
+test('variable products carry verified range facts and distrust legacy parent price and delivery', () => {
+  const context = prepare('search', { search: 'طرح' }).context;
+  const variable = product({ type: 'variable', is_virtual: true, is_downloadable: true });
+  const legacy = shape(context, response([variable])).results[0];
+  assert.equal(legacy.price, null);
+  assert.equal(legacy.virtual, null);
+  assert.equal(legacy.downloadable, null);
+  variable.prices.price_range = { min_amount: '0', max_amount: '70000' };
+  const fresh = shape(context, response([variable])).results[0];
+  assert.equal(fresh.type, 'variable');
+  assert.equal(fresh.price.amount, '0');
+  assert.equal(fresh.priceRange.min.amount, '0');
+  assert.equal(fresh.priceRange.max.amount, '70000');
+  assert.equal(fresh.virtual, true);
+  assert.equal(fresh.downloadable, true);
+  variable.is_virtual = null;
+  assert.equal(shape(context, response([variable])).results[0].virtual, null);
+  for (const range of [{ min_amount: '1', max_amount: '70000' }, { min_amount: '70000', max_amount: '0' }, { min_amount: '0' }, '0-70000']) {
+    variable.prices.price_range = range;
+    assert.equal(shape(context, response([variable])).status, 'invalid_response');
+  }
 });
 
 test('unknown parameters, unsupported constraints and malformed pagination are rejected', () => {

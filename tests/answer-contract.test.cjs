@@ -122,3 +122,50 @@ test('unbound free-price claims cannot bypass validation while free-source limit
   assert.equal(groundingError(s, '**آموزش رایگان**\n[مقاله](' + page.url + ')\n\n**دوره**\n۵۰٬۰۰۰ تومان\n[دوره](' + product.url + ')'), null);
   assert.equal(groundingError(state('آموزش رایگان طراحی', [evidence('site', [])]), 'آموزش رایگان مرتبطی پیدا نکردم.'), null);
 });
+
+test('conditional free-download procedure stays usable with separate FAQ and contact links', () => {
+  const faq = { id: 'delivery', kind: 'faq', url: 'https://gpante.com/faq-ai/#delivery' };
+  const s = state('چطور طرح رایگان را دانلود کنم؟', [evidence('faq', [faq])]);
+  const links = '\n\n[راهنمای دریافت فایل](' + faq.url + ')\n\n[تماس](https://gpante.com/contact-us/)';
+  for (const procedure of ['برای طرحی که در صفحه محصول رایگان معرفی شده، پس از تکمیل سفارش بخش دریافت فایل را بررسی کنید.',
+    'اگر فایل رایگان باشد، پس از تکمیل سفارش جزئیات سفارش را بررسی کنید.']) {
+    assert.equal(groundingError(s, procedure + links), null, procedure);
+    assert.equal(groundingError(s, procedure + '\nاین محصول رایگان است.' + links), 'unverified_price');
+  }
+  assert.equal(groundingError(s, 'این محصول رایگان است.' + links), 'unverified_price');
+  assert.equal(groundingError(s, 'همهٔ فایل‌ها رایگان هستند.' + links), 'unverified_price');
+  assert.equal(groundingError(s, 'اگر فایل رایگان باشد، قیمت آن ۱۰ تومان است.' + links), 'unverified_price');
+  assert.equal(groundingError(state(s.chatInput, []), 'اگر فایل رایگان باشد، جزئیات سفارش را بررسی کنید.'), 'source_required');
+  assert.equal(groundingError(state(s.chatInput, [evidence('faq', [], false)]), 'اگر فایل رایگان باشد، جزئیات سفارش را بررسی کنید.'), 'source_read_failed');
+});
+
+test('short delivery follow-ups inherit only the latest relevant purchase context', () => {
+  const followups = ['ارسالش چی میشه؟', 'کی می‌رسه؟', 'فایل را از کجا بگیرم؟'];
+  const history = [{ role: 'user', content: 'فایل طرح باکس خریدم' }, { role: 'assistant', content: 'راهنمای قبلی' }];
+  for (const q of followups) {
+    const s = { ...state(q, []), messages: [...history, { role: 'user', content: q }] };
+    assert.equal(requiredSource(s), 'faq', q);
+    assert.equal(groundingError(s, 'فایل شما در حساب آماده دانلود است.'), 'source_required', q);
+    const consecutive = { ...s, messages: [...s.messages, { role: 'assistant', content: 'راهنمای عمومی' }, { role: 'user', content: 'کی می‌رسه؟' }], chatInput: 'کی می‌رسه؟' };
+    assert.equal(requiredSource(consecutive), 'faq');
+    const changed = { ...s, messages: [...history, { role: 'user', content: 'دوره کورل معرفی کن' }, { role: 'user', content: q }] };
+    assert.notEqual(requiredSource(changed), 'faq', q);
+  }
+  for (const q of ['قیمت این فایل چنده؟', 'فرمت این محصول چیست؟', 'آموزش نصب کورل را بگو']) {
+    assert.notEqual(requiredSource({ ...state(q, []), messages: [...history, { role: 'user', content: q }] }), 'faq', q);
+  }
+  assert.equal(requiredSource(state('کی می‌رسه؟', [])), null);
+  assert.equal(requiredSource({ ...state('فایل را از کجا بگیرم؟', []), messages: [
+    { role: 'user', content: 'دوره کورل خریدم' }, { role: 'user', content: 'فایل را از کجا بگیرم؟' }] }), 'faq');
+  assert.equal(requiredSource({ ...state('کی می‌رسه دورهٔ جدید آموزش کورل؟', []), messages: history }), 'site');
+});
+
+test('design licence and sharing policy require current FAQ, while explicit rules retain guides', () => {
+  for (const question of ['مجوز فایل خریداری شده چه مدتی دارد؟', 'فایل طرح برای همیشه در دسترس است؟',
+    'طرح را در اختیار دیگران بگذارم؟', 'فروش مجدد فایل مجاز است؟']) {
+    assert.equal(requiredSource(state(question, [])), 'faq');
+    assert.equal(groundingError(state(question, []), 'مجوز استفاده محدودیت زمانی ندارد.'), 'source_required');
+  }
+  assert.equal(requiredSource(state('متن قوانین استفاده و مجوز فایل را بگو', [])), 'guides');
+  assert.equal(requiredSource(state('طرح همیشه بهار دارید؟', [])), 'products');
+});

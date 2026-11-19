@@ -39,12 +39,14 @@ BEGIN
   ASSERT (SELECT count(*)=2 FROM gpante_chat.model_calls WHERE request_id=r),'clear preserves ledger';
   ASSERT jsonb_array_length(gpante_chat.admit_v4(s,c,'loadPreviousSession',NULL,2,NULL,NULL,NULL,NULL)->'messages')=0,'clear excludes user and model history';
   PERFORM gpante_chat.finish_v3(b->>'requestId',NULL,'error','fixture_error');
-  UPDATE gpante_chat.runtime SET monthly_budget_nano=before_cost+320042000;
+  UPDATE gpante_chat.runtime SET monthly_budget_nano=before_cost+640042000;
   DELETE FROM gpante_chat.request_counters;
   a:=gpante_chat.admit_v4(repeat('2',64),repeat('3',64),'sendMessage','budget',2,NULL,NULL,NULL,NULL);
-  ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'monthly monetary cap';
+  ASSERT (a->>'allowed')::boolean,'availability allows the exact reserved amount';
+  UPDATE gpante_chat.runtime SET monthly_budget_nano=before_cost+320042000;
+  ASSERT gpante_chat.reserve_call(a->>'requestId',1)->>'reason'='monthly_budget','reserve still enforces a cap lowered after admission';
   UPDATE gpante_chat.runtime SET monthly_budget_nano=2000000000,pricing_valid_until=clock_timestamp()-INTERVAL '1 second';
-  ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'stale tariff fails closed';
+  ASSERT gpante_chat.reserve_call(a->>'requestId',1)->>'reason'='pricing_review','stale tariff fails closed';
   DELETE FROM gpante_chat.runtime;
   ASSERT NOT (gpante_chat.reserve_call(a->>'requestId',1)->>'allowed')::boolean,'missing budget config fails closed';
 END $$;

@@ -888,6 +888,65 @@ test('budget refusal does not disconnect or encourage an immediate retry, and cl
   assert.equal(widget.requests.filter(r=>r.body.action==='resetSession').length,2);
 });
 
+test('a pricing block discovered during first history cancels a queued send and preserves its draft', async () => {
+  const widget = createWidget(undefined, true);
+  widget.click('launcher');
+  widget.type('طرح اسب & برش');
+  widget.submit();
+  await widget.respond(0, {messages:previousMessages, answerAvailability:'pricing_review'});
+  assert.deepEqual(widget.messages(), previousMessages);
+  assert.equal(widget.elements.status.dataset.state, 'ready');
+  assert.equal(widget.elements['status-label'].textContent, 'Paused');
+  assert.equal(widget.elements.input.value, 'طرح اسب & برش');
+  assert.equal(widget.elements.input.disabled, false);
+  assert.equal(widget.elements.send.disabled, true);
+  assert.equal(widget.elements.retry.hidden, true);
+  widget.type('طرح تازه');
+  widget.elements.input.dispatch('keydown', {key:'Enter'});
+  widget.submit();
+  assert.equal(widget.requests.length, 1, 'neither form submit nor Enter dispatches during a confirmed block');
+  assert.equal(widget.elements.fallback.hidden, false);
+  assert.equal(new URL(widget.elements.fallback.href).searchParams.get('s'), 'طرح تازه');
+  widget.window.dispatch('focus');
+  await widget.respond(1, {messages:previousMessages, answerAvailability:'ready'});
+  assert.equal(widget.elements['status-label'].textContent, 'Online');
+  assert.equal(widget.elements.send.disabled, false);
+  assert.equal(widget.elements.notice.hidden, true);
+  assert.equal(widget.requests.length, 2, 'recovery never auto-sends the cancelled request');
+  widget.submit();
+  assert.equal(widget.requests[2].body.chatInput, 'طرح تازه');
+  await widget.respond(2, {output:'پاسخ آزمایشی'});
+});
+
+test('a late availability refusal preserves the attempt ID through recovery', async () => {
+  const widget = createWidget(undefined, true);
+  await widget.open();
+  widget.type('پرسش محفوظ');
+  widget.submit();
+  const sendId = widget.requests[1].body.sendId;
+  await widget.respond(1, {error:{code:'disabled'}, output:'ارسال فعلاً متوقف است.'}, false, 503);
+  assert.equal(widget.elements['status-label'].textContent, 'Paused');
+  assert.equal(widget.elements.send.disabled, true);
+  assert.equal(widget.elements.input.value, 'پرسش محفوظ');
+  widget.window.dispatch('focus');
+  await widget.respond(2, {messages:previousMessages, answerAvailability:'ready'});
+  assert.equal(widget.elements.send.disabled, false);
+  assert.equal(widget.elements.notice.hidden, true);
+  widget.submit();
+  assert.equal(widget.requests[3].body.sendId, sendId);
+  await widget.respond(3, {output:'پاسخ آزمایشی'});
+});
+
+test('legacy history remains usable and unrecognized availability never blocks sending', async () => {
+  const widget = createWidget(undefined, true);
+  widget.click('launcher');
+  await widget.respond(0, {messages:previousMessages, answerAvailability:{toString:null}});
+  assert.deepEqual(widget.messages(), previousMessages);
+  assert.equal(widget.elements['status-label'].textContent, 'Online');
+  widget.type('پرسش');
+  assert.equal(widget.elements.send.disabled, false);
+});
+
 
 test('failed history refresh preserves unexpired messages but still removes known expired text without network retries', async () => {
   const widget=createWidget(undefined,true);await widget.open();

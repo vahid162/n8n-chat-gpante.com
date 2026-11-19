@@ -25,6 +25,27 @@ test('server history is isolated by admission and bounded before reaching the mo
   assert.equal(admitted({ ...input, action: 'loadPreviousSession' }, { allowed: true, messages: [] }).response.messages.length, 0);
 });
 
+test('history carries only coarse availability and new-send blocks never prepare a model', () => {
+  const history = { ...input, action: 'loadPreviousSession' };
+  for (const answerAvailability of ['ready', 'pricing_review', 'monthly_budget', 'disabled']) {
+    const result = admitted(history, { allowed: true, messages: [], answerAvailability, remainingNano: 123 });
+    assert.equal(result.done, true);
+    assert.equal(result.response.answerAvailability, answerAvailability);
+    assert.equal(Object.hasOwn(result.response, 'remainingNano'), false);
+  }
+  for (const answerAvailability of [undefined, 'provider_timed_out', { reason: 'disabled' }]) {
+    const result = admitted(history, { allowed: true, messages: [], answerAvailability });
+    assert.equal(Object.hasOwn(result.response, 'answerAvailability'), false);
+  }
+  for (const reason of ['pricing_review', 'monthly_budget', 'disabled']) {
+    const result = admitted(input, { allowed: false, reason });
+    assert.equal(result.status, 503);
+    assert.equal(result.done, true);
+    assert.deepEqual(result.response.error, { code: reason });
+    assert.equal(Object.hasOwn(result, 'requestId'), false);
+  }
+});
+
 test('each model dispatch requires fresh reservation and has explicit output/iteration caps', () => {
   const request = modelRequest(start(), 'system');
   assert.equal(request.body.max_tokens, 1536);

@@ -17,6 +17,54 @@ function gpante_support_diagnostics_menu() {
 }
 add_action( 'admin_menu', 'gpante_support_diagnostics_menu' );
 
+/** Schedule a daily review of the existing private readiness data. */
+function gpante_support_schedule_pricing_review() {
+	if ( ! wp_next_scheduled( 'gpante_support_pricing_review' ) ) {
+		wp_schedule_event( time() + MINUTE_IN_SECONDS, 'daily', 'gpante_support_pricing_review' );
+	}
+}
+add_action( 'init', 'gpante_support_schedule_pricing_review' );
+
+/** Read the reviewed tariff expiry without fetching conversation rows. */
+function gpante_support_check_pricing_review() {
+	$tomorrow = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
+	$data     = gpante_support_admin_request(
+		array(
+			'operation' => 'getDiagnostics',
+			'from'      => $tomorrow,
+			'to'        => $tomorrow,
+		)
+	);
+	if ( is_wp_error( $data ) ) {
+		return;
+	}
+	$expiry = $data['budget']['pricingValidUntil'] ?? null;
+	if ( ! is_string( $expiry ) || ! preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/D', $expiry ) ) {
+		return;
+	}
+	$expires_at = strtotime( $expiry );
+	if ( false !== $expires_at ) {
+		update_option( 'gpante_support_pricing_review_expiry', $expires_at, false );
+	}
+}
+add_action( 'gpante_support_pricing_review', 'gpante_support_check_pricing_review' );
+
+/** Surface the scheduled reminder on administrator screens. */
+function gpante_support_pricing_review_notice() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+	$expires_at = get_option( 'gpante_support_pricing_review_expiry' );
+	if ( ! is_numeric( $expires_at ) || (int) $expires_at <= 0 || (int) $expires_at > time() + 7 * DAY_IN_SECONDS ) {
+		return;
+	}
+	$message = (int) $expires_at <= time()
+		? __( 'طبق آخرین بررسی، اعتبار تعرفهٔ دستیار پانته پایان یافته است.', 'gpante-support-chat' )
+		: __( 'اعتبار تعرفهٔ دستیار پانته در هفت روز آینده پایان می‌یابد. تعرفهٔ رسمی را پیش از توقف پاسخ‌گویی بازبینی کنید.', 'gpante-support-chat' );
+	echo '<div class="notice notice-warning" dir="rtl"><p>' . esc_html( $message ) . ' <a href="' . esc_url( admin_url( 'admin.php?page=gpante-support-diagnostics' ) ) . '">' . esc_html__( 'بررسی وضعیت دستیار', 'gpante-support-chat' ) . '</a></p></div>';
+}
+add_action( 'admin_notices', 'gpante_support_pricing_review_notice' );
+
 /**
  * Render an explicit scalar allowlist without inventing missing values.
  *
@@ -126,6 +174,10 @@ function gpante_support_diagnostic_steps( $events ) {
 			continue;
 		}
 		if ( 'rejection' === $step['event'] ) {
+			if ( str_starts_with( $step['code'], 'fallback_' ) ) {
+				echo '<tr><td>' . esc_html__( 'پاسخ جایگزین', 'gpante-support-chat' ) . '</td><td colspan="3"><code>' . esc_html( $step['code'] ) . '</code></td></tr>';
+				continue;
+			}
 			echo '<tr><td>' . esc_html__( 'کنترل پاسخ', 'gpante-support-chat' ) . '</td><td colspan="3">' . esc_html( gpante_support_admin_error_hint( $step['code'] ) ) . ' <code>' . esc_html( $step['code'] ) . '</code></td></tr>';
 			continue;
 		}
@@ -202,11 +254,14 @@ function gpante_support_diagnostic_refusals( $data ) {
 		'prior_request_expired' => 'درخواست قبلی منقضی',
 		'prior_request_failed'  => 'درخواست قبلی ناموفق',
 		'invalid_input'         => 'ورودی نامعتبر',
+		'pricing_review'        => 'پایان اعتبار تعرفه',
+		'monthly_budget'        => 'بودجهٔ ناکافی برای پاسخ جدید',
+		'disabled'              => 'پاسخ‌گویی غیرفعال',
 	);
 	echo '<details class="gpante-admin-card"><summary>' . esc_html__( 'درخواست‌های ردشده پیش از پذیرش', 'gpante-support-chat' ) . '</summary><p>' . esc_html__( '۷ روز تقویمی UTC، شامل امروز؛ فقط درخواست ارسال رسیده به پذیرش بک‌اند. این شمار با خطای گفتگوهای پذیرفته‌شده متفاوت است و متن یا هویت کاربر ندارد.', 'gpante-support-chat' ) . '</p><p>' . esc_html__( 'مجموع:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $known ? ( $counts['total'] ?? null ) : null ) ) . '</p>';
 	if ( $known && is_array( $counts['days'] ?? null ) ) {
 		echo '<table class="widefat striped"><thead><tr><th>' . esc_html__( 'روز UTC', 'gpante-support-chat' ) . '</th><th>' . esc_html__( 'علت', 'gpante-support-chat' ) . '</th><th>' . esc_html__( 'تعداد', 'gpante-support-chat' ) . '</th></tr></thead><tbody>';
-		foreach ( array_slice( $counts['days'], 0, 49 ) as $day ) {
+		foreach ( array_slice( $counts['days'], 0, 7 * count( $reasons ) ) as $day ) {
 			if ( ! is_array( $day ) || ! is_string( $day['date'] ?? null ) || ! preg_match( '/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/D', $day['date'] ) || ! is_string( $day['reason'] ?? null ) || ! isset( $reasons[ $day['reason'] ] ) || ! is_int( $day['count'] ?? null ) || $day['count'] < 0 ) {
 				continue;
 			}

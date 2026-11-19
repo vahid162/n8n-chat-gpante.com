@@ -1,6 +1,8 @@
 <?php
 // Standalone administrator boundary/escaping checks; no WordPress database or network.
 define('ABSPATH', __DIR__);
+define('MINUTE_IN_SECONDS', 60);
+define('DAY_IN_SECONDS', 86400);
 $admin = true;
 $nonce = true;
 $actions = array();
@@ -20,6 +22,10 @@ class DiagnosticDie extends RuntimeException {
 }
 class DiagnosticRedirect extends RuntimeException {}
 function add_action($hook, $callback) { $GLOBALS['actions'][$hook] = $callback; }
+function wp_next_scheduled($hook) { return $GLOBALS['schedules'][$hook][0] ?? false; }
+function wp_schedule_event($when, $interval, $hook) { $GLOBALS['schedules'][$hook] = [$when, $interval]; }
+function get_option($key) { return $GLOBALS['options'][$key] ?? false; }
+function update_option($key, $value, $autoload) { check($autoload === false, 'pricing notice is not autoloaded'); $GLOBALS['options'][$key] = $value; }
 function add_submenu_page(...$args) { $GLOBALS['menus'][] = $args; }
 function current_user_can($cap) { return $GLOBALS['admin'] && 'manage_options' === $cap; }
 function __($text, $domain) { return $text; }
@@ -62,7 +68,7 @@ function denied($status) {
 }
 require __DIR__ . '/../wordpress-plugin/gpante-support-chat/includes/diagnostics.php';
 check(isset($actions['admin_menu'], $actions['admin_post_gpante_support_synthetic']), 'authenticated hooks registered');
-check(count($actions) === 2, 'no anonymous mutation hook');
+check(!array_filter(array_keys($actions), static fn($hook) => str_starts_with($hook, 'admin_post_nopriv_')), 'no anonymous mutation hook');
 gpante_support_diagnostics_menu();
 check($menus[0][0] === 'gpante-support-conversations' && $menus[0][3] === 'manage_options'
     && $menus[0][4] === 'gpante-support-diagnostics', 'capability protected submenu');
@@ -166,4 +172,23 @@ $target=array('event'=>'source','tool'=>'Knowledge_Read','targetId'=>456,'status
 check((gpante_support_diagnostic_metadata($target)['targetId']??null)===456,'failed detail target remains readable');
 $target['targetId']='private@example.invalid';
 check(!isset(gpante_support_diagnostic_metadata($target)['targetId']),'invalid target excluded');
+$actions['init']();
+$scheduled=$schedules['gpante_support_pricing_review'];
+check($scheduled[1]==='daily' && $scheduled[0] > time(), 'pricing review runs daily');
+$actions['init']();
+check($schedules['gpante_support_pricing_review']===$scheduled, 'pricing review is not scheduled twice');
+$result=['budget'=>['pricingValidUntil'=>gmdate('c',time()+2*DAY_IN_SECONDS)]];
+$actions['gpante_support_pricing_review']();
+$sent=end($calls);
+check($sent['operation']==='getDiagnostics' && $sent['from']===$sent['to'] && $sent['from']>gmdate('Y-m-d'), 'pricing review uses private read with no conversation dates');
+ob_start(); $actions['admin_notices'](); $notice=ob_get_clean();
+check(str_contains($notice,'در هفت روز آینده') && str_contains($notice,'gpante-support-diagnostics'), 'near expiry notice links to diagnostics');
+$admin=false;
+ob_start(); $actions['admin_notices'](); $notice=ob_get_clean();
+check($notice==='', 'notice only visible to administrators');
+$admin=true;
+$last_expiry=$options['gpante_support_pricing_review_expiry'];
+$result=new WP_Error('unavailable','fixture');
+$actions['gpante_support_pricing_review']();
+check($options['gpante_support_pricing_review_expiry']===$last_expiry, 'failed read preserves known deadline');
 echo "Administrator diagnostics: $checks capability, nonce, POST, escaping, allowlist, bounds and read-only checks passed.\n";

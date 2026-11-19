@@ -97,6 +97,8 @@ function gpante_support_failure( $status, $code, $headers = array() ) {
 		$messages[ $status ] = __( 'سهمیهٔ پاسخ‌گویی دستیار برای این ماه به پایان رسیده است. می‌توانید از پیوندهای راهنمای فروشگاه استفاده کنید؛ تلاش دوباره در همین لحظه این محدودیت را برطرف نمی‌کند.', 'gpante-support-chat' );
 	} elseif ( 'pricing_review' === $code ) {
 		$messages[ $status ] = __( 'پاسخ‌گویی دستیار موقتاً در دسترس نیست و به بررسی مدیر سایت نیاز دارد. فعلاً از پیوندهای راهنمای فروشگاه استفاده کنید.', 'gpante-support-chat' );
+	} elseif ( 'disabled' === $code ) {
+		$messages[ $status ] = __( 'ارسال پرسش به دستیار فعلاً غیرفعال است. می‌توانید از پیوندهای راهنمای فروشگاه استفاده کنید.', 'gpante-support-chat' );
 	} elseif ( in_array( $code, array( 'prior_request_failed', 'prior_request_expired' ), true ) ) {
 		$messages[ $status ] = __( 'ارسال قبلی پایان یافته و پاسخ قابل‌بازیابی ندارد. اگر دوباره بفرستید، پرسش تازه‌ای ثبت خواهد شد.', 'gpante-support-chat' );
 	} elseif ( 'feedback_unavailable' === $code ) {
@@ -307,8 +309,8 @@ function gpante_support_chat( $request ) {
 		if ( 429 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'rate_limit', 'session_busy', 'capacity' ), true ) ) {
 			$code = $data['error']['code'];
 		}
-		if ( 503 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'monthly_budget', 'pricing_review' ), true ) ) {
-			$code = $data['error']['code'];
+		if ( 'sendMessage' === $action && 503 === $status && is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'monthly_budget', 'pricing_review', 'disabled' ), true ) ) {
+			return gpante_support_failure( 503, $data['error']['code'] );
 		}
 		if ( is_array( $data['error'] ?? null ) && in_array( $data['error']['code'] ?? null, array( 'prior_request_failed', 'prior_request_expired', 'feedback_unavailable' ), true ) ) {
 			$code = $data['error']['code'];
@@ -365,6 +367,9 @@ function gpante_support_chat( $request ) {
 			'messages' => $messages,
 			'policy'   => $policy,
 		);
+		if ( in_array( $data['answerAvailability'] ?? null, array( 'ready', 'pricing_review', 'monthly_budget', 'disabled' ), true ) ) {
+			$response['answerAvailability'] = $data['answerAvailability'];
+		}
 		if ( isset( $data['hasMore'] ) && is_bool( $data['hasMore'] ) && ( null === ( $data['nextCursor'] ?? null ) || ( is_string( $data['nextCursor'] ) && preg_match( '/^[1-9][0-9]{0,17}$/D', $data['nextCursor'] ) ) ) ) {
 			$response['hasMore']    = $data['hasMore'];
 			$response['nextCursor'] = $data['nextCursor'] ?? null;

@@ -146,10 +146,10 @@ foreach (array('', '-1', '1.5', '1000000', 'tomorrow', "60\r\nprivate", array('6
     check(!isset($response->get_headers()['Retry-After']) && str_contains($response->get_data()['output'], 'زمان دقیق'), 'missing or invalid delay must not invent a precise recovery time');
     check($response->get_data()['error']['code'] === 'request_limit' && !str_contains(json_encode($response->get_data()), 'private'), 'malformed reason fails to the safe public fallback');
 }
-foreach (array('monthly_budget', 'pricing_review') as $reason) {
+foreach (array('monthly_budget', 'pricing_review', 'disabled') as $reason) {
     $remote_result = array('status' => 503, 'body' => json_encode(array('error' => array('code' => $reason, 'private' => 'private backend detail'), 'output' => 'private backend detail')));
     $response = request(array('action' => 'sendMessage', 'chatInput' => 'سلام'));
-    check($response->get_data()['error'] === array('code' => $reason) && !str_contains(json_encode($response->get_data()), 'private'), 'fixed budget or service refusal crosses without provider text');
+    check($response->get_status() === 503 && $response->get_data()['error'] === array('code' => $reason) && !str_contains(json_encode($response->get_data()), 'private'), 'fixed budget or service refusal crosses as 503 without provider text');
     check(str_contains($response->get_data()['output'], 'پیوندهای راهنمای فروشگاه'), 'unavailable answers have a useful alternative action');
 }
 foreach (array(new WP_Error(), array('status' => 500, 'body' => 'private secret'), array('status' => 200, 'body' => '<html>private</html>')) as $broken) {
@@ -236,6 +236,15 @@ $response=request(array('action'=>'loadPreviousSession','historyCursor'=>'456'))
 $sent=json_decode(end($outbound)[1]['body'],true);$data=$response->get_data();
 check($sent['historyCursor']==='456' && $data['nextCursor']==='123' && $data['hasMore']===true && array_key_exists('historyResetAt',$data) && $data['historyResetAt']===null,'paged history and clear marker cross bridge');
 check($data['messages'][0]['requestId']===str_repeat('d',32) && $data['messages'][0]['feedback']==='unhelpful','restored answers carry feedback metadata');
+check(!isset($data['answerAvailability']), 'history remains usable with the old backend contract');
+foreach (array('ready', 'pricing_review', 'monthly_budget', 'disabled', 'private', array('ready')) as $availability) {
+ $remote_result=array('status'=>200,'body'=>json_encode(array('messages'=>array(),'answerAvailability'=>$availability,'remainingNano'=>23,'pricingValidUntil'=>'private')));
+ $data=request(array('action'=>'loadPreviousSession'))->get_data();
+ $expected=in_array($availability,array('ready','pricing_review','monthly_budget','disabled'),true)?$availability:null;
+ check(($data['answerAvailability']??null)===$expected && !isset($data['remainingNano']) && !isset($data['pricingValidUntil']), 'history exposes only fixed coarse availability');
+}
+$remote_result=array('status'=>200,'body'=>'{"output":"Reply","answerAvailability":"disabled"}');
+check(!isset(request(array('action'=>'sendMessage','chatInput'=>'Question'))->get_data()['answerAvailability']), 'send responses cannot set public availability');
 $remote_result=array('status'=>200,'body'=>'{"ok":true}');
 $response=request(array('action'=>'feedback','feedbackRequestId'=>str_repeat('e',32),'feedbackValue'=>'helpful','sessionId'=>'forged'));
 $sent=json_decode(end($outbound)[1]['body'],true);

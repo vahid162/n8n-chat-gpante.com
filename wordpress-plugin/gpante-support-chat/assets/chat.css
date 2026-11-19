@@ -157,6 +157,8 @@
 #gpante-support .gpante-chat-status[data-state="connecting"] .gpante-chat-status-icon { border-inline-end-color: transparent; animation: gpante-chat-status-spin 1s linear infinite; }
 #gpante-support .gpante-chat-status[data-state="ready"] .gpante-chat-status-icon { background: #176f42; border-color: #176f42; }
 #gpante-support .gpante-chat-status[data-state="ready"] .gpante-chat-status-icon::after { content: ''; position: absolute; width: 4px; height: 7px; top: 0; left: 3px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+#gpante-support .gpante-chat-status[data-answer-paused="true"] .gpante-chat-status-icon { background: #a15c08; border-color: #a15c08; }
+#gpante-support .gpante-chat-status[data-answer-paused="true"] .gpante-chat-status-icon::after { content: none; }
 #gpante-support .gpante-chat-status[data-state="offline"] .gpante-chat-status-icon { background: #c43030; border-color: #c43030; }
 #gpante-support .gpante-chat-notice { margin-block: 8px; padding: 10px 12px; border: 1px solid var(--gpante-border); border-radius: 12px; color: var(--gpante-text); background: var(--gpante-surface); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
 #gpante-support .gpante-chat-notice p { margin: 0; color: inherit; font-size: inherit; }

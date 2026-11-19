@@ -62,6 +62,7 @@ try:
     assert query("SELECT cost_nano FROM gpante_chat.model_calls WHERE request_id='%s' AND call_index=1;" % winner) == 42000, 'Concurrent settlement must refund exactly once'
     for rid in request_ids:
         query("SELECT gpante_chat.finish_v3('%s',NULL,'error','fixture_error');" % rid)
+    query('UPDATE gpante_chat.runtime SET monthly_budget_nano=%d;' % original['monthly_budget_nano'])
     sid = hashlib.sha256((nonce + 'dedup_session').encode()).hexdigest()
     cid = hashlib.sha256((nonce + 'dedup_client').encode()).hexdigest()
     client_ids.append(cid)

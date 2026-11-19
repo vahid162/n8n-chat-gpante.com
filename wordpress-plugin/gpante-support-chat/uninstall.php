@@ -12,6 +12,7 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 $gpante_support_uninstall_site = static function () {
 	delete_option( 'gpante_support_runtime' );
 	delete_option( 'gpante_support_appearance' );
+	delete_option( 'gpante_support_pricing_review_expiry' );
 	delete_transient( 'gpante_support_faq_cache' );
 	delete_option( 'gpante_support_search_schema' );
 	delete_option( 'gpante_support_search_state' );
@@ -19,6 +20,7 @@ $gpante_support_uninstall_site = static function () {
 	delete_option( 'gpante_support_search_dirty' );
 	wp_unschedule_hook( 'gpante_support_search_index_batch' );
 	wp_unschedule_hook( 'gpante_support_search_index_update' );
+	wp_unschedule_hook( 'gpante_support_pricing_review' );
 	global $wpdb;
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Fixed plugin-owned table only, on explicit uninstall.
 	$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}gpante_support_search" );

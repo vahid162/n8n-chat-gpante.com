@@ -263,6 +263,7 @@
   let requestHadFocus = false;
   let failed = null;
   let policy = null;
+  let answerBlock = null;
   let historyTimer = null;
   let welcomeItem = null;
   let sendAttempt = null;
@@ -272,6 +273,11 @@
   let latestHistoryKey = null;
   let historyResetAt;
   let historyPolicyRevision;
+  const answerBlocks = {
+    pricing_review: 'ارسال پرسش موقتاً متوقف است. تاریخچه و جست‌وجوی سایت در دسترس‌اند.',
+    monthly_budget: 'سهمیهٔ پاسخ‌گویی این ماه به پایان رسیده است. تاریخچه و جست‌وجوی سایت در دسترس‌اند.',
+    disabled: 'ارسال پرسش فعلاً غیرفعال است. تاریخچه و جست‌وجوی سایت در دسترس‌اند.'
+  };
   const appearanceTextLimits = {title:80,subtitle:160,launcher:60,welcome:1000,input_label:80,placeholder:250,send:40,clear:100};
   let appearanceTexts = {title:'دستیار پانته',welcome:'سلام! دنبال چه طرح یا فایلی هستید؟ موضوع، متریال، ضخامت و فرمت دلخواهتان را بنویسید تا دقیق‌تر راهنمایی‌تان کنم.'};
 
@@ -328,7 +334,7 @@
   function updateInput() {
     find('[data-count]').textContent = input.value.length.toLocaleString('fa-IR') + ' / ۴۰۰۰';
     input.disabled = pendingSend || Boolean(busy && busy !== 'history');
-    send.disabled = input.disabled || !input.value.trim();
+    send.disabled = input.disabled || Boolean(answerBlock) || !input.value.trim();
     if (fresh) fresh.disabled = Boolean(busy || pendingSend);
     if (clear) clear.disabled = Boolean(busy || pendingSend);
     retry.disabled = reconnect.disabled = Boolean(busy || pendingSend);
@@ -337,29 +343,35 @@
 
   function setConnection(state) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) state = 'offline';
-    const labels = {connecting:'Connecting',ready:'Online',offline:'Disconnected'};
+    const labels = {connecting:'Connecting',ready:answerBlock ? 'Paused' : 'Online',offline:'Disconnected'};
+    status.dataset.answerPaused = String(state === 'ready' && Boolean(answerBlock));
     if (status.dataset.state !== state || statusLabel.textContent !== labels[state]) {
       status.dataset.state = state;
       statusLabel.textContent = labels[state];
-      status.title = {connecting:'در حال بررسی ارتباط با سرویس چت',ready:'آخرین ارتباط با سرویس چت موفق بود',offline:'ارتباط با سرویس چت تأیید نشده است'}[state];
+      status.title = {connecting:'در حال بررسی ارتباط با سرویس چت',
+        ready:answerBlock ? 'تاریخچه در دسترس است؛ ارسال پرسش متوقف است' : 'آخرین ارتباط با سرویس چت موفق بود',
+        offline:'ارتباط با سرویس چت تأیید نشده است'}[state];
     }
   }
 
   function showNotice(text = '', error = false) {
     if (!text && typeof navigator !== 'undefined' && navigator.onLine === false) { offlineNotice(); return; }
+    if (!text) {
+      retry.hidden = reconnect.hidden = true;
+      if (answerBlock) { text = answerBlocks[answerBlock]; error = true; }
+    }
     if (statusText.textContent !== text) statusText.textContent = text;
     notice.hidden = !text;
     root.dataset.error = error ? 'true' : 'false';
-    if (!text) retry.hidden = reconnect.hidden = true;
     if (fallback) {
-      const question = failed?.text || input.value.trim();
-      fallback.hidden = !error || !question || !root.dataset.searchUrl;
+      const question = answerBlock ? input.value.trim() : failed?.text || input.value.trim();
+      fallback.hidden = !error || (!question && !answerBlock) || !root.dataset.searchUrl;
       if (!fallback.hidden) {
         const url = new URL(root.dataset.searchUrl, typeof window !== 'undefined' ? window.location.href : 'https://gpante.com/');
         url.searchParams.set('s', question);
         const tooLong = url.href.length > 1800;
         if (tooLong) url.searchParams.set('s', '');
-        fallback.textContent = tooLong ? 'جست‌وجوی سایت؛ پرسش را کوتاه‌تر وارد کنید' : 'جست‌وجوی همین پرسش در سایت';
+        fallback.textContent = tooLong ? 'جست‌وجوی سایت؛ پرسش را کوتاه‌تر وارد کنید' : question ? 'جست‌وجوی همین پرسش در سایت' : 'جست‌وجوی سایت';
         fallback.href = url.href;
       }
     }
@@ -494,7 +506,7 @@
       });
       const data = await response.json();
       if (!response.ok || !data || data.error) {
-        const reasons = ['rate_limit','session_busy','capacity','request_limit','monthly_budget','pricing_review','prior_request_failed','prior_request_expired','feedback_unavailable'];
+        const reasons = ['rate_limit','session_busy','capacity','request_limit',...Object.keys(answerBlocks),'prior_request_failed','prior_request_expired','feedback_unavailable'];
         const code = reasons.includes(data?.error?.code) ? data.error.code
           : response.status === 429 ? 'request_limit' : response.status >= 400 && response.status < 500 ? 'request_rejected' : 'backend_unavailable';
         throw apiError(typeof data?.output === 'string' ? data.output.slice(0, 500) : 'دستیار در حال حاضر در دسترس نیست. لطفاً کمی بعد دوباره تلاش کنید.',
@@ -511,6 +523,10 @@
         || data.nextCursor != null && (typeof data.nextCursor !== 'string' || !/^[1-9][0-9]{0,17}$/.test(data.nextCursor))
         || data.hasMore === true && !data.nextCursor
         || data.historyResetAt != null && !Number.isFinite(Date.parse(data.historyResetAt)))) throw apiError('تاریخچه معتبر نیست.', 'invalid_response');
+      if (action === 'loadPreviousSession') {
+        const availability = data.answerAvailability;
+        answerBlock = typeof availability === 'string' && Object.hasOwn(answerBlocks, availability) ? availability : null;
+      }
       setConnection('ready');
       return data;
     } catch (error) {
@@ -532,12 +548,16 @@
     showNotice(text, true);
     reconnect.hidden = status.dataset.state === 'ready' && Boolean(policy) && (!failed.error.uncertain || failed.checked) && failed.action !== 'loadPreviousSession';
     retry.hidden = !reconnect.hidden || failed.action === 'loadPreviousSession'
-      || ['monthly_budget','pricing_review'].includes(failed.error.code) || (failed.action === 'resetSession' && !policy?.allowClear);
+      || (failed.action === 'sendMessage' && Boolean(answerBlock)) || (failed.action === 'resetSession' && !policy?.allowClear);
     retry.textContent = failed.action === 'resetSession' ? 'تلاش دوباره برای پاک‌کردن' : 'تلاش دوباره';
   }
 
   function failure(error, action, text) {
     failed = {action, text, error, checked:false};
+    if (action === 'sendMessage' && Object.hasOwn(answerBlocks, error.code)) {
+      answerBlock = error.code;
+      setConnection('ready');
+    }
     if (['network','timeout','backend_unavailable','invalid_response'].includes(error.code)
       || (action === 'loadPreviousSession' && status.dataset.state !== 'ready')) setConnection('offline');
     renderFailure();
@@ -605,7 +625,8 @@
       scrollArea.scrollTop = cursor ? previousTop + (scrollArea.scrollHeight || 0) - previousHeight
         : preservePosition ? previousTop : scrollArea.scrollHeight;
       if (previousFailure && failed === previousFailure && previousFailure.action !== 'loadPreviousSession'
-        && (previousFailure.action !== 'resetSession' || policy.allowClear)) {
+        && (previousFailure.action !== 'resetSession' || policy.allowClear)
+        && !(previousFailure.action === 'sendMessage' && Object.hasOwn(answerBlocks, previousFailure.error.code))) {
         previousFailure.checked = true;
         renderFailure();
       } else {
@@ -631,7 +652,7 @@
 
   async function submitMessage() {
     const text = input.value.trim();
-    if (pendingSend || (busy && busy !== 'history') || !text) return;
+    if (answerBlock || pendingSend || (busy && busy !== 'history') || !text) return;
     if (text.length > 4000) {
       showNotice('لطفاً پرسش را با حداکثر ۴۰۰۰ نویسه بنویسید.', true);
       return;
@@ -655,6 +676,7 @@
         renderFailure();
         return;
       }
+      if (answerBlock) return;
     }
     failed = null;
     showNotice();
@@ -782,7 +804,7 @@
       failed = null;
       showNotice();
       if (status.dataset.state === 'offline') offlineNotice();
-    }
+    } else if (answerBlock && !failed) showNotice();
   });
   if (fresh && confirmation && clear) fresh.addEventListener('click', () => { if (!policy?.allowClear) return; confirmation.hidden = false; clear.focus(); });
   const cancel = find('[data-cancel]');

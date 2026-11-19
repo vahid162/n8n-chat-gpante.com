@@ -60,7 +60,9 @@ function admitted(input, result) {
       feedback: ['helpful', 'unhelpful'].includes(m.feedback) ? m.feedback : null }));
   if (input.action === 'loadPreviousSession') return { done: true, status: 200, response: { messages: history, policy: result.policy,
     hasMore: result.hasMore === true, nextCursor: /^[1-9][0-9]{0,17}$/.test(result.nextCursor || '') ? result.nextCursor : null,
-    historyResetAt: typeof result.historyResetAt === 'string' ? result.historyResetAt : null } };
+    historyResetAt: typeof result.historyResetAt === 'string' ? result.historyResetAt : null,
+    ...(['ready','pricing_review','monthly_budget','disabled'].includes(result.answerAvailability)
+      ? { answerAvailability: result.answerAvailability } : {}) } };
   if (!/^[a-f0-9]{32}$/.test(result.requestId || '')) return failure();
   // Keep recent complete turns within the model's input bound; stored history is unchanged.
   while (JSON.stringify(history).length > 24000) history.splice(0, 2);
@@ -242,10 +244,8 @@ function conditionalFreeGuidance(section) {
   return !/رایگان/.test(text);
 }
 
-function groundingError(state, output) {
-  const evidence = state.evidence || [];
-  const required = requiredSource(state);
-  const relevant = evidence.flatMap(e => {
+function sourceEvidence(evidence, required) {
+  return evidence.flatMap(e => {
     const knowledge = ['Knowledge_Search', 'Knowledge_Read'].includes(e.name);
     if (required === 'products') {
       if (['Product_Search', 'Product_Details'].includes(e.name)) return [e];
@@ -259,6 +259,12 @@ function groundingError(state, output) {
     return required === 'articles' && e.name === 'Knowledge_Read' && e.source === 'site' && e.results?.some(r => r.kind === 'post')
       ? [{ ...e, results: e.results.filter(r => r.kind === 'post') }] : [];
   });
+}
+
+function groundingError(state, output) {
+  const evidence = state.evidence || [];
+  const required = requiredSource(state);
+  const relevant = sourceEvidence(evidence, required);
   if (required && !relevant.some(e => e.status !== 'invalid_query')) return 'source_required';
   const abstains = limitationOnly(output);
   const results = evidence.filter(e => e.ok).flatMap(e => e.results || []);
@@ -417,6 +423,33 @@ function reserved(state, result) {
   return result?.allowed === true ? state : { ...next, ...failure(result?.reason || 'unavailable') };
 }
 
+function groundingFallback(state, error) {
+  const required = requiredSource(state);
+  const evidence = state.evidence || [];
+  const reads = (required ? sourceEvidence(evidence, required) : evidence).filter(e => e.status !== 'invalid_query');
+  let output = 'نتوانستم پاسخ قابل‌استنادی برای این پرسش تأیید کنم.';
+  if (error === 'source_read_failed' || reads.some(e => !e.ok)) {
+    output = 'در این نوبت نتوانستم همهٔ منابع لازم را بخوانم.';
+  } else if (error === 'source_incomplete' || reads.some(e => e.coverage?.complete === false || e.status === 'incomplete_source')) {
+    output = 'پوشش جست‌وجو کامل نیست. اطلاعات کافی برای پاسخ دقیق ندارم.';
+  } else if (reads.length && reads.every(e => e.status === 'no_matches' && !e.unverifiedEmptyPage)) {
+    output = required === 'products' ? 'در این جست‌وجو طرحی مطابق مشخصات پیدا نکردم.'
+      : required === 'faq' ? 'در پرسش‌های متداول پاسخ مرتبطی پیدا نکردم.'
+        : 'در این جست‌وجو نتیجهٔ مرتبطی پیدا نکردم.';
+  }
+  const referral = designReferral(state, output);
+  if (referral !== output) return referral;
+  const contact = '[تماس با پشتیبانی](' + CONTACT_URL + ')';
+  if (required === 'faq') return output + '\n\n[پرسش‌های متداول](https://gpante.com/faq-ai/)\n' + contact;
+  if (required === 'guides') return output + '\n\n' + contact;
+  return output + '\n\n' + (required === 'products' ? 'اگر نام یا کاربرد طرح را می‌دانید، آن را بنویسید.\n' : 'اگر جزئیات بیشتری دارید، پرسش را دقیق‌تر بنویسید.\n')
+    + '[باز کردن سایت پانته برای جست‌وجو](https://gpante.com/)';
+}
+
+function completeReply(state, output) {
+  return { ...state, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt, requestId: state.requestId } };
+}
+
 function modelResult(state, response) {
   const next = { ...state }; delete next.body; delete next.groundingError;
   let body = response?.body;
@@ -436,14 +469,18 @@ function modelResult(state, response) {
   if (next.usage.prompt === null) return rejected('model_usage_invalid');
   const message = choice.message;
   if (choice.finish_reason === 'stop' && typeof message.content === 'string' && message.content.trim() && !message.tool_calls?.length) {
-    let output = finish({ output: message.content });
+    const output = finish({ output: message.content });
     const error = groundingError(state, output);
     if (error) {
-      if (state.callIndex >= 4 || error === 'source_required' && state.toolCount >= 3) return rejected('grounding_' + error);
+      // Fresh tool results clear the previous correction reason. Stop repeating a failed correction against the same evidence.
+      const repeated = state.groundingError === error
+        && ['source_unavailable', 'reference_required', 'source_read_failed', 'source_incomplete'].includes(error);
+      if (repeated || state.callIndex >= 4 || error === 'source_required' && state.toolCount >= 3) {
+        return completeReply({ ...next, groundingError: error, fallbackReason: error }, groundingFallback(state, error));
+      }
       return { ...next, done: false, toolsPending: false, groundingError: error, messages: [...state.messages, { role: 'system', content: 'پاسخ هنوز قابل ارسال نیست: ' + error + '. منبع مناسب همین نوبت را بخوان یا پاسخ را اصلاح کن. فقط لینک‌های بازیابی‌شده و قیمت/ویژگی همان محصول را بیاور؛ اگر اطلاعات کافی نیست، صریح اعلام کن. خطای خواندن منبع را با اعلام عدم دسترسی بیان کن، نه نبود نتیجه. متن ردشده را تکرار نکن.' }] };
     }
-    output = designReferral(state, output);
-    return { ...next, done: true, success: true, output, status: 200, response: { output, policy: state.policy, expiresAt: state.expiresAt, requestId: state.requestId } };
+    return completeReply(next, designReferral(state, output));
   }
   const calls = message.tool_calls;
   if (choice.finish_reason !== 'tool_calls') {
@@ -481,8 +518,11 @@ function toolResult(state, facts) {
   const publicCoverage = coverage && typeof coverage.complete === 'boolean' && Number.isSafeInteger(coverage.invalidDocuments)
     && coverage.invalidDocuments >= 0 && typeof coverage.initializing === 'boolean'
     ? { complete: coverage.complete, invalidDocuments: coverage.invalidDocuments, initializing: coverage.initializing } : null;
+  // A later page can be empty even when the source has matches.
+  const unverifiedEmptyPage = facts.status === 'no_matches' && facts.pagination?.page > 1 && facts.pagination.total !== 0;
   const evidence = [...(state.evidence || []), { name: state.pendingTool.function.name, source: facts.source || source,
-    ok: facts.ok === true, status: facts.status, results: facts.ok ? facts.results || [] : [], ...(publicCoverage ? { coverage: publicCoverage } : {}) }];
+    ok: facts.ok === true, status: facts.status, results: facts.ok ? facts.results || [] : [],
+    ...(publicCoverage ? { coverage: publicCoverage } : {}), ...(unverifiedEmptyPage ? { unverifiedEmptyPage: true } : {}) }];
   return { ...next, evidence, messages: [...state.messages, { role: 'tool', tool_call_id: state.pendingTool.id, content: JSON.stringify(facts) }] };
 }
 

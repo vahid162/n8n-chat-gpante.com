@@ -9,6 +9,7 @@ BEGIN
   DELETE FROM gpante_chat.requests;
   DELETE FROM gpante_chat.request_counters;
   DELETE FROM gpante_chat.turns;
+  UPDATE gpante_chat.runtime SET pricing_valid_until=clock_timestamp()+INTERVAL '1 day';
   SELECT coalesce(jsonb_agg(to_jsonb(m) ORDER BY request_id,call_index),'[]') INTO before_ledger FROM gpante_chat.model_calls m;
   ASSERT NOT (gpante_chat.admit(s,c,'resetSession')->>'allowed')::boolean,'old destructive contract blocked';
   a:=gpante_chat.admit_v3(s,c,'sendMessage','question',0);

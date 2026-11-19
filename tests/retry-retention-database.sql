@@ -10,6 +10,7 @@ BEGIN
   DELETE FROM gpante_chat.request_counters;
   DELETE FROM gpante_chat.turns;
   DELETE FROM gpante_chat.send_guards;
+  UPDATE gpante_chat.runtime SET pricing_valid_until=clock_timestamp()+INTERVAL '1 day';
   a:=gpante_chat.admit_v4(s,c,'sendMessage','retained retry',2,send_id,NULL,NULL,NULL);
   ASSERT (a->>'allowed')::boolean,'admit current send';
   r:=a->>'requestId';

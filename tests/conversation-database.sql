@@ -6,6 +6,7 @@ DECLARE s TEXT:=repeat('a',64); c TEXT:=repeat('b',64); a JSONB; b JSONB; r TEXT
 BEGIN
   ASSERT current_database() IN ('gpante_chat_archive_test','gpante_chat_feature017_test'),'isolated database required';
   DELETE FROM gpante_chat.requests; DELETE FROM gpante_chat.request_counters; DELETE FROM gpante_chat.turns;
+  UPDATE gpante_chat.runtime SET pricing_valid_until=clock_timestamp()+INTERVAL '1 day';
   ASSERT NOT (gpante_chat.admit_v4(s,c,'sendMessage','question',2,'bad',NULL,NULL,NULL)->>'allowed')::boolean,'send ID format';
   a:=gpante_chat.admit_v4(s,c,'sendMessage','question',2,repeat('1',32),NULL,NULL,NULL);r:=a->>'requestId';
   ASSERT (a->>'allowed')::boolean,'current admission';

@@ -16,7 +16,7 @@ html = ('<!doctype html><html lang="fa" dir="rtl"><meta charset="utf-8">'
         + '<script>' + (plugin / 'assets/chat.js').read_text() + '</script></body></html>')
 mock = r"""
 window.fixture = {
-  calls:[], failSend:false, historyResetAt:null,
+  calls:[], failSend:false, historyResetAt:null, answerAvailability:'ready',
   policy:{version:2,userDays:7,archiveDays:30,allowClear:true,revision:1},
   history:Array.from({length:8}, (_, i) => ({role:'assistant',
     content:'راهنمای آزمایشی '+i+'\n\n'+('توضیح فایل طراحی. '.repeat(8))+
@@ -35,7 +35,7 @@ window.fetch = async (url, options) => {
   const request=JSON.parse(options.body);f.calls.push(request);
   let data;
   if (request.action==='loadPreviousSession') data={messages:f.history,
-    hasMore:false,nextCursor:null,historyResetAt:f.historyResetAt};
+    hasMore:false,nextCursor:null,historyResetAt:f.historyResetAt,answerAvailability:f.answerAvailability};
   else if (request.action==='sendMessage') {
     if (f.failSend) return new Response(JSON.stringify({error:{code:'rate_limit'},output:'کمی بعد دوباره تلاش کنید.'}),{status:429});
     const requestId='f'.repeat(32),expiresAt=new Date(Date.now()+86400000).toISOString();
@@ -104,7 +104,22 @@ with sync_playwright() as p:
         assert 'توضیح تازه' not in widget.locator('[data-messages]').inner_text()
         assert page.evaluate('retained.isConnected && document.activeElement===retained')
 
+        page.evaluate("fixture.answerAvailability='pricing_review'")
+        refresh()
+        assert widget.locator('[data-status-label]').inner_text() == 'Paused'
+        search_url = widget.get_attribute('data-search-url')
+        assert widget.locator('[data-fallback]').get_attribute('href') == search_url + '?s='
         widget.locator('[data-input]').fill('پیش‌نویس آزمایشی')
+        assert widget.locator('[data-send]').is_disabled()
+        widget.locator('[data-input]').press('Enter')
+        assert page.evaluate("fixture.calls.filter(call=>call.action==='sendMessage').length") == 0
+        assert widget.locator('[data-fallback]').get_attribute('href').startswith(search_url + '?s=')
+        page.evaluate("fixture.answerAvailability='ready'")
+        refresh()
+        assert widget.locator('[data-status-label]').inner_text() == 'Online'
+        assert widget.locator('[data-input]').input_value() == 'پیش‌نویس آزمایشی'
+        assert widget.locator('[data-send]').is_enabled()
+        assert page.evaluate("fixture.calls.filter(call=>call.action==='sendMessage').length") == 0
         page.evaluate('fixture.failSend=true')
         widget.locator('[data-send]').click()
         ready()
@@ -133,7 +148,7 @@ with sync_playwright() as p:
         assert not errors, errors
         assert network == ['https://gpante.test/'], network
         print(json.dumps({'viewport': [width, height], 'focusAndScroll': True,
-                          'updatesAndRemoval': True, 'retryAndSafeLinks': True,
+                          'updatesAndRemoval': True, 'retryAndSafeLinks': True, 'answerAvailability': True,
                           'externalRequests': 0, 'modelCalls': 0}), flush=True)
         context.close()
     browser.close()

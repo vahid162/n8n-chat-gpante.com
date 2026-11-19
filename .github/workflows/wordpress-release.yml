@@ -163,6 +163,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/007-admin-experience.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/008-observability.sql
           psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/008-observability.sql
+          psql -v ON_ERROR_STOP=1 -c 'SET ROLE gpante_chat_app' -f sql/009-answer-availability.sql
           psql -v ON_ERROR_STOP=1 -f tests/legacy-migration-after.sql
           psql -v ON_ERROR_STOP=1 -f tests/archive-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/database.sql
@@ -170,6 +171,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/diagnostics-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/admin-experience-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/observability-database.sql
+          psql -v ON_ERROR_STOP=1 -f tests/answer-availability-database.sql
           psql -v ON_ERROR_STOP=1 -f tests/retry-retention-database.sql
           python3 tests/money-concurrency.py --direct --database gpante_chat_archive_test --user postgres
 

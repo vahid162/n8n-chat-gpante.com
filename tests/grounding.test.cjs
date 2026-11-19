@@ -92,8 +92,10 @@ test('a linked verified virtual download must be introduced as a downloadable de
     assert.equal(groundingError(s, reply), 'product_type_required', description);
     const result = modelResult({ ...s, callIndex: 4 }, { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
       choices: [{ finish_reason: 'stop', message: { content: reply } }] } });
-    assert.equal(result.success, undefined);
-    assert.equal(result.response.error.code, 'grounding_product_type_required');
+    assert.equal(result.success, true);
+    assert.equal(result.fallbackReason, 'product_type_required');
+    assert(!result.response.output.includes(product.url));
+    assert(!result.response.output.includes(description));
   }
   assert.equal(groundingError(s, 'این محصول فایل طراحی قابل دانلود است و ماکت آماده ارسال نمی‌شود.\n' + link), null);
   assert.equal(groundingError(s, '**طرح ماکت آماده**\nفایل طراحی قابل دانلود است.\n' + link), null);
@@ -262,7 +264,7 @@ test('failed/empty reads permit an honest abstention but cannot authorize invent
   assert.equal(groundingError(state('ایمیل ندارم می‌توانم خرید کنم؟', [facts('faq', [])]), 'ایمیل اختیاری است.'), 'source_unavailable');
 });
 
-test('rejected content is corrected within existing calls; the last round fails closed', () => {
+test('rejected content is corrected within existing calls; exhausted rounds never send unsupported content', () => {
   const response = { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 }, choices: [{ finish_reason: 'stop', message: { content: 'ایمیل الزامی است.' } }] } };
   const s = modelRequest(admitted({ chatInput: 'ایمیل ندارم می‌توانم خرید کنم؟', action: 'sendMessage' }, { allowed: true, requestId: 'a'.repeat(32), messages: [] }), 'system');
   const retry = modelResult(s, response);
@@ -272,11 +274,36 @@ test('rejected content is corrected within existing calls; the last round fails 
   assert.equal(retry.messages.at(-1).role, 'system');
   assert(!JSON.stringify(retry.messages).includes('ایمیل الزامی است.'));
   const last = modelResult({ ...s, callIndex: 4 }, response);
-  assert.equal(last.response.error.code, 'grounding_source_required');
+  assert.equal(last.fallbackReason, 'source_required');
+  assert.match(last.response.output, /https:\/\/gpante\.com\/faq-ai\//);
+  assert(!last.response.output.includes('ایمیل الزامی است.'));
   const pending = { ...s, pendingTool: { id: 'a', function: { name: 'Knowledge_Search', arguments: '{"source":"faq"}' } } };
   const read = toolResult(pending, { ok: true, kind: 'knowledge', source: 'faq', results: [faq] });
   assert.equal(read.evidence[0].source, 'faq');
   assert.equal(read.evidence[0].results[0].id, faq.id);
+});
+
+test('terminal grounding fallback distinguishes verified search misses, read errors and incomplete coverage', () => {
+  const response = { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
+    choices: [{ finish_reason: 'stop', message: { content: 'این طرح موجود است.' } }] } };
+  const miss = { name: 'Product_Search', source: 'products', ok: true, status: 'no_matches', results: [] };
+  const result = entries => modelResult({ ...state('طرح باکس دارید؟', entries), callIndex: 4 }, response).response.output;
+  const empty = result([miss]);
+  assert.match(empty, /طرحی مطابق مشخصات پیدا نکردم/);
+  assert.match(empty, /tel:\+989179509010/);
+  assert.match(empty, /https:\/\/gpante\.com\/contact-us\//);
+  const unavailable = result([miss, { ...miss, ok: false, status: 'transport_error' }]);
+  assert.match(unavailable, /نتوانستم همهٔ منابع لازم را بخوانم/);
+  assert.doesNotMatch(unavailable, /پیدا نکردم|tel:/);
+  const incomplete = result([{ ...miss, status: 'incomplete_source', coverage: { complete: false } }]);
+  assert.match(incomplete, /پوشش جست‌وجو کامل نیست/);
+  assert.doesNotMatch(incomplete, /پیدا نکردم|tel:/);
+  const laterPage = toolResult({ ...state('طرح باکس دارید؟', []),
+    pendingTool: { id: 'products', function: { name: 'Product_Search', arguments: '{}' } } },
+    { ...miss, pagination: { page: 3, total: 1 } });
+  const unverified = result(laterPage.evidence);
+  assert.match(unverified, /نتوانستم پاسخ قابل‌استنادی/);
+  assert.doesNotMatch(unverified, /پیدا نکردم|tel:/);
 });
 
 test('workflow sends a rejected final directly to the next model round without a phantom tool', () => {

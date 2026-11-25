@@ -52,7 +52,7 @@ test('generated graph settles and repairs an unsupported final before reading FA
   assert.equal(result.visited.filter(n => n.startsWith('Settle Model')).length, 3);
   assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
   const execution = result.data.diagnostics.find(event => event.event === 'execution');
-  assert.equal(execution.workflowVersion, '1.11.0');
+  assert.equal(execution.workflowVersion, '1.11.1');
   assert.match(execution.sourceRevision, /^[a-f0-9]{64}$/);
   assert.equal(execution.modelRounds, 3);
   assert.equal(execution.toolCalls, 1);
@@ -158,6 +158,27 @@ test('generated graph limits repeated missing citations without guessing at matc
   assert.match(result.data.response.output, /نتوانستم پاسخ قابل‌استنادی/);
   assert.match(result.data.response.output, /https:\/\/gpante\.com\//);
   assert.doesNotMatch(result.data.response.output, /product\/box|رایگان|پیدا نکردم/);
+});
+
+test('an over-budget model batch settles without dispatching any of its tools', () => {
+  const faq = id => ({ ...call('Knowledge_Search', { source: 'faq', search: 'ایمیل' }).tool_calls[0], id });
+  const empty = { statusCode: 200, headers: { 'x-wp-total': '0', 'x-wp-totalpages': '0' }, body: [] };
+  const result = run('خرید بدون ایمیل ممکن است؟', [
+    { tool_calls: [faq('call_1'), faq('call_2')] },
+    { content: 'ایمیل برای خرید اجباری است.' },
+    { content: 'provider payload', tool_calls: [faq('call_3'), faq('call_4')] }
+  ], empty);
+  assert.equal(result.data.status, 200);
+  assert.equal(result.calls, 3);
+  assert.equal(result.data.toolCount, 2);
+  assert.equal(result.visited.filter(n => n.startsWith('Read Public Source')).length, 2);
+  assert(!result.visited.includes('Prepare Tool 3'));
+  assert(result.visited.indexOf('Settle Model 3') < result.visited.indexOf('Finish Request'));
+  assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
+  assert(result.data.diagnostics.some(event => event.event === 'rejection' && event.code === 'fallback_model_tool_limit'));
+  assert.match(result.data.response.output, /https:\/\/gpante\.com\/faq-ai\//);
+  assert.match(result.data.response.output, /https:\/\/gpante\.com\/contact-us\//);
+  assert.doesNotMatch(result.data.response.output, /provider payload|اجباری/);
 });
 
 test('missing purchased download can cite the FAQ and contact support without a private download link', () => {

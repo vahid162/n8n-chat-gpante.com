@@ -218,20 +218,23 @@ function gpante_support_diagnostic_steps( $events ) {
  * @param array $data Bounded administration response.
  */
 function gpante_support_diagnostic_readiness( $data ) {
-	$ready   = is_array( $data['readiness'] ?? null ) ? $data['readiness'] : array();
-	$reasons = array(
-		'ready'          => 'تنظیمات، بودجه و ظرفیت در این لحظه اجازهٔ شروع درخواست جدید می‌دهند.',
+	$ready         = is_array( $data['readiness'] ?? null ) ? $data['readiness'] : array();
+	$tracking_only = false === ( $data['budget']['budgetLimitEnabled'] ?? null );
+	$reasons       = array(
+		'ready'          => 'پیکربندی و ظرفیت سرویس در این لحظه اجازهٔ شروع درخواست جدید را می‌دهند.',
 		'disabled'       => 'سرویس مرکزی غیرفعال است؛ تنظیم فعال‌بودن سرویس را بررسی کنید.',
 		'pricing_review' => 'اعتبار تعرفه پایان یافته است؛ تعرفهٔ رسمی باید بازبینی و تأیید شود.',
 		'monthly_budget' => 'بودجهٔ باقی‌مانده برای رزرو نخستین تماس کافی نیست.',
 		'capacity'       => 'ظرفیت هم‌زمان پر است؛ پس از پایان درخواست‌های فعال دوباره بررسی کنید.',
 		'unavailable'    => 'پیکربندی سرویس مرکزی در دسترس نیست.',
 	);
-	$reason  = $ready['reason'] ?? null;
-	$known   = is_string( $reason ) && isset( $reasons[ $reason ] ) && is_bool( $ready['canAcceptNewTurn'] ?? null ) && ( 'ready' === $reason ) === $ready['canAcceptNewTurn'];
+	$reason        = $ready['reason'] ?? null;
+	$known         = is_string( $reason ) && isset( $reasons[ $reason ] ) && is_bool( $ready['canAcceptNewTurn'] ?? null ) && ( 'ready' === $reason ) === $ready['canAcceptNewTurn'];
 	echo '<section class="gpante-admin-card"><h2>' . esc_html__( 'آمادگی پذیرش سؤال جدید', 'gpante-support-chat' ) . '</h2><p class="gpante-admin-metric">' . esc_html( $known ? ( $ready['canAcceptNewTurn'] ? __( 'آماده', 'gpante-support-chat' ) : __( 'فعلاً متوقف', 'gpante-support-chat' ) ) : gpante_support_admin_unknown() ) . '</p>';
 	echo '<p>' . esc_html( $known ? $reasons[ $reason ] : __( 'وضعیت آمادگی توسط بک‌اند تأیید نشده است؛ نسخهٔ سرویس مدیریت را بررسی کنید.', 'gpante-support-chat' ) ) . '</p>';
-	echo '<p>' . esc_html__( 'بودجهٔ باقی‌مانده، USD:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_money( $ready['remainingNano'] ?? null ) ) . '</p>';
+	if ( ! $tracking_only ) {
+		echo '<p>' . esc_html__( 'بودجهٔ باقی‌مانده، USD:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_money( $ready['remainingNano'] ?? null ) ) . '</p>';
+	}
 	if ( true === ( $ready['pricingReviewSoon'] ?? null ) ) {
 		echo '<p class="gpante-admin-warning">' . esc_html__( 'اعتبار تعرفه در هفت روز آینده پایان می‌یابد؛ بازبینی را پیش از توقف سرویس انجام دهید.', 'gpante-support-chat' ) . '</p>';
 	}
@@ -287,27 +290,41 @@ function gpante_support_diagnostics_page() {
 	if ( $page_no > 1 || $filtered ) {
 		$payload = array_merge( $payload, $filters, array( 'page' => $page_no ) );
 	}
-	$health  = gpante_support_search_index_health();
-	$data    = gpante_support_admin_request( $payload );
-	$valid   = ! is_wp_error( $data ) && is_array( $data['summary'] ?? null ) && is_array( $data['budget'] ?? null ) && is_array( $data['turns'] ?? null );
-	$budget  = $valid ? $data['budget'] : array();
-	$totals  = $valid ? $data['summary'] : array();
-	$checked = gpante_support_admin_time( gmdate( 'c' ) );
+	$health        = gpante_support_search_index_health();
+	$data          = gpante_support_admin_request( $payload );
+	$valid         = ! is_wp_error( $data ) && is_array( $data['summary'] ?? null ) && is_array( $data['budget'] ?? null ) && is_array( $data['turns'] ?? null );
+	$budget        = $valid ? $data['budget'] : array();
+	$totals        = $valid ? $data['summary'] : array();
+	$checked       = gpante_support_admin_time( gmdate( 'c' ) );
+	$tracking_only = false === ( $budget['budgetLimitEnabled'] ?? null );
 	?>
 	<div class="wrap gpante-admin" dir="rtl">
 		<h1 class="gpante-admin-header"><?php esc_html_e( 'کیفیت پاسخ و سلامت منابع', 'gpante-support-chat' ); ?></h1>
-		<p class="gpante-admin-description"><?php esc_html_e( 'نمای کلی روزمره و گزارش محدود منابع. این صفحه تماس مدل ندارد. آمار گفتگو و بازخورد: ۷ روز گذشته؛ بودجه: ماه تقویمی جاری UTC؛ آرشیو مدیر: ۳۰ روز. تاریخ‌ها میلادی و UTC هستند.', 'gpante-support-chat' ); ?></p>
+		<p class="gpante-admin-description"><?php esc_html_e( 'نمای کلی روزمره و گزارش محدود منابع. این صفحه تماس مدل ندارد. آمار گفتگو و بازخورد: ۷ روز گذشته؛ هزینه: ماه تقویمی جاری UTC؛ آرشیو مدیر: ۳۰ روز. تاریخ‌ها میلادی و UTC هستند.', 'gpante-support-chat' ); ?></p>
 		<p><?php echo esc_html__( 'زمان این بررسی:', 'gpante-support-chat' ) . ' ' . esc_html( $checked ); ?> · <a href="<?php echo esc_url( admin_url( 'admin.php?page=gpante-support-diagnostics' ) ); ?>"><?php esc_html_e( 'بررسی دوباره', 'gpante-support-chat' ); ?></a></p>
 		<div class="gpante-admin-overview">
 			<section class="gpante-admin-card"><h2><?php esc_html_e( 'اتصال مدیریت', 'gpante-support-chat' ); ?></h2><p class="gpante-admin-metric"><?php echo esc_html( $valid ? __( 'پاسخ معتبر دریافت شد', 'gpante-support-chat' ) : __( 'پاسخ تأیید نشد', 'gpante-support-chat' ) ); ?></p><p><?php esc_html_e( 'این نتیجه، اتصال سرویس مدیریت را نشان می‌دهد؛ سلامت پیوستهٔ مدل را تضمین نمی‌کند.', 'gpante-support-chat' ); ?></p></section>
 			<?php gpante_support_diagnostic_readiness( $valid ? $data : array() ); ?>
 			<section class="gpante-admin-card"><h2><?php esc_html_e( 'نمایهٔ عمومی سایت', 'gpante-support-chat' ); ?></h2><p class="gpante-admin-metric"><?php echo esc_html( true === ( $health['complete'] ?? null ) ? __( 'کامل', 'gpante-support-chat' ) : ( false === ( $health['complete'] ?? null ) ? __( 'ناقص', 'gpante-support-chat' ) : gpante_support_admin_unknown() ) ); ?></p><p><?php echo esc_html__( 'اسناد نمایه‌شده:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $health['documents'] ?? null ) ); ?></p><p><?php echo esc_html__( 'اسناد نامعتبر:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $health['invalidDocuments'] ?? null ) ); ?></p><p><?php echo esc_html( gpante_support_admin_time( $health['reconciledAt'] ?? null ) ); ?></p></section>
 			<section class="gpante-admin-card"><h2><?php esc_html_e( 'گفتگوها، ۷ روز گذشته', 'gpante-support-chat' ); ?></h2><p class="gpante-admin-metric"><?php echo esc_html( gpante_support_admin_number( $totals['total'] ?? null ) ); ?></p><p><?php echo esc_html__( 'خطا یا قطع‌شده:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $totals['errors'] ?? null ) ); ?></p><a href="<?php echo esc_url( admin_url( 'admin.php?page=gpante-support-diagnostics&status=error#gpante-diagnostic-records' ) ); ?>"><?php esc_html_e( 'بررسی گفتگوهای دارای خطا', 'gpante-support-chat' ); ?></a> · <a href="<?php echo esc_url( admin_url( 'admin.php?page=gpante-support-diagnostics&status=interrupted#gpante-diagnostic-records' ) ); ?>"><?php esc_html_e( 'بررسی قطع‌شده‌ها', 'gpante-support-chat' ); ?></a></section>
-			<section class="gpante-admin-card"><h2><?php esc_html_e( 'مصرف محافظه‌کارانه، ماه جاری UTC', 'gpante-support-chat' ); ?></h2><p class="gpante-admin-metric" dir="ltr"><?php echo esc_html( gpante_support_admin_money( $budget['usedNano'] ?? null ) ); ?></p><p><?php echo esc_html__( 'سقف ماه، USD:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_money( $budget['monthlyBudgetNano'] ?? null ) ); ?></p><p><?php esc_html_e( 'شامل رزرو و مصرف محافظه‌کارانه؛ هزینهٔ قطعیِ تسویه‌شده نیست.', 'gpante-support-chat' ); ?></p><p><?php echo esc_html__( 'درخواست فعال:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $budget['activeLeases'] ?? null ) ); ?></p></section>
+			<section class="gpante-admin-card">
+				<?php if ( $tracking_only ) : ?>
+					<h2><?php esc_html_e( 'هزینهٔ محاسبه‌شده، ماه جاری UTC', 'gpante-support-chat' ); ?></h2>
+					<p class="gpante-admin-metric" dir="ltr"><?php echo esc_html( gpante_support_admin_money( $budget['settledNano'] ?? null ) ); ?></p>
+					<p><?php esc_html_e( 'ثبت هزینه بدون سقف ماهانه.', 'gpante-support-chat' ); ?></p>
+					<p><?php echo esc_html__( 'برآورد محافظه‌کارانه با احتساب مبالغ رزروشده و تسویه‌نشده، USD:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_money( $budget['usedNano'] ?? null ) ); ?></p>
+				<?php else : ?>
+					<h2><?php esc_html_e( 'مصرف محافظه‌کارانه، ماه جاری UTC', 'gpante-support-chat' ); ?></h2>
+					<p class="gpante-admin-metric" dir="ltr"><?php echo esc_html( gpante_support_admin_money( $budget['usedNano'] ?? null ) ); ?></p>
+					<p><?php echo esc_html__( 'سقف ماه، USD:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_money( $budget['monthlyBudgetNano'] ?? null ) ); ?></p>
+					<p><?php esc_html_e( 'شامل رزرو و مصرف محافظه‌کارانه؛ هزینهٔ قطعیِ تسویه‌شده نیست.', 'gpante-support-chat' ); ?></p>
+				<?php endif; ?>
+				<p><?php echo esc_html__( 'درخواست فعال:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $budget['activeLeases'] ?? null ) ); ?></p>
+			</section>
 			<section class="gpante-admin-card"><h2><?php esc_html_e( 'بازخورد ثبت‌شده، ۷ روز', 'gpante-support-chat' ); ?></h2><p><?php echo esc_html__( 'مفید:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $totals['helpful'] ?? null ) ); ?></p><p><?php echo esc_html__( 'نامفید:', 'gpante-support-chat' ) . ' ' . esc_html( gpante_support_admin_number( $totals['unhelpful'] ?? null ) ); ?></p><p><?php esc_html_e( 'این شمار بازخورد است، نه درصد دقت همهٔ پاسخ‌ها.', 'gpante-support-chat' ); ?></p></section>
 		</div>
 		<?php gpante_support_diagnostic_refusals( $valid ? $data : array() ); ?>
-		<details class="gpante-admin-card"><summary><?php esc_html_e( 'جزئیات وضعیت و بودجه', 'gpante-support-chat' ); ?></summary>
+		<details class="gpante-admin-card"><summary><?php esc_html_e( 'جزئیات وضعیت و هزینه', 'gpante-support-chat' ); ?></summary>
 			<?php
 			gpante_support_diagnostics_values(
 				array(

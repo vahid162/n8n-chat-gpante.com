@@ -271,6 +271,13 @@ try:
         results['resetDialogs'] = dialog_messages
         check('unsaved texts/colors/four shortcuts update inert preview with no chat or save request; native reset cancel/confirm is correct')
 
+        php('update_option("gptest_menu_diagnostics_mode","cost_tracking",false);')
+        visit('gpante-support-diagnostics')
+        overview = page.locator('.gpante-admin-overview').inner_text()
+        assert all(text in overview for text in ['آماده', 'ثبت هزینه بدون سقف ماهانه', '$3.123456789', '$3.443456789'])
+        assert all(text not in overview for text in ['بودجهٔ باقی‌مانده', 'سقف ماه، USD', '$2.00'])
+        check('cost tracking shows settled and conservative USD without a monthly ceiling, while the older response still renders its budget')
+
         php('update_option("gptest_menu_diagnostics_mode","missing",false);')
         visit('gpante-support-diagnostics')
         assert page.locator('.gpante-admin-overview > section').nth(3).locator('.gpante-admin-metric').inner_text() == 'نامشخص'

@@ -17,9 +17,17 @@ test('purchase delivery questions read FAQ while unrelated product names retain 
   }
   assert.equal(requiredSource(state('طرح پستچی دارید؟')), 'products');
   assert.equal(requiredSource(state('طرح کامیون حمل بار دارید؟')), 'products');
+  assert.equal(requiredSource(state('با پست ارسال می‌کنید یا فایل دانلودی این باکس رو دارید؟')), 'products');
   assert.equal(requiredSource(state('جنس این محصول چیست؟')), 'products');
   assert.equal(requiredSource(state('این ماکت از چه موادی ساخته می‌شود؟')), 'products');
   assert.equal(requiredSource(state('فایل DXF چیست؟')), 'faq');
+});
+
+test('missing downloads after payment use FAQ without capturing a fresh product question', () => {
+  for (const question of ['پرداخت کردم ولی لینک دانلود نیومده', 'از حسابم پول کم شده ولی فایل رو نمی‌بینم']) {
+    assert.equal(requiredSource(state(question)), 'faq', question);
+  }
+  assert.equal(requiredSource(state('فایل را قبلاً خریدم، این مدل جدید را پیدا نمی‌کنم')), null);
 });
 
 test('practical design purchase and download guidance requires current FAQ evidence', () => {
@@ -28,6 +36,7 @@ test('practical design purchase and download guidance requires current FAQ evide
     'خرید کردم، چی دریافت می‌کنم؟',
     'بعد از خرید فایل از کجا دانلود کنم؟', 'فایل خریدم از کجا دانلودش کنم؟',
     'فایل خریداری‌شده را از کجا دانلود کنم؟', 'می‌خوام فایل خریدم رو دانلود کنم، چطور؟',
+    'پرداخت کردم ولی لینک دانلود نیومده', 'با پست ارسال می‌کنید یا فایل تحویل می‌دهید؟',
     'دوره کورل خریدم؛ فایل را از کجا دانلود کنم؟',
     'خرید فایل CDR شامل ماکت آماده است؟', 'خرید فایل DXF شامل کالای فیزیکی است؟',
     'طرح را از کجا دانلود کنم؟', 'طرح را چطور بخرم؟', 'این محصول را بخرم ماکت آماده ارسال می‌شود؟'];

@@ -82,12 +82,18 @@ add_filter('pre_http_request', function ($pre, $args, $url) {
                 'days' => array(array('date' => '2026-11-04', 'reason' => 'capacity', 'count' => 2))),
             'turns' => array_slice($filtered, ($page - 1) * 20, 20),
             'hasMore' => count($filtered) > $page * 20, 'page' => $page, 'windowDays' => 7);
-        if (get_option('gptest_menu_diagnostics_mode') === 'missing') {
+        $mode = get_option('gptest_menu_diagnostics_mode');
+        if ($mode === 'cost_tracking') {
+            $body['budget'] = array_replace($body['budget'], array('budgetLimitEnabled' => false,
+                'monthlyBudgetNano' => null, 'settledNano' => 3123456789, 'usedNano' => 3443456789));
+            $body['readiness']['remainingNano'] = null;
+        }
+        if ($mode === 'missing') {
             $body['summary'] = array();
             $body['budget'] = array();
             unset($body['readiness'], $body['refusals']);
         }
-        if (get_option('gptest_menu_diagnostics_mode') === 'offline') return new WP_Error('fixture_offline', 'Synthetic local failure');
+        if ($mode === 'offline') return new WP_Error('fixture_offline', 'Synthetic local failure');
     }
     return array('headers' => array(), 'response' => array('code' => 200), 'body' => wp_json_encode($body));
 }, 11, 3);

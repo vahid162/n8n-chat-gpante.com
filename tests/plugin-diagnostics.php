@@ -161,6 +161,17 @@ check(str_contains($html,'آمادگی پذیرش سؤال جدید') && str_con
 check(str_contains($html,'اعتبار تعرفه در هفت روز آینده') && str_contains($html,'بودجهٔ باقی‌مانده'),'pricing lead-time and remaining budget visible outside collapsed details');
 check(str_contains($html,'درخواست‌های ردشده پیش از پذیرش') && str_contains($html,'ظرفیت هم‌زمان')
     && !str_contains($html,'private-refusal'),'separate bounded refusal counters contain no transcript');
+$legacy = $result;
+$result['budget'] += array('budgetLimitEnabled'=>false,'monthlyBudgetNano'=>null,'settledNano'=>2500234567,'usedNano'=>2800234567);
+$result['readiness'] = array_replace($result['readiness'],array('canAcceptNewTurn'=>true,'reason'=>'ready','remainingNano'=>null));
+$html=render_page();
+check(str_contains($html,'ثبت هزینه بدون سقف ماهانه') && str_contains($html,'$2.500234567') && str_contains($html,'$2.800234567'),
+    'tracking-only dashboard distinguishes the settled amount from the conservative total');
+check(!str_contains($html,'بودجهٔ باقی‌مانده') && !str_contains($html,'سقف ماه، USD') && !str_contains($html,'فعلاً متوقف'),
+    'tracking-only backend can admit above the legacy ceiling without displaying remaining funds');
+$result['budget']['settledNano'] = 0;
+check(str_contains(render_page(),'$0.00'),'zero settled cost is displayed as zero');
+$result = $legacy;
 unset($result['readiness'],$result['refusals']);
 $html=render_page();
 check(str_contains($html,'وضعیت آمادگی توسط بک‌اند تأیید نشده است') && !str_contains($html,'فعلاً متوقف'),'old backend metadata stays unknown');

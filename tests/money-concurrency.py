@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--container', default='project_db')
 parser.add_argument('--database', default='gpante_chat_archive_test')
 parser.add_argument('--direct', action='store_true', help='Use local psql and standard PG environment, as in CI')
+parser.add_argument('--cost-only', action='store_true', help='Verify both reservations pass after migration 010')
 parser.add_argument('--user', required=True)
 args = parser.parse_args()
 assert args.database in ('gpante_chat_archive_test', 'gpante_chat_feature017_test'), 'Isolated database required'
@@ -35,6 +36,8 @@ client_ids = []
 previous_id = 'fixture_previous_month_' + nonce
 try:
     query("UPDATE gpante_chat.runtime SET pricing_valid_until=clock_timestamp()+INTERVAL '1 day';")
+    if args.cost_only:
+        query('UPDATE gpante_chat.runtime SET monthly_budget_nano=0;')
     for i in range(2):
         sid = hashlib.sha256((nonce + 'session' + str(i)).encode()).hexdigest()
         cid = hashlib.sha256((nonce + 'client' + str(i)).encode()).hexdigest()
@@ -42,18 +45,20 @@ try:
         admission = query("SELECT gpante_chat.admit_v4('%s','%s','sendMessage','concurrent fixture',2,NULL,NULL,NULL,NULL);" % (sid, cid))
         assert admission['allowed'], admission
         request_ids.append(admission['requestId'])
-    # A full previous-month charge must not consume this month's remaining budget.
+    # A full previous-month charge must remain separate from this month's totals.
     query("INSERT INTO gpante_chat.model_calls(request_id,call_index,month,cost_nano,state) VALUES ('%s',1,(date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')-interval '1 month')::date,2000000000,'burned');" % previous_id)
     used = query("SELECT coalesce(sum(cost_nano),0) FROM gpante_chat.model_calls WHERE month=date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date;")
-    temporary_budget = used + 320000000
-    assert temporary_budget <= original['monthly_budget_nano'], 'Insufficient current-month budget for this test'
-    query('UPDATE gpante_chat.runtime SET monthly_budget_nano=%d;' % temporary_budget)
+    if not args.cost_only:
+        temporary_budget = used + 320000000
+        assert temporary_budget <= original['monthly_budget_nano'], 'Insufficient current-month budget for this test'
+        query('UPDATE gpante_chat.runtime SET monthly_budget_nano=%d;' % temporary_budget)
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         results = list(pool.map(lambda rid: query("SELECT gpante_chat.reserve_call('%s',1);" % rid), request_ids))
-    assert sum(result['allowed'] for result in results) == 1, results
-    assert [result['reason'] for result in results if not result['allowed']] == ['monthly_budget'], results
+    accepted = 2 if args.cost_only else 1
+    assert sum(result['allowed'] for result in results) == accepted, results
+    assert [result['reason'] for result in results if not result['allowed']] == ([] if args.cost_only else ['monthly_budget']), results
     charged = query("SELECT coalesce(sum(cost_nano),0) FROM gpante_chat.model_calls WHERE month=date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date;")
-    assert charged == temporary_budget, 'Concurrent reservations exceeded or missed the exact limit'
+    assert charged == used + accepted * 320000000, 'Concurrent reservations did not account for exactly the accepted calls'
     assert query("SELECT to_json(bool_and(month=date_trunc('month',created_at AT TIME ZONE 'UTC')::date)) FROM gpante_chat.model_calls WHERE request_id IN ('%s','%s');" % tuple(request_ids)), 'Reservation month differs from UTC creation month'
     winner = next(rid for rid, result in zip(request_ids, results) if result['allowed'])
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -73,7 +78,7 @@ try:
     assert sum(result['allowed'] for result in admissions) == 1, admissions
     assert [result['reason'] for result in admissions if not result['allowed']] == ['session_busy'], admissions
     assert query("SELECT count(*) FROM gpante_chat.turns WHERE session_id='%s' AND client_message_id='%s';" % (sid, send_id)) == 1, 'Concurrent duplicate created multiple turns'
-    print(json.dumps({'simultaneousReservations': 2, 'accepted': 1, 'rejectedForBudget': 1, 'previousMonthExcluded': True, 'reservationMonthUTC': True, 'settledExactlyOnce': True, 'concurrentSendDeduplicated': True, 'modelCalls': 0}))
+    print(json.dumps({'simultaneousReservations': 2, 'accepted': accepted, 'rejectedForBudget': 2 - accepted, 'previousMonthExcluded': True, 'reservationMonthUTC': True, 'settledExactlyOnce': True, 'concurrentSendDeduplicated': True, 'modelCalls': 0}))
 finally:
     query("UPDATE gpante_chat.runtime SET monthly_budget_nano=%d,pricing_valid_until='%s';" % (original['monthly_budget_nano'], original['pricing_valid_until']))
     # These reservations were test-only: no HTTP dispatch happened. Never use this

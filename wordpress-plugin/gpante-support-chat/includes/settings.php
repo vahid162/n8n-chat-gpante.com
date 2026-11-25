@@ -122,7 +122,7 @@ function gpante_support_settings_page() {
 	<div class="wrap gpante-admin">
 		<header class="gpante-admin-header">
 			<h1><?php esc_html_e( 'اتصال چت پانته', 'gpante-support-chat' ); ?></h1>
-			<p class="gpante-admin-description"><?php esc_html_e( 'نمایش عمومی و کلیدهای خصوصی اتصال را مدیریت کنید. پیش از روشن‌کردن چت، سرویس و سقف هزینهٔ آن باید آماده باشند.', 'gpante-support-chat' ); ?></p>
+			<p class="gpante-admin-description"><?php esc_html_e( 'نمایش عمومی و کلیدهای خصوصی اتصال را مدیریت کنید. پیش از روشن‌کردن چت، اتصال سرویس و اعتبار تعرفه را بررسی کنید.', 'gpante-support-chat' ); ?></p>
 		</header>
 		<?php settings_errors( 'gpante_support_runtime' ); ?>
 		<section class="gpante-admin-card" aria-labelledby="gpante-connection-status-heading">

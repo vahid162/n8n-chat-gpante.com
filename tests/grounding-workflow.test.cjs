@@ -7,7 +7,7 @@ const { build } = require('../scripts/build-workflow.cjs');
 function run(question, replies, source, options = {}) {
   const w = build();
   const outputs = new Map();
-  const visited = [];
+  const visited = [], modelRequests = [];
   let name = 'Validate Trusted Input', data = { body: { action: 'sendMessage', policyVersion: 2,
     sessionId: 'a'.repeat(64), clientId: 'b'.repeat(64), chatInput: question } }, calls = 0;
   while (name !== 'Return Chat Reply') {
@@ -26,6 +26,7 @@ function run(question, replies, source, options = {}) {
         : name.startsWith('Reserve Model') ? { allowed: true } : name.startsWith('Settle Model') ? { confirmed: options.settlementRefused !== true && options.settlementRefusedRound !== calls } : { saved: true } };
     } else if (name.startsWith('Call DeepSeek')) {
       assert(calls < replies.length, 'no unexpected model dispatch');
+      modelRequests.push(data.body);
       const message = replies[calls++];
       data = { statusCode: 200, body: { usage: { prompt_tokens: 10, completion_tokens: 10, total_tokens: 20 },
         choices: [{ finish_reason: message.tool_calls ? 'tool_calls' : 'stop', message }] } };
@@ -34,7 +35,7 @@ function run(question, replies, source, options = {}) {
     outputs.set(name, data);
     name = w.connections[name].main[branch][0].node;
   }
-  return { data, calls, visited };
+  return { data, calls, visited, modelRequests };
 }
 const call = (name, args) => ({ tool_calls: [{ id: 'call_1', type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
 const http = body => ({ statusCode: 200, headers: { 'x-wp-total': '1', 'x-wp-totalpages': '1' }, body });
@@ -51,7 +52,7 @@ test('generated graph settles and repairs an unsupported final before reading FA
   assert.equal(result.visited.filter(n => n.startsWith('Settle Model')).length, 3);
   assert.equal(result.visited.filter(n => n === 'Finish Request').length, 1);
   const execution = result.data.diagnostics.find(event => event.event === 'execution');
-  assert.equal(execution.workflowVersion, '1.10.0');
+  assert.equal(execution.workflowVersion, '1.11.0');
   assert.match(execution.sourceRevision, /^[a-f0-9]{64}$/);
   assert.equal(execution.modelRounds, 3);
   assert.equal(execution.toolCalls, 1);
@@ -157,4 +158,64 @@ test('generated graph limits repeated missing citations without guessing at matc
   assert.match(result.data.response.output, /نتوانستم پاسخ قابل‌استنادی/);
   assert.match(result.data.response.output, /https:\/\/gpante\.com\//);
   assert.doesNotMatch(result.data.response.output, /product\/box|رایگان|پیدا نکردم/);
+});
+
+test('missing purchased download can cite the FAQ and contact support without a private download link', () => {
+  const url = 'https://gpante.com/faq-ai/#faq-download';
+  const guidance = 'بخش دانلودهای حساب کاربری را بررسی کنید.';
+  const publicReply = guidance + '\n[راهنمای دانلود](' + url + ')\nاگر فایل را نمی‌بینید، با پشتیبانی تماس بگیرید.\n[تماس با ما](https://gpante.com/contact-us/)';
+  const result = run('پرداخت کردم ولی لینک دانلود را پیدا نمی‌کنم', [
+    { content: 'فایل خرید شما آماده است.' },
+    call('Knowledge_Search', { source: 'faq', search: 'دانلود' }),
+    { content: '[دانلود فایل خرید شما](https://gpante.com/my-account/downloads/private/)' },
+    { content: publicReply }
+  ], request => {
+    assert.equal(request.context.source, 'faq');
+    return http([{ id: 'faq-download', page_id: 51415, status: 'publish', is_password_protected: false, link: url,
+      title: { rendered: 'دریافت فایل' }, content: { rendered: guidance, protected: false, truncated: false }, links: [] }]);
+  });
+  assert.equal(result.data.response.output, publicReply);
+  assert.equal(result.data.toolCount, 1);
+  assert.equal(result.calls, 4);
+  assert.match(result.modelRequests[0].messages[0].content, /اگر دانلود همچنان در دسترس نبود/);
+  assert(result.modelRequests[1].messages.some(message => message.role === 'system' && message.content.includes('source_required')));
+  assert(result.modelRequests[3].messages.some(message => message.role === 'system' && message.content.includes('unverified_reference')));
+  assert.equal(result.modelRequests[3].tool_choice, 'none');
+});
+
+test('specific product delivery corrects a physical shipment claim using WooCommerce flags', () => {
+  const url = 'https://gpante.com/product/box/';
+  const productLink = '\n[مشاهدهٔ محصول](' + url + ')';
+  const corrected = 'این محصول فایل طراحی قابل دانلود است و ماکت آماده ارسال نمی‌شود.' + productLink;
+  const result = run('این محصول فیزیکی است یا دانلودی؟', [
+    call('Product_Details', { productId: 1 }),
+    { content: 'این محصول فایل طراحی قابل دانلود است و ماکت آماده هم ارسال می‌شود.' + productLink },
+    { content: corrected }
+  ], request => {
+    assert.equal(request.context.kind, 'details');
+    return http([{ id: 1, name: 'باکس', permalink: url, status: 'publish', type: 'simple', catalog_visibility: 'visible',
+      is_password_protected: false, is_virtual: true, is_downloadable: true }]);
+  });
+  assert.equal(result.data.response.output, corrected);
+  assert.equal(result.data.toolCount, 1);
+  assert(result.modelRequests[2].messages.some(message => message.role === 'system' && message.content.includes('product_type_required')));
+});
+
+test('designer handoff distinguishes custom design and a confirmed miss from a catalog outage', () => {
+  const find = call('Product_Search', { search: 'صندوق' });
+  const noMatch = { content: 'طرح مرتبطی پیدا نکردم.' };
+  const empty = { statusCode: 200, headers: { 'x-wp-total': '0', 'x-wp-totalpages': '0' }, body: [] };
+  const custom = run('طراحی سفارشی می‌خواهم', [
+    call('Knowledge_Search', { source: 'faq', search: 'طراحی اختصاصی' }), { content: 'پاسخ مرتبطی پیدا نکردم.' }
+  ], empty);
+  const missing = run('طرح صندوق دارید؟', [find, noMatch], empty);
+  for (const result of [custom, missing]) {
+    assert.match(result.data.response.output, /\[تماس مستقیم با طراح: 09179509010\]\(tel:\+989179509010\)/);
+    assert.match(result.data.response.output, /https:\/\/gpante\.com\/contact-us\//);
+  }
+  const outage = run('طرح صندوق دارید؟', [find, noMatch, noMatch], { statusCode: 503 });
+  assert.equal(outage.data.fallbackReason, 'source_read_failed');
+  assert.match(outage.data.response.output, /نتوانستم همهٔ منابع لازم را بخوانم/);
+  assert.doesNotMatch(outage.data.response.output, /پیدا نکردم|tel:/);
+  assert.equal(outage.data.toolCount, 1);
 });

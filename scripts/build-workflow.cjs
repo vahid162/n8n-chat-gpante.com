@@ -20,7 +20,7 @@ function build() {
   const chat = library('src/chat.cjs');
   const catalog = library('src/catalog.cjs');
   const diagnostics = library('src/diagnostics.cjs');
-  const revision = { workflowVersion: '1.11.0', sourceRevision: createHash('sha256')
+  const revision = { workflowVersion: '1.11.1', sourceRevision: createHash('sha256')
     .update(['src/chat.cjs', 'src/catalog.cjs', 'src/diagnostics.cjs', 'src/system-message.txt', 'scripts/build-workflow.cjs'].map(read).join('\n')).digest('hex') };
   const code = (name, source) => node(name, 'n8n-nodes-base.code', 2, { jsCode: source }, [0, 0]);
   const pg = (name, query, replacement) => node(name, 'n8n-nodes-base.postgres', 2.6,
@@ -39,7 +39,7 @@ function build() {
     pg('Finish Request', 'SELECT gpante_chat.finish_v4($1::text,$2::text,$3::text,$4::text,$5::jsonb) AS result', '={{ [$json.requestId,$json.success ? $json.output : null,$json.success ? "success" : "error",$json.response?.error?.code || null,JSON.stringify($json.diagnostics || [])] }}'),
     code('Apply Persistence', chat + "\nconst state=$('Finalize Request').first().json; return [{json: state.success && $input.first().json.result?.saved !== true ? failure('persistence_unavailable') : state}];"),
     node('Return Chat Reply', 'n8n-nodes-base.respondToWebhook', 1.5, { respondWith: 'json', responseBody: '={{ $json.response }}', options: { responseCode: '={{ $json.status || 503 }}', responseHeaders: { entries: [{ name: 'Cache-Control', value: 'no-store, private' }, { name: 'Retry-After', value: '={{ String($json.retryAfter || 0) }}' }] } } }, [0, 0]),
-    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۱۱٫۰ — پیش‌نویس احراز هویت‌شده\n\nمحاسبه و گزارش هزینه در ماه تقویمی UTC، بدون سقف ماهانه پس از migration 010.\nرزرو حسابداری هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nپرسش عمومی تحویل و مشکل دانلود پس از خرید از FAQ خوانده می‌شوند. نوع محصول از WooCommerce و ارجاع طراحی یا پشتیبانی از مسیرهای تأییدشده است.', height: 330, width: 540 }, [0, 400])
+    node('Release Notes', 'n8n-nodes-base.stickyNote', 1, { content: '## gpante.com — AI Support\nنسخهٔ ۱٫۱۱٫۱ — پیش‌نویس احراز هویت‌شده\n\nمحاسبه و گزارش هزینه در ماه تقویمی UTC، بدون سقف ماهانه پس از migration 010.\nرزرو حسابداری هر فراخوانی: ۰٫۳۲ دلار؛ تسویه بر اساس usage.\nحداکثر ۴ تماس مدل، ۳ ابزار ترتیبی و ۲ گفتگوی هم‌زمان.\nآرشیو مدیریتی مستقل ۳۰روزه؛ سیاست تاریخچه ۳، ۷، ۱۵ یا ۳۰ روز. حذف کاربر فقط دسترسی/زمینه را می‌بندد.\nمسیر FAQ برای پرسش عمومی خرید و تحویل دقیق‌تر است. درخواست ابزار معتبرِ بیش‌ازظرفیت بعد از تسویه، پاسخ جایگزین دریافت می‌کند.', height: 330, width: 540 }, [0, 400])
   ];
   const connections = {};
   const link = (from, to, branch = 0) => {
@@ -94,7 +94,7 @@ function build() {
     n.position = [position[0] + 220, position[1] + 140];
   });
   return { name: 'gpante.com — AI Support — Main', active: false,
-    description: 'نسخهٔ ۱٫۱۱٫۰: راهنمای مستند تحویل و دانلود، ارجاع روشن به پشتیبانی و محاسبهٔ ماهانهٔ هزینه بدون سقف پس از migration 010. اتصال‌ها، سه ابزار/چهار تماس و آرشیو ۳۰روزه محفوظ‌اند.',
+    description: 'نسخهٔ ۱٫۱۱٫۱: مسیر دقیق‌تر FAQ برای خرید و تحویل، و پاسخ جایگزین برای درخواست معتبر ابزار بیش‌ازظرفیت. سه ابزار/چهار تماس، محاسبهٔ هزینه بدون سقف و آرشیو ۳۰روزه حفظ می‌شوند.',
     nodes, connections, settings: { executionOrder: 'v1', timezone: 'Asia/Tehran', executionTimeout: 150,
       saveDataSuccessExecution: 'none', saveDataErrorExecution: 'none', saveManualExecutions: false, callerPolicy: 'workflowsFromSameOwner' } };
 }

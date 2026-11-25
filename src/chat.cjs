@@ -77,11 +77,56 @@ function replyText(value) {
 }
 
 function customDesignIntent(text) {
-  return /(?:طراحی|طرح)\s*(?:اختصاصی|سفارشی)|سفارش\s*(?:طرح|طراحی)/.test(replyText(text));
+  const q = replyText(text);
+  return /(?:طراحی|طرح)\s*(?:اختصاصی|سفارشی)/.test(q)
+    || /سفارش\s*(?:طرح|طراحی)/.test(q) && publicFaqTopic(q) !== 'سفارش طرح';
 }
 
 function deliveryFollowup(text) {
   return /^(?:(?:ارسال|تحویل)(?:ش| آن)?\s*(?:چی|چه|چطور)|(?:کی|چه وقت|چه زمانی)\s*(?:به دستم )?می\s*رس[هد]|(?:فایل|طرح)(?: را| رو)?\s+از کجا\s+(?:بگیر|دریافت))/.test(replyText(text));
+}
+
+function publicFaqTopic(text) {
+  const q = replyText(text).replace(/[؟?!\.]+$/, '').trim();
+  if (/^(?:روش|نحوه(?: ی)?|روال|مراحل|راهنمای) (?:خرید|ثبت سفارش|سفارش)(?: (?:طرح(?: ها)?|فایل(?: طراحی)?))?(?: (?:از|در) (?:این )?سایت)?(?: (?:چیه|چطوره|چیست|چگونه است))?$/.test(q)
+    || /^(?:چطور|چگونه|از کجا) (?:می ?تونم |می ?توانم |می ?شه |می ?شود )?(?:فایل(?: طراحی)?|طرح(?: ها)?)(?: را| رو)? (?:بخرم|خرید کنم|سفارش بدهم|سفارش بدم)$/.test(q)
+    || /^(?:فایل(?: طراحی)?|طرح(?: ها)?)(?: را| رو)? (?:چطور|چگونه|از کجا) (?:بخرم|خرید کنم|سفارش بدهم|سفارش بدم)$/.test(q)) return 'سفارش طرح';
+  if (/^(?:آیا )?(?:ارسال پستی (?:دارید|دارین|داری)|ارسالتون (?:پستیه|پستی است)|(?:با )?پست (?:ارسال می ?کنید|می ?فرستید)|ماکت آماده (?:ارسال می ?کنید|می ?فرستید)|(?:فایل|طرح|سفارش) ها (?:هم )?(?:ارسال پستی دارند|پستی ارسال می ?شوند)|(?:روش|نحوه(?: ی)?) (?:ارسال|تحویل) (?:طرح(?: ها)?|فایل(?: ها)?|سفارش(?: ها)?)(?: (?:چیه|چطوره|چیست|چگونه است))?)$/.test(q)
+    || /^(?:آیا )?با پست (?:ارسال|می ?فرست)/.test(q)
+      && / یا (?:(?:لینک )?دانلود|فایل) (?:تحویل|دریافت|می ?ده|می ?رس|می ?آد|میاد)/.test(q)) return 'تحویل فایل';
+  if (/خریدم|(?:خرید|پرداخت) کرد(?:م|ه ام)|(?:بعد|پس) از (?:خرید|پرداخت)|از (?:حسابم|کارتم).{0,20}(?:کم|کسر) شد/.test(q)
+    && (/(?:دانلود|فایل)(?: (?:رو|را|برام|برای من|هنوز)){0,3} (?:نیومد|نیامد|نرسید|نیست|ندارم|نمی ?بینم|پیدا نمی ?کنم|پیدا نکردم|خطا)/.test(q)
+      || /(?:نمی ?توانم|نمی ?تونم|نتوانستم|نتونستم) (?:فایل (?:رو |را )?)?دانلود/.test(q))) return 'فایل را ندیدم';
+  return null;
+}
+
+function firstPublicFaqTopic(state, required = requiredSource(state)) {
+  if (required !== 'faq' || state.evidence?.some(e => e.name === 'Knowledge_Search' && e.source === 'faq' && e.status !== 'invalid_query')) return null;
+  const q = replyText(state.chatInput);
+  if (/\d|رایگان|قیمت|لغو|بازپرداخت|مرجوع|پس گرفتن پول|متن قوانین|مجوز|لایسنس|ثبت نام|خرید مهمان|بدون حساب|ایمیل|تلفن|حساب کاربری|دوره|آموزش|کورل|corel|dxf|cdr|svg|pdf|اختصاصی|سفارشی|پیگیری|کد رهگیری| و (?:چطور|چگونه|آیا|چرا|می ?خوا)/.test(q)) return null;
+  return publicFaqTopic(q);
+}
+
+function withPublicFaqTopic(state, calls) {
+  let topic = firstPublicFaqTopic(state);
+  if (!topic) return calls;
+  const broadSearch = {
+    'سفارش طرح': /^(?:سفارش|خرید|روش خرید|نحوه(?: ی)? خرید|راهنمای خرید|خرید فایل)$/,
+    'تحویل فایل': /^(?:ارسال|تحویل|ارسال پستی|پست|ماکت آماده|کالای فیزیکی)$/,
+    'فایل را ندیدم': /^(?:دانلود|لینک دانلود|مشکل دانلود|پرداخت|خرید فایل)$/,
+  };
+  return calls.map(call => {
+    if (!topic || call.function.name !== 'Knowledge_Search') return call;
+    let query;
+    try { query = JSON.parse(call.function.arguments); } catch { return call; }
+    if (query?.source !== 'faq') return call;
+    const canonical = topic;
+    topic = null;
+    if (![undefined, 1, '1'].includes(query.page) || query.search !== undefined && typeof query.search !== 'string') return call;
+    const search = replyText(query.search);
+    if (search === canonical || search && publicFaqTopic(search) !== canonical && !broadSearch[canonical].test(search)) return call;
+    return { ...call, function: { ...call.function, arguments: JSON.stringify({ ...query, search: canonical }) } };
+  });
 }
 
 // Only high-confidence intents are gated; ambiguous questions still use the normal tool loop.
@@ -99,11 +144,13 @@ function requiredSource(state, text = state.chatInput, followup = true) {
   if (/ثبت نام|حساب کاربری|خرید مهمان|بدون حساب|(?:ایمیل|ای میل|email).*(?:ندار|خرید|اجبار|لازم|الزام)|(?:بدون|خرید|اجبار).*(?:ایمیل|ای میل|email)|آموزش.*(?:خرید|پرداخت)|(?:خرید|پرداخت).*آموزش/.test(q)) return 'faq';
   if (/https:\/\/gpante\.com\/product\//.test(q)
     || /قیمت/.test(q) && /طرح|محصول|باکس|جعبه|استند|ماکت|فایل/.test(q)) return 'products';
-  if (/^(?:آیا )?با پست (?:ارسال|می ?فرست)/.test(q)
-    && / یا (?:(?:لینک )?دانلود|فایل) (?:تحویل|دریافت|می ?ده|می ?رس|می ?آد|میاد)/.test(q)) return 'faq';
-  if (/خریدم|(?:خرید|پرداخت) کرد(?:م|ه ام)|(?:بعد|پس) از (?:خرید|پرداخت)|از (?:حسابم|کارتم).{0,20}(?:کم|کسر) شد/.test(q)
-    && (/(?:دانلود|فایل)(?: (?:رو|را|برام|برای من|هنوز)){0,3} (?:نیومد|نیامد|نرسید|نیست|ندارم|نمی ?بینم|پیدا نمی ?کنم|پیدا نکردم|خطا)/.test(q)
-      || /(?:نمی ?توانم|نمی ?تونم|نتوانستم|نتونستم) (?:فایل (?:رو |را )?)?دانلود/.test(q))) return 'faq';
+  const faqTopic = publicFaqTopic(q);
+  if (faqTopic === 'تحویل فایل' && followup && /^(?:آیا )?(?:ارسال پستی (?:دارید|دارین|داری)|ارسالتون (?:پستیه|پستی است)|(?:با )?پست (?:ارسال می ?کنید|می ?فرستید))[؟?!\.]*$/.test(q)) {
+    const current = state.messages?.findLastIndex(message => message.role === 'user');
+    const prior = current > 0 ? state.messages[current - 1] : null;
+    if (prior?.role === 'assistant' && /https:\/\/gpante\.com\/product\//.test(prior.content)) return null;
+  }
+  if (faqTopic) return 'faq';
   if (/خرید|خریدم|پرداخت/.test(q) && /شامل.*(?:ماکت آماده|کالای فیزیکی|مواد اولیه|فایل (?:طراحی )?(?:دانلودی|قابل دانلود|دیجیتال))/.test(q)
     || /خریدم|(?:خرید|پرداخت) کرد(?:م|ه ام)|(?:بعد|پس) از (?:خرید|پرداخت)/.test(q)
       && /(?:چی|چه چیزی).*(?:دریافت|تحویل)/.test(q)) return 'faq';
@@ -276,7 +323,7 @@ function groundingError(state, output) {
   const allowed = new Set(results.flatMap(r => [r.url, ...(r.links || []).map(l => l.url)]));
   const links = [...output.matchAll(/(?:https:\/\/|tel:)[^\s<>()[\]]+/g)];
   // Static support navigation is permitted without retrieval, never product/FAQ facts.
-  const navigation = new Set([CONTACT_URL, 'https://gpante.com/my-account/', DESIGNER_CALL_URI]);
+  const navigation = new Set([CONTACT_URL, 'https://gpante.com/my-account/', 'https://gpante.com/faq-ai/', DESIGNER_CALL_URI]);
   if (links.some(m => !allowed.has(m[0]) && !navigation.has(m[0]))) return 'unverified_reference';
   const reads = required ? relevant : evidence;
   const incomplete = reads.some(e => e.ok && e.source === 'site' && (e.coverage?.complete === false || e.status === 'incomplete_source'));
@@ -418,7 +465,8 @@ function modelRequest(state, system) {
   const required = requiredSource(state);
   const source = required === 'product_categories' ? 'Category_Search source=products' : required === 'article_categories' ? 'Category_Search source=articles'
     : required === 'products' ? 'Product_Search یا Product_Details' : 'Knowledge_Search source=' + required;
-  if (required) body.messages.push({ role: 'system', content: 'کنترل منبع این پرسش: ' + source + '. پیش از ادعای اختصاصی، منبع مناسب را در همین نوبت بخوان؛ نتیجهٔ خالی یا خطای خواندن را صادقانه اعلام کن. مرجع دقیقِ بازیابی‌شده را همراه پاسخ بده.' });
+  const topic = firstPublicFaqTopic(state, required);
+  if (required) body.messages.push({ role: 'system', content: 'کنترل منبع این پرسش: ' + source + (topic ? '، نخست در صفحهٔ اول با search="' + topic + '"' : '') + '. پیش از ادعای اختصاصی، منبع مناسب را در همین نوبت بخوان؛ نتیجهٔ خالی یا خطای خواندن را صادقانه اعلام کن. مرجع دقیقِ بازیابی‌شده را همراه پاسخ بده.' });
   if (JSON.stringify(body).length > 96000) return { ...state, ...failure('context_limit') };
   return { ...state, callIndex: state.callIndex + 1, body };
 }
@@ -496,14 +544,19 @@ function modelResult(state, response) {
       : typeof choice.finish_reason === 'string' && Object.hasOwn(reasons, choice.finish_reason) ? reasons[choice.finish_reason] : 'model_finish_unexpected');
   }
   if (!Array.isArray(calls) || !calls.length) return rejected('model_tool_calls_missing');
-  if (state.callIndex >= 4 || calls.length > 3 || state.toolCount + calls.length > 3) return rejected('model_tool_limit');
+  if (calls.length > 3) return rejected('model_tool_limit');
   if (calls.some(c => !c || typeof c.id !== 'string' || !/^[\w-]{1,128}$/.test(c.id))) return rejected('model_tool_invalid_id');
   if (new Set(calls.map(c => c.id)).size !== calls.length) return rejected('model_tool_duplicate_id');
   if (calls.some(c => c.type !== 'function')) return rejected('model_tool_invalid_type');
   if (calls.some(c => !TOOLS.some(t => t.function.name === c.function?.name))) return rejected('model_tool_unknown_name');
   if (calls.some(c => typeof c.function.arguments !== 'string' || c.function.arguments.length > 6000)) return rejected('model_tool_invalid_arguments');
-  return { ...next, toolCount: state.toolCount + calls.length, toolsPending: true, pendingTool: calls[0], pendingTools: calls.slice(1),
-    messages: [...state.messages, { role: 'assistant', content: typeof message.content === 'string' ? message.content.slice(0, 8000) : null, tool_calls: calls }] };
+  if (state.callIndex >= 4 || state.toolCount + calls.length > 3) {
+    const reason = 'model_tool_limit';
+    return completeReply({ ...next, fallbackReason: reason }, groundingFallback(state, reason));
+  }
+  const requested = withPublicFaqTopic(state, calls);
+  return { ...next, toolCount: state.toolCount + requested.length, toolsPending: true, pendingTool: requested[0], pendingTools: requested.slice(1),
+    messages: [...state.messages, { role: 'assistant', content: typeof message.content === 'string' ? message.content.slice(0, 8000) : null, tool_calls: requested }] };
 }
 
 function settled(state, result) {

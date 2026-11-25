@@ -119,8 +119,24 @@ test('invalid batches execute no tools and expose only fixed technical reason co
     assert(!JSON.stringify(parsed.response).includes('private provider text'));
     assert.match(code, /^[a-z_]{1,64}$/);
   }
-  assert.equal(modelResult({ ...state, toolCount: 2 }, response({ tool_calls: [call, { ...call, id: 'call_2' }] }, 'tool_calls')).response.error.code, 'model_tool_limit');
-  assert.equal(modelResult({ ...state, callIndex: 4 }, response({ tool_calls: [call] }, 'tool_calls')).response.error.code, 'model_tool_limit');
+  const unknown = { ...call, function: { name: 'Unknown_Tool', arguments: '{}' } };
+  assert.equal(modelResult({ ...state, callIndex: 4 }, response({ tool_calls: [unknown] }, 'tool_calls')).response.error.code, 'model_tool_unknown_name');
+});
+
+test('a valid batch in the reply-only round falls back without exposing provider text', () => {
+  const state = modelRequest({ ...start(), callIndex: 3 }, 'system');
+  const call = { id: 'call_1', type: 'function', function: { name: 'Product_Search', arguments: '{"search":"باکس"}' } };
+  const parsed = modelResult(state, response({ content: 'private provider text', tool_calls: [call] }, 'tool_calls'));
+  assert.equal(state.body.tool_choice, 'none');
+  assert.equal(parsed.fallbackReason, 'model_tool_limit');
+  assert.equal(parsed.done, true);
+  assert.equal(parsed.pendingTool, undefined);
+  assert.equal(parsed.toolCount, 0);
+  assert.deepEqual(parsed.usage, { prompt: 20, completion: 5, total: 25 });
+  assert.equal(settled(parsed, { confirmed: true }).status, 200);
+  assert.equal(settled(parsed, {}).response.error.code, 'accounting_unavailable');
+  assert.doesNotMatch(parsed.response.output, /private provider text/);
+  assert.match(parsed.response.output, /https:\/\/gpante\.com\//);
 });
 
 test('provider failure diagnostics remain precise after conservative accounting', () => {

@@ -30,6 +30,54 @@ test('missing downloads after payment use FAQ without capturing a fresh product 
   assert.equal(requiredSource(state('فایل را قبلاً خریدم، این مدل جدید را پیدا نمی‌کنم')), null);
 });
 
+test('clear purchase and public delivery use proven first-page FAQ terms without replacing specialized reads', () => {
+  const request = (id, search, source = 'faq') => ({ id, type: 'function', function: {
+    name: 'Knowledge_Search', arguments: JSON.stringify({ source, search })
+  } });
+  const run = (s, calls) => modelResult(s, { statusCode: 200, body: {
+    usage: { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
+    choices: [{ finish_reason: 'tool_calls', message: { tool_calls: calls } }]
+  } });
+  const search = call => JSON.parse(call.function.arguments).search;
+  for (const [question, broad, canonical] of [
+    ['نحوه خرید از این سایت چطوره؟', 'نحوه خرید', 'سفارش طرح'],
+    ['روش ثبت سفارش طرح چیست؟', 'راهنمای خرید', 'سفارش طرح'],
+    ['آیا ارسال پستی دارید؟', 'ارسال پستی', 'تحویل فایل'],
+    ['پرداخت کردم ولی لینک دانلود نیومده', 'دانلود', 'فایل را ندیدم'],
+  ]) {
+    const s = state(question);
+    assert.equal(requiredSource(s), 'faq', question);
+    assert(modelRequest(s, 'system').body.messages.some(m => m.content.includes(`search="${canonical}"`)), question);
+    const parsed = run(s, [request('one', broad), request('two', 'بازپرداخت')]);
+    assert.equal(search(parsed.pendingTool), canonical, question);
+    assert.equal(search(parsed.pendingTools[0]), 'بازپرداخت');
+    assert.deepEqual(parsed.messages.at(-1).tool_calls[0], parsed.pendingTool);
+    assert.equal(search(run(s, [request('exact', canonical), request('other', broad)]).pendingTools[0]), broad);
+    assert.equal(search(run(s, [request('three', 'ارسال باکس هدیه ستاره')]).pendingTool), 'ارسال باکس هدیه ستاره');
+    assert.equal(search(run(s, [request('four', broad, 'site')]).pendingTool), broad);
+    assert.equal(search(run(state(question, [facts('faq', [])]), [request('five', broad)]).pendingTool), broad);
+  }
+  for (const question of ['شرایط خرید از سایت چیه؟', 'قوانین خرید طرح چیست؟',
+    'پرداخت کردم ولی لینک دانلود نیومده و می‌خواهم درخواست بازپرداخت بدم']) {
+    assert.equal(search(run(state(question), [request('qualified', 'بازپرداخت')]).pendingTool), 'بازپرداخت');
+  }
+  const followup = 'آیا با پست ارسال می‌کنید؟';
+  const context = { ...state(followup), messages: [{ role: 'user', content: 'محصول باکس هدیه را نشان بده' },
+    { role: 'assistant', content: `این گزینه را ببینید: [باکس](${product.url})` }, { role: 'user', content: followup }] };
+  assert.equal(requiredSource(context), null);
+  assert.equal(search(run(context, [request('related', 'ارسال باکس هدیه')]).pendingTool), 'ارسال باکس هدیه');
+});
+
+test('generic order instructions do not add the custom designer contact and FAQ misses can offer the FAQ page', () => {
+  const question = 'راهنمای سفارش طرح';
+  const s = state(question, [facts('faq', [faq])]);
+  const r = modelResult(s, { statusCode: 200, body: { usage: { prompt_tokens: 8, completion_tokens: 2, total_tokens: 10 },
+    choices: [{ finish_reason: 'stop', message: { content: '[راهنما](' + faq.url + ')' } }] } });
+  assert.equal(r.success, true);
+  assert(!r.response.output.includes('tel:'));
+  assert.equal(groundingError(state(question, [facts('faq', [])]), 'پاسخ مرتبطی پیدا نکردم.\n[پرسش‌های متداول](https://gpante.com/faq-ai/)'), null);
+});
+
 test('practical design purchase and download guidance requires current FAQ evidence', () => {
   const questions = ['آیا خرید طرح، شامل ماکت آماده است؟', 'بعد از خرید چی دریافت می‌کنم؟',
     'پس از پرداخت چه چیزی دریافت می‌کنم؟', 'خریدم؛ چه چیزی دریافت می‌کنم؟',
